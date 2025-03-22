@@ -1,32 +1,65 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Tabs } from "expo-router"
-import { theme } from "../../constants/theme"
+import React, { useEffect, useState } from "react"
+import { useTheme } from "../../context/ThemeContext"
+import { supabase } from "../../lib/supabase"
 
 export default function TabLayout() {
+  const { theme, isDarkMode } = useTheme()
+  const [isHostAuthenticated, setIsHostAuthenticated] = useState(false)
+
+  useEffect(() => {
+    // Check if user is authenticated
+    const checkAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        setIsHostAuthenticated(!!data.session)
+      } catch (error) {
+        console.error("Error checking auth in tab layout:", error)
+        setIsHostAuthenticated(false)
+      }
+    }
+
+    checkAuth()
+
+    // Set up auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setIsHostAuthenticated(!!session)
+      }
+    )
+
+    return () => {
+      // Clean up the subscription
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe()
+      }
+    }
+  }, [])
+
   return (
     <Tabs
+      initialRouteName="program"
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.text.secondary,
-        headerStyle: {
-          backgroundColor: theme.colors.background
-        },
-        headerTitleStyle: {
-          color: theme.colors.text.primary
-        },
         tabBarStyle: {
           backgroundColor: theme.colors.background,
           borderTopColor: theme.colors.border
         },
-        headerSafeAreaInsets: { top: 44 } // Add safe area insets for status bar
+        headerStyle: {
+          backgroundColor: theme.colors.background
+        },
+        headerTintColor: theme.colors.text.primary,
+        headerShadowVisible: false
       }}
     >
       <Tabs.Screen
         name="program"
         options={{
           title: "Program",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="calendar" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={size} color={color} />
           )
         }}
       />
@@ -34,8 +67,8 @@ export default function TabLayout() {
         name="maps"
         options={{
           title: "Maps",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="map" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="map" size={size} color={color} />
           )
         }}
       />
@@ -43,8 +76,8 @@ export default function TabLayout() {
         name="services"
         options={{
           title: "Services",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="help-buoy" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="help-buoy" size={size} color={color} />
           )
         }}
       />
@@ -52,10 +85,21 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="person" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
           )
         }}
+      />
+
+      <Tabs.Screen
+        name="host"
+        options={{
+          title: "Host",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield" size={size} color={color} />
+          )
+        }}
+        href={isHostAuthenticated ? "/host" : null}
       />
     </Tabs>
   )

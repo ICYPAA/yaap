@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
-import { theme } from "../../constants/theme"
+import { useTheme } from "../../context/ThemeContext"
 
 // Import programData
 import { programData } from "../../data/programData"
@@ -141,20 +141,22 @@ const openMaps = (address: string) => {
 const ImageViewer = ({
   visible,
   image,
-  onClose
+  onClose,
+  theme
 }: {
   visible: boolean
   image: string
   onClose: () => void
+  theme: any
 }) => (
   <Modal visible={visible} transparent animationType="fade">
-    <View style={styles.modalContainer as any}>
-      <TouchableOpacity style={styles.closeButton as any} onPress={onClose}>
+    <View style={styles(theme).modalContainer}>
+      <TouchableOpacity style={styles(theme).closeButton} onPress={onClose}>
         <Ionicons name="close" size={30} color={theme.colors.background} />
       </TouchableOpacity>
       <Image
         source={{ uri: image }}
-        style={styles.fullImage as any}
+        style={styles(theme).fullImage}
         resizeMode="contain"
       />
     </View>
@@ -164,32 +166,36 @@ const ImageViewer = ({
 // Map carousel item component
 const MapItem = ({
   item,
-  onPress
+  onPress,
+  theme
 }: {
   item: { title: string; image: string; description: string }
   onPress: () => void
+  theme: any
 }) => (
-  <TouchableOpacity onPress={onPress} style={styles.mapItem as any}>
-    <Image source={{ uri: item.image }} style={styles.mapImage as any} />
-    <Text style={styles.mapTitle as any}>{item.title}</Text>
-    <Text style={styles.mapDescription as any}>{item.description}</Text>
+  <TouchableOpacity onPress={onPress} style={styles(theme).mapItem}>
+    <Image source={{ uri: item.image }} style={styles(theme).mapImage} />
+    <Text style={styles(theme).mapTitle}>{item.title}</Text>
+    <Text style={styles(theme).mapDescription}>{item.description}</Text>
   </TouchableOpacity>
 )
 
 // Amenities card component
 const AmenitiesCard = ({
-  amenities
+  amenities,
+  theme
 }: {
   amenities: typeof mapData.venue.amenities
+  theme: any
 }) => (
-  <View style={styles.amenitiesCard as any}>
-    <Text style={styles.cardTitle as any}>Venue Amenities</Text>
+  <View style={styles(theme).amenitiesCard}>
+    <Text style={styles(theme).cardTitle}>Venue Amenities</Text>
     {Object.entries(amenities).map(([key, value]) => (
-      <View key={key} style={styles.amenityItem as any}>
-        <Text style={styles.amenityTitle as any}>
+      <View key={key} style={styles(theme).amenityItem}>
+        <Text style={styles(theme).amenityTitle}>
           {key.charAt(0).toUpperCase() + key.slice(1)}
         </Text>
-        <Text style={styles.amenityDescription as any}>
+        <Text style={styles(theme).amenityDescription}>
           {typeof value === "object" ? value.description : value}
         </Text>
       </View>
@@ -199,19 +205,21 @@ const AmenitiesCard = ({
 
 // Travel times card component
 const TravelTimesCard = ({
-  times
+  times,
+  theme
 }: {
   times: typeof mapData.transportation.travelTimes
+  theme: any
 }) => (
-  <View style={styles.travelTimesCard as any}>
-    <Text style={styles.cardTitle as any}>Travel Times</Text>
+  <View style={styles(theme).travelTimesCard}>
+    <Text style={styles(theme).cardTitle}>Travel Times</Text>
     {Object.entries(times).map(([key, value]) => (
-      <View key={key} style={styles.travelTimeItem as any}>
-        <Text style={styles.travelTimeTitle as any}>
+      <View key={key} style={styles(theme).travelTimeItem}>
+        <Text style={styles(theme).travelTimeTitle}>
           {key.charAt(0).toUpperCase() + key.slice(1)}
         </Text>
         {Object.entries(value).map(([subKey, subValue]) => (
-          <Text key={subKey} style={styles.travelTimeDetail as any}>
+          <Text key={subKey} style={styles(theme).travelTimeDetail}>
             • {subKey}: {subValue}
           </Text>
         ))}
@@ -224,62 +232,74 @@ const TravelTimesCard = ({
 export default function Maps() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const screenWidth = Dimensions.get("window").width
+  const { theme } = useTheme()
 
   return (
-    <ScrollView style={styles.container as any}>
+    <ScrollView style={styles(theme).container}>
       {/* Venue Section */}
-      <View style={styles.section as any}>
-        <Text style={styles.sectionTitle as any}>Venue Maps</Text>
+      <View style={styles(theme).section}>
+        <Text style={styles(theme).sectionTitle}>Venue Maps</Text>
         <FlatList
           data={mapData.venue.maps}
           renderItem={({ item }) => (
-            <MapItem item={item} onPress={() => setSelectedImage(item.image)} />
+            <MapItem
+              item={item}
+              onPress={() => setSelectedImage(item.image)}
+              theme={theme}
+            />
           )}
           horizontal
           showsHorizontalScrollIndicator={false}
           snapToAlignment="start"
           decelerationRate="fast"
           snapToInterval={screenWidth - 40}
-          contentContainerStyle={styles.mapList as any}
+          contentContainerStyle={styles(theme).mapList}
         />
-        <AmenitiesCard amenities={mapData.venue.amenities} />
+        <AmenitiesCard amenities={mapData.venue.amenities} theme={theme} />
       </View>
 
       {/* Transportation Section */}
-      <View style={styles.section as any}>
-        <Text style={styles.sectionTitle as any}>Transportation</Text>
+      <View style={styles(theme).section}>
+        <Text style={styles(theme).sectionTitle}>Transportation</Text>
         <FlatList
           data={mapData.transportation.maps}
           renderItem={({ item }) => (
-            <MapItem item={item} onPress={() => setSelectedImage(item.image)} />
+            <MapItem
+              item={item}
+              onPress={() => setSelectedImage(item.image)}
+              theme={theme}
+            />
           )}
           horizontal
           showsHorizontalScrollIndicator={false}
           snapToAlignment="start"
           decelerationRate="fast"
           snapToInterval={screenWidth - 40}
-          contentContainerStyle={styles.mapList as any}
+          contentContainerStyle={styles(theme).mapList}
         />
-        <TravelTimesCard times={mapData.transportation.travelTimes} />
+        <TravelTimesCard
+          times={mapData.transportation.travelTimes}
+          theme={theme}
+        />
       </View>
 
       {/* Activities Section - New */}
-      <View style={styles.section as any}>
-        <Text style={styles.sectionTitle as any}>Local Activities</Text>
+      <View style={styles(theme).section}>
+        <Text style={styles(theme).sectionTitle}>Local Activities</Text>
         <FlatList
           data={programData.activities}
           renderItem={({ item }) => (
-            <View style={styles.activityCard as any}>
-              <View style={styles.activityHeader as any}>
+            <View style={styles(theme).activityCard}>
+              <View style={styles(theme).activityHeader}>
                 <View>
-                  <Text style={styles.activityCategory as any}>
+                  <Text style={styles(theme).activityCategory}>
                     {item.category}
                   </Text>
-                  <Text style={styles.activityTitle as any}>{item.title}</Text>
+                  <Text style={styles(theme).activityTitle}>{item.title}</Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => openMaps(item.location)}
-                  style={styles.mapButton as any}
+                  style={styles(theme).mapButton}
                 >
                   <Ionicons
                     name="map-outline"
@@ -288,13 +308,13 @@ export default function Maps() {
                   />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.activityLocation as any}>
+              <Text style={styles(theme).activityLocation}>
                 {item.location}
               </Text>
-              <Text style={styles.activityDistance as any}>
+              <Text style={styles(theme).activityDistance}>
                 {item.distance}
               </Text>
-              <Text style={styles.activityDescription as any}>
+              <Text style={styles(theme).activityDescription}>
                 {item.description}
               </Text>
             </View>
@@ -304,7 +324,7 @@ export default function Maps() {
           snapToAlignment="start"
           decelerationRate="fast"
           snapToInterval={screenWidth - 40}
-          contentContainerStyle={styles.mapList as any}
+          contentContainerStyle={styles(theme).mapList}
         />
       </View>
 
@@ -312,152 +332,163 @@ export default function Maps() {
         visible={!!selectedImage}
         image={selectedImage || ""}
         onClose={() => setSelectedImage(null)}
+        theme={theme}
       />
     </ScrollView>
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background
-  },
-  section: {
-    padding: theme.spacing.lg
-  },
-  sectionTitle: {
-    ...theme.typography.h1,
-    marginBottom: theme.spacing.lg,
-    color: theme.colors.text.primary
-  },
-  mapList: {
-    paddingHorizontal: theme.spacing.sm
-  },
-  mapItem: {
-    width: Dimensions.get("window").width - 80,
-    marginHorizontal: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    overflow: "hidden",
-    ...theme.shadows.small
-  },
-  mapImage: {
-    width: "100%",
-    height: 200,
-    backgroundColor: theme.colors.border // Placeholder color
-  },
-  mapTitle: {
-    ...theme.typography.h2,
-    padding: theme.spacing.md,
-    color: theme.colors.text.primary
-  },
-  mapDescription: {
-    ...theme.typography.body,
-    padding: theme.spacing.md,
-    paddingTop: 0,
-    color: theme.colors.text.secondary
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
-    justifyContent: "center",
-    alignItems: "center"
-  },
-  closeButton: {
-    position: "absolute",
-    top: 40,
-    right: 20,
-    zIndex: 1
-  },
-  fullImage: {
-    width: "100%",
-    height: "80%"
-  },
-  amenitiesCard: {
-    marginTop: theme.spacing.lg,
-    padding: theme.spacing.lg,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    ...theme.shadows.small
-  },
-  cardTitle: {
-    ...theme.typography.h2,
-    marginBottom: theme.spacing.md,
-    color: theme.colors.text.primary
-  },
-  amenityItem: {
-    marginBottom: theme.spacing.md
-  },
-  amenityTitle: {
-    ...theme.typography.body,
-    fontWeight: "bold",
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs
-  },
-  amenityDescription: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary
-  },
-  travelTimesCard: {
-    marginTop: theme.spacing.lg,
-    padding: theme.spacing.lg,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    ...theme.shadows.small
-  },
-  travelTimeItem: {
-    marginBottom: theme.spacing.md
-  },
-  travelTimeTitle: {
-    ...theme.typography.body,
-    fontWeight: "bold",
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs
-  },
-  travelTimeDetail: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary,
-    marginLeft: theme.spacing.sm
-  },
-  activityCard: {
-    width: Dimensions.get("window").width - 80,
-    marginHorizontal: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    ...theme.shadows.small
-  },
-  activityHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: theme.spacing.sm
-  },
-  activityCategory: {
-    ...theme.typography.caption,
-    color: theme.colors.primary,
-    fontWeight: "bold",
-    textTransform: "uppercase"
-  },
-  activityTitle: {
-    ...theme.typography.h2,
-    color: theme.colors.text.primary
-  },
-  mapButton: {
-    padding: theme.spacing.xs
-  },
-  activityLocation: {
-    ...theme.typography.body,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs
-  },
-  activityDistance: {
-    ...theme.typography.caption,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm
-  },
-  activityDescription: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary
-  }
-})
+// Define shadow styles separately to avoid TypeScript errors
+const shadowStyles = {
+  shadowColor: "#000000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3
+}
+
+const styles = (theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background
+    },
+    section: {
+      padding: theme.spacing.lg
+    },
+    sectionTitle: {
+      ...theme.typography.h1,
+      marginBottom: theme.spacing.lg,
+      color: theme.colors.text.primary
+    },
+    mapList: {
+      paddingHorizontal: theme.spacing.sm
+    },
+    mapItem: {
+      width: Dimensions.get("window").width - 80,
+      marginHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      overflow: "hidden",
+      ...shadowStyles
+    },
+    mapImage: {
+      width: "100%",
+      height: 200,
+      backgroundColor: theme.colors.border // Placeholder color
+    },
+    mapTitle: {
+      ...theme.typography.h2,
+      padding: theme.spacing.md,
+      color: theme.colors.text.primary
+    },
+    mapDescription: {
+      ...theme.typography.body,
+      padding: theme.spacing.md,
+      paddingTop: 0,
+      color: theme.colors.text.secondary
+    },
+    modalContainer: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.9)",
+      justifyContent: "center",
+      alignItems: "center"
+    },
+    closeButton: {
+      position: "absolute",
+      top: 40,
+      right: 20,
+      zIndex: 1
+    },
+    fullImage: {
+      width: "100%",
+      height: "80%"
+    },
+    amenitiesCard: {
+      marginTop: theme.spacing.lg,
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      ...shadowStyles
+    },
+    cardTitle: {
+      ...theme.typography.h2,
+      marginBottom: theme.spacing.md,
+      color: theme.colors.text.primary
+    },
+    amenityItem: {
+      marginBottom: theme.spacing.md
+    },
+    amenityTitle: {
+      ...theme.typography.body,
+      fontWeight: "bold",
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.xs
+    },
+    amenityDescription: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary
+    },
+    travelTimesCard: {
+      marginTop: theme.spacing.lg,
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      ...shadowStyles
+    },
+    travelTimeItem: {
+      marginBottom: theme.spacing.md
+    },
+    travelTimeTitle: {
+      ...theme.typography.body,
+      fontWeight: "bold",
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.xs
+    },
+    travelTimeDetail: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      marginLeft: theme.spacing.sm
+    },
+    activityCard: {
+      width: Dimensions.get("window").width - 80,
+      marginHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      padding: theme.spacing.md,
+      ...shadowStyles
+    },
+    activityHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: theme.spacing.sm
+    },
+    activityCategory: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+      fontWeight: "bold",
+      textTransform: "uppercase"
+    },
+    activityTitle: {
+      ...theme.typography.h2,
+      color: theme.colors.text.primary
+    },
+    mapButton: {
+      padding: theme.spacing.xs
+    },
+    activityLocation: {
+      ...theme.typography.body,
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.xs
+    },
+    activityDistance: {
+      ...theme.typography.caption,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.sm
+    },
+    activityDescription: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary
+    }
+  })

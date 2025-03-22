@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
-import { theme } from "../../../constants/theme"
+import { useTheme } from "../../../context/ThemeContext"
 import { programData } from "../../../data/programData"
 
 // Service section type
@@ -85,35 +85,38 @@ const serviceSections = {
   }
 }
 
-// Service section component
-const ServiceSection = ({
-  title,
-  items
-}: {
-  title: string
-  items: ServiceSection[]
-}) => (
-  <View style={styles.section}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-    {items.map((item) => (
-      <Link key={item.id} href={item.route} asChild>
-        <TouchableOpacity style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name={item.icon as any}
-              size={24}
-              color={theme.colors.primary}
-            />
-            <Text style={styles.cardTitle}>{item.title}</Text>
-          </View>
-          <Text style={styles.cardDescription}>{item.description}</Text>
-        </TouchableOpacity>
-      </Link>
-    ))}
-  </View>
-)
-
 export default function Services() {
+  const { theme } = useTheme()
+  const styles = createStyles(theme)
+
+  // Service section component
+  const ServiceSection = ({
+    title,
+    items
+  }: {
+    title: string
+    items: ServiceSection[]
+  }) => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {items.map((item) => (
+        <Link key={item.id} href={item.route} asChild>
+          <TouchableOpacity style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons
+                name={item.icon as any}
+                size={24}
+                color={theme.colors.primary}
+              />
+              <Text style={styles.cardTitle}>{item.title}</Text>
+            </View>
+            <Text style={styles.cardDescription}>{item.description}</Text>
+          </TouchableOpacity>
+        </Link>
+      ))}
+    </View>
+  )
+
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Services</Text>
@@ -139,80 +142,81 @@ export default function Services() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.lg
-  },
-  title: {
-    ...theme.typography.h1,
-    marginBottom: theme.spacing.xl,
-    color: theme.colors.text.primary,
-    fontWeight: "bold"
-  },
-  section: {
-    marginBottom: theme.spacing.xl
-  },
-  sectionTitle: {
-    ...theme.typography.h2,
-    marginBottom: theme.spacing.lg,
-    color: theme.colors.text.primary,
-    fontWeight: "bold"
-  },
-  card: {
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
-    ...theme.shadows.small
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: theme.spacing.sm
-  },
-  cardTitle: {
-    ...theme.typography.h2,
-    marginLeft: theme.spacing.md,
-    color: theme.colors.text.primary,
-    fontWeight: "bold"
-  },
-  cardDescription: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary
-  },
-  faqItem: {
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
-    ...theme.shadows.small
-  },
-  faqQuestion: {
-    fontSize: 18,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.sm,
-    fontWeight: "bold"
-  },
-  faqAnswer: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary
-  },
-  contactCard: {
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    marginTop: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-    ...theme.shadows.small
-  },
-  contactInfo: {
-    marginTop: theme.spacing.md
-  },
-  contactMethod: {
-    ...theme.typography.body,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.sm
-  }
-})
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      padding: theme.spacing.lg
+    },
+    title: {
+      ...theme.typography.h1,
+      marginBottom: theme.spacing.xl,
+      color: theme.colors.text.primary,
+      fontWeight: "bold"
+    },
+    section: {
+      marginBottom: theme.spacing.xl
+    },
+    sectionTitle: {
+      ...theme.typography.h2,
+      marginBottom: theme.spacing.lg,
+      color: theme.colors.text.primary,
+      fontWeight: "bold"
+    },
+    card: {
+      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.md,
+      marginBottom: theme.spacing.md,
+      ...theme.shadows.small
+    },
+    cardHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: theme.spacing.sm
+    },
+    cardTitle: {
+      ...theme.typography.h2,
+      marginLeft: theme.spacing.md,
+      color: theme.colors.text.primary,
+      fontWeight: "bold"
+    },
+    cardDescription: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary
+    },
+    faqItem: {
+      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.md,
+      marginBottom: theme.spacing.md,
+      ...theme.shadows.small
+    },
+    faqQuestion: {
+      fontSize: 18,
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.sm,
+      fontWeight: "bold"
+    },
+    faqAnswer: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary
+    },
+    contactCard: {
+      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.md,
+      marginTop: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+      ...theme.shadows.small
+    },
+    contactInfo: {
+      marginTop: theme.spacing.md
+    },
+    contactMethod: {
+      ...theme.typography.body,
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.sm
+    }
+  })

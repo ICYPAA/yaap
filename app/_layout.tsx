@@ -5,10 +5,38 @@ import { StatusBar } from "expo-status-bar"
 import { useEffect } from "react"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
-import { theme } from "../constants/theme"
+import { ThemeProvider, useTheme } from "../context/ThemeContext"
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync()
+
+function RootLayoutNav() {
+  const { theme, isDarkMode } = useTheme()
+
+  return (
+    <SafeAreaProvider>
+      <StatusBar style={isDarkMode ? "light" : "dark"} />
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: theme.colors.background
+          },
+          headerTintColor: theme.colors.text.primary,
+          headerTitleStyle: {
+            fontWeight: "bold"
+          },
+          contentStyle: {
+            backgroundColor: theme.colors.background
+          }
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" options={{ title: "Oops!" }} />
+      </Stack>
+    </SafeAreaProvider>
+  )
+}
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -28,25 +56,8 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <Stack
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: theme.colors.background
-          },
-          headerTintColor: theme.colors.text.primary,
-          headerTitleStyle: {
-            fontWeight: "bold"
-          },
-          contentStyle: {
-            backgroundColor: theme.colors.background
-          }
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" options={{ title: "Oops!" }} />
-      </Stack>
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <RootLayoutNav />
+    </ThemeProvider>
   )
 }

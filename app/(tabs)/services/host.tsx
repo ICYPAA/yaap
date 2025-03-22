@@ -1,11 +1,63 @@
-import React from "react"
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { makeRedirectUri } from "expo-auth-session"
+import * as Linking from "expo-linking"
+import * as WebBrowser from "expo-web-browser"
+import React, { useState } from "react"
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { theme } from "../../../constants/theme"
+import { supabase } from "../../../lib/supabase"
 
 export default function HostLogin() {
-  const handleDiscordLogin = () => {
-    // Implement Discord OAuth login
-    console.log("Logging in with Discord...")
+  const [loading, setLoading] = useState(false)
+
+  // Create a redirect URI
+  const redirectUri = makeRedirectUri({
+    scheme: "icypaa",
+    path: "auth/callback"
+  })
+
+  const handleDiscordLogin = async () => {
+    try {
+      setLoading(true)
+
+      // Get the URL to the Supabase OAuth sign in page for Discord
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "discord",
+        options: {
+          redirectTo: redirectUri
+        }
+      })
+
+      if (error) throw error
+
+      // Open the browser for authentication
+      if (data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectUri
+        )
+
+        if (result.type === "success") {
+          // Handle the redirect back to the app
+          const { url } = result
+          const extractedUrl = Linking.parse(url)
+
+          // Exchange the code for a session
+          if (extractedUrl.queryParams?.code) {
+            await supabase.auth.exchangeCodeForSession(
+              extractedUrl.queryParams.code
+            )
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Discord login error:", error)
+      Alert.alert(
+        "Login Error",
+        "An error occurred during login. Please try again."
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -15,8 +67,14 @@ export default function HostLogin() {
         Access host committee features and settings by logging in with your
         Discord account.
       </Text>
-      <TouchableOpacity style={styles.loginButton} onPress={handleDiscordLogin}>
-        <Text style={styles.loginButtonText}>Login with Discord</Text>
+      <TouchableOpacity
+        style={styles.loginButton}
+        onPress={handleDiscordLogin}
+        disabled={loading}
+      >
+        <Text style={styles.loginButtonText}>
+          {loading ? "Logging in..." : "Login with Discord"}
+        </Text>
       </TouchableOpacity>
     </View>
   )
@@ -49,7 +107,6 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   loginButtonText: {
-    ...theme.typography.body,
     color: theme.colors.background,
     fontWeight: "500"
   }

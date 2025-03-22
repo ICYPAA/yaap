@@ -1,52 +1,149 @@
-export const theme = {
-  colors: {
-    primary: "#2E5894", // ICYPAA blue
-    secondary: "#FFA726", // Warm orange for accents
-    background: "#FFFFFF",
-    surface: "#F8F9FA",
-    text: {
-      primary: "#1A1A1A",
-      secondary: "#666666",
-      accent: "#2E5894"
-    },
-    border: "#E1E1E1",
-    shadow: "#000000"
+import { Platform } from "react-native"
+
+// Base colors
+const colors = {
+  primary: "#2b8d9b",
+  primaryDark: "#1e6269",
+  secondary: "#f55654",
+  secondaryDark: "#c13e3c",
+  error: "#f55654",
+  success: "#4caf50",
+  warning: "#fad48a",
+  info: "#a2dfda"
+}
+
+// Typography
+const typography = {
+  h1: {
+    fontSize: 24,
+    fontWeight: "bold"
   },
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32
+  h2: {
+    fontSize: 20,
+    fontWeight: "bold"
   },
-  borderRadius: {
-    sm: 5,
-    md: 10,
-    lg: 15
+  h3: {
+    fontSize: 18,
+    fontWeight: "bold"
   },
-  typography: {
-    h1: {
-      fontSize: 24,
-      fontWeight: "bold"
-    },
-    h2: {
-      fontSize: 20,
-      fontWeight: "bold"
-    },
-    body: {
-      fontSize: 16
-    },
-    caption: {
-      fontSize: 14
-    }
+  body: {
+    fontSize: 16
   },
-  shadows: {
-    small: {
-      shadowColor: "#000000",
+  caption: {
+    fontSize: 14
+  }
+}
+
+// Spacing
+const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32
+}
+
+// Border radius
+const borderRadius = {
+  sm: 4,
+  md: 8,
+  lg: 16,
+  xl: 24
+}
+
+// Shadows
+const shadows = {
+  small: Platform.select({
+    ios: {
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
-      shadowRadius: 4,
+      shadowRadius: 4
+    },
+    android: {
       elevation: 3
+    },
+    default: {}
+  }),
+  medium: Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8
+    },
+    android: {
+      elevation: 5
+    },
+    default: {}
+  }),
+  large: Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12
+    },
+    android: {
+      elevation: 8
+    },
+    default: {}
+  })
+}
+
+// Define the base theme with all shared properties
+const baseTheme = {
+  spacing,
+  borderRadius,
+  typography,
+  shadows
+}
+
+// Light theme
+export const lightTheme = {
+  ...baseTheme,
+  colors: {
+    ...colors,
+    background: "#ffffff",
+    surface: "#f5f5f5",
+    border: "#e0e0e0",
+    text: {
+      primary: "#212121",
+      secondary: "#757575"
     }
   }
 }
+
+// Dark theme
+export const darkTheme = {
+  ...baseTheme,
+  colors: {
+    ...colors,
+    background: "#121212",
+    surface: "#1e1e1e",
+    border: "#333333",
+    text: {
+      primary: "#ffffff",
+      secondary: "#b0b0b0"
+    }
+  },
+  shadows: {
+    ...shadows,
+    small: Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4
+      },
+      android: {
+        elevation: 3
+      },
+      default: {}
+    })
+  }
+}
+
+// Default theme (for backward compatibility)
+export const theme = lightTheme
+export const darkThemeColors = darkTheme.colors
