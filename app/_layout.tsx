@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar"
 import { useEffect } from "react"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
+import { DebugProvider } from "../context/DebugContext"
 import { ThemeProvider, useTheme } from "../context/ThemeContext"
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -57,7 +58,9 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <RootLayoutNav />
+      <DebugProvider>
+        <RootLayoutNav />
+      </DebugProvider>
     </ThemeProvider>
   )
 }

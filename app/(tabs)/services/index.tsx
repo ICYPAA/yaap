@@ -73,13 +73,6 @@ const serviceSections = {
         description: "Need help? Start a chat with our support team.",
         icon: "chatbubbles-outline" as const,
         route: "/(tabs)/services/support"
-      },
-      {
-        id: "host",
-        title: "Host Login",
-        description: "Access host committee features and settings.",
-        icon: "lock-closed-outline" as const,
-        route: "/(tabs)/services/host"
       }
     ]
   }

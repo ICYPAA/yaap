@@ -8,11 +8,30 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useDebug } from "../../../context/DebugContext"
+import { useTheme } from "../../../context/ThemeContext"
+import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+
+interface VolunteerSignup {
+  id: string
+  profiles?: {
+    full_name: string
+    email: string
+  }
+  phone?: string
+  availability: string
+  preferred_role: string
+  additional_info?: string
+  status: string
+  created_at: string
+}
 
 export default function VolunteerSignups() {
   const router = useRouter()
-  const [volunteers, setVolunteers] = useState([])
+  const { theme } = useTheme()
+  const { isDebugMode } = useDebug()
+  const [volunteers, setVolunteers] = useState<VolunteerSignup[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,10 +40,15 @@ export default function VolunteerSignups() {
 
   const fetchVolunteers = async () => {
     try {
-      const { data, error } = await supabase
-        .from("volunteer_signups")
-        .select("*, profiles(full_name, email)")
-        .order("created_at", { ascending: false })
+      const { data, error } = await makeRequest({
+        table: "volunteer_signups",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("volunteer_signups")
+            .select("*, profiles(full_name, email)")
+            .order("created_at", { ascending: false })
+      })
 
       if (error) throw error
       setVolunteers(data || [])
@@ -35,12 +59,17 @@ export default function VolunteerSignups() {
     }
   }
 
-  const handleStatusUpdate = async (id, newStatus) => {
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("volunteer_signups")
-        .update({ status: newStatus })
-        .eq("id", id)
+      const { error } = await makeRequest({
+        table: "volunteer_signups",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("volunteer_signups")
+            .update({ status: newStatus })
+            .eq("id", id)
+      })
 
       if (error) throw error
       fetchVolunteers()
@@ -49,7 +78,7 @@ export default function VolunteerSignups() {
     }
   }
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: VolunteerSignup }) => (
     <View style={styles.volunteerCard}>
       <View style={styles.volunteerHeader}>
         <Text style={styles.volunteerName}>
@@ -143,6 +172,11 @@ export default function VolunteerSignups() {
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.title}>Volunteer Sign-ups</Text>
+        {isDebugMode && (
+          <View style={styles.debugBadge}>
+            <Text style={styles.debugText}>DEBUG</Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -182,7 +216,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "white"
+    color: "white",
+    flex: 1
+  },
+  debugBadge: {
+    backgroundColor: "#e74c3c",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+  debugText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold"
   },
   centered: {
     flex: 1,
@@ -261,6 +307,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: "white",
-    fontWeight: "500"
+    fontWeight: "500",
+    fontSize: 14
   }
 })

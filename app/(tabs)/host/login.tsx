@@ -1,13 +1,43 @@
 import { makeRedirectUri } from "expo-auth-session"
 import * as Linking from "expo-linking"
+import { useRouter } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { theme } from "../../../constants/theme"
+import { useDebug } from "../../../context/DebugContext"
 import { supabase } from "../../../lib/supabase"
 
 export default function HostLogin() {
+  const router = useRouter()
+  const { isDebugMode } = useDebug()
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+
+  // Check if user is already logged in or if in debug mode
+  useEffect(() => {
+    checkUserSession()
+  }, [isDebugMode])
+
+  const checkUserSession = async () => {
+    try {
+      // In debug mode, we can skip the auth check and consider user as logged in
+      if (isDebugMode) {
+        router.replace("/host/index" as any)
+        return
+      }
+
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        // User is already logged in, redirect to dashboard
+        router.replace("/host/index" as any)
+      }
+    } catch (error) {
+      console.error("Error checking session:", error)
+    } finally {
+      setInitialLoading(false)
+    }
+  }
 
   // Create a redirect URI
   const redirectUri = makeRedirectUri({
@@ -43,9 +73,12 @@ export default function HostLogin() {
 
           // Exchange the code for a session
           if (extractedUrl.queryParams?.code) {
-            await supabase.auth.exchangeCodeForSession(
-              extractedUrl.queryParams.code
-            )
+            if (typeof extractedUrl.queryParams.code === "string") {
+              await supabase.auth.exchangeCodeForSession(
+                extractedUrl.queryParams.code
+              )
+              router.replace("/host/index" as any)
+            }
           }
         }
       }
@@ -60,6 +93,14 @@ export default function HostLogin() {
     }
   }
 
+  if (initialLoading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.description}>Checking login status...</Text>
+      </View>
+    )
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Host Committee Login</Text>
@@ -67,6 +108,7 @@ export default function HostLogin() {
         Access host committee features and settings by logging in with your
         Discord account.
       </Text>
+
       <TouchableOpacity
         style={styles.loginButton}
         onPress={handleDiscordLogin}
@@ -76,6 +118,14 @@ export default function HostLogin() {
           {loading ? "Logging in..." : "Login with Discord"}
         </Text>
       </TouchableOpacity>
+
+      {isDebugMode && (
+        <View style={styles.debugContainer}>
+          <Text style={styles.debugText}>
+            Debug mode is enabled. Authentication is bypassed.
+          </Text>
+        </View>
+      )}
     </View>
   )
 }
@@ -89,12 +139,13 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   title: {
-    ...theme.typography.h1,
+    fontSize: theme.typography.h1.fontSize,
+    fontWeight: "700",
     marginBottom: theme.spacing.md,
     color: theme.colors.text.primary
   },
   description: {
-    ...theme.typography.body,
+    fontSize: theme.typography.body.fontSize,
     textAlign: "center",
     marginBottom: theme.spacing.xl,
     color: theme.colors.text.secondary
@@ -109,5 +160,17 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: theme.colors.background,
     fontWeight: "500"
+  },
+  debugContainer: {
+    marginTop: theme.spacing.xl,
+    padding: theme.spacing.md,
+    backgroundColor: "rgba(255, 0, 0, 0.05)",
+    borderRadius: theme.borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.error
+  },
+  debugText: {
+    color: theme.colors.error,
+    fontSize: theme.typography.caption.fontSize
   }
 })

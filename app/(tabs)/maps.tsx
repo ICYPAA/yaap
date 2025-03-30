@@ -4,6 +4,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  ImageSourcePropType,
   Linking,
   Modal,
   Platform,
@@ -18,6 +19,26 @@ import { useTheme } from "../../context/ThemeContext"
 // Import programData
 import { programData } from "../../data/programData"
 
+// Define local asset images with proper TypeScript interface
+interface LocalAssets {
+  [key: string]: ImageSourcePropType
+  hotelPlan: ImageSourcePropType
+  secondFloor: ImageSourcePropType
+  thirdFloor: ImageSourcePropType
+  airportToHotel: ImageSourcePropType
+  airportToHotelPublic: ImageSourcePropType
+  walkingMap: ImageSourcePropType
+}
+
+const localAssets: LocalAssets = {
+  hotelPlan: require("../../assets/images/hotel.png"),
+  secondFloor: require("../../assets/images/hotel.png"),
+  thirdFloor: require("../../assets/images/hotel.png"),
+  airportToHotel: require("../../assets/images/airport-to-hotel.png"),
+  airportToHotelPublic: require("../../assets/images/airport-to-hotel-public.png"),
+  walkingMap: require("../../assets/images/walking-map.png")
+}
+
 // Mock data structure
 const mapData = {
   venue: {
@@ -27,21 +48,21 @@ const mapData = {
       {
         id: 1,
         title: "Main Floor Plan",
-        image: "main-floor.jpg", // These would be actual image paths
+        image: "hotelPlan", // use key from localAssets
         description:
           "Main convention level with registration desk, main meeting halls, and primary panel rooms"
       },
       {
         id: 2,
         title: "Second Floor Plan",
-        image: "second-floor.jpg",
+        image: "secondFloor", // use key from localAssets
         description:
           "Breakout rooms, smaller meeting spaces, and additional seating areas"
       },
       {
         id: 3,
         title: "Third Floor Plan",
-        image: "third-floor.jpg",
+        image: "thirdFloor", // use key from localAssets
         description: "Hospitality suites and marathon meeting rooms"
       }
     ],
@@ -76,21 +97,21 @@ const mapData = {
       {
         id: 1,
         title: "Airport to Venue",
-        image: "airport-route.jpg",
+        image: "airportToHotel", // use key from localAssets
         description:
           "Direct light rail route from SeaTac Airport to Convention Center Station"
       },
       {
         id: 2,
         title: "Public Transit Overview",
-        image: "transit-map.jpg",
+        image: "airportToHotelPublic", // use key from localAssets
         description:
           "Key bus and light rail routes serving the convention center"
       },
       {
         id: 3,
         title: "Walking Map",
-        image: "walking-map.jpg",
+        image: "walkingMap", // use key from localAssets
         description: "Walking routes from nearby hotels and attractions"
       }
     ],
@@ -137,6 +158,87 @@ const openMaps = (address: string) => {
   })
 }
 
+// Fallback image URLs (using placeholder service with better visibility)
+const FALLBACK_IMAGE =
+  "https://placehold.co/600x400/CC0000/white/png?text=Image+Unavailable"
+
+// Map carousel item component
+const MapItem = ({
+  item,
+  onPress,
+  theme
+}: {
+  item: { title: string; image: string; description: string }
+  onPress: () => void
+  theme: any
+}) => {
+  // Use a state to track image loading errors and loading state
+  const [imageError, setImageError] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Get the appropriate image source - either a local asset or a remote URL
+  const getImageSource = () => {
+    try {
+      if (imageError) {
+        return { uri: FALLBACK_IMAGE }
+      }
+
+      // If it's a key in localAssets, use the local image
+      if (localAssets[item.image as keyof LocalAssets]) {
+        const source = localAssets[item.image as keyof LocalAssets]
+        console.log(`Using local asset for: ${item.image}`, source)
+        return source
+      }
+
+      // Otherwise assume it's a remote URL
+      console.log(`Using remote URL for: ${item.image}`)
+      return { uri: item.image }
+    } catch (error) {
+      console.error("Error getting image source:", error)
+      return { uri: FALLBACK_IMAGE }
+    }
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={() => {
+        console.log("Pressed image:", item.title, item.image)
+        onPress()
+      }}
+      style={styles(theme).mapItem}
+      activeOpacity={0.7}
+    >
+      <View style={styles(theme).imageContainer}>
+        {isLoading && (
+          <View style={styles(theme).loadingContainer}>
+            <Text style={styles(theme).loadingText}>Loading...</Text>
+          </View>
+        )}
+        <Image
+          source={getImageSource()}
+          style={styles(theme).mapImage}
+          onError={(e) => {
+            console.error(
+              "Image loading error:",
+              item.image,
+              e.nativeEvent.error
+            )
+            setImageError(true)
+            setIsLoading(false)
+          }}
+          onLoad={() => {
+            console.log("Image loaded successfully:", item.image)
+            setIsLoading(false)
+          }}
+          onLoadStart={() => setIsLoading(true)}
+        />
+      </View>
+      <Text style={styles(theme).mapTitle}>{item.title}</Text>
+      <Text style={styles(theme).mapDescription}>{item.description}</Text>
+    </TouchableOpacity>
+  )
+}
+
 // Image viewer component
 const ImageViewer = ({
   visible,
@@ -148,37 +250,94 @@ const ImageViewer = ({
   image: string
   onClose: () => void
   theme: any
-}) => (
-  <Modal visible={visible} transparent animationType="fade">
-    <View style={styles(theme).modalContainer}>
-      <TouchableOpacity style={styles(theme).closeButton} onPress={onClose}>
-        <Ionicons name="close" size={30} color={theme.colors.background} />
-      </TouchableOpacity>
-      <Image
-        source={{ uri: image }}
-        style={styles(theme).fullImage}
-        resizeMode="contain"
-      />
-    </View>
-  </Modal>
-)
+}) => {
+  // Use states to track image loading errors and loading state
+  const [imageError, setImageError] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-// Map carousel item component
-const MapItem = ({
-  item,
-  onPress,
-  theme
-}: {
-  item: { title: string; image: string; description: string }
-  onPress: () => void
-  theme: any
-}) => (
-  <TouchableOpacity onPress={onPress} style={styles(theme).mapItem}>
-    <Image source={{ uri: item.image }} style={styles(theme).mapImage} />
-    <Text style={styles(theme).mapTitle}>{item.title}</Text>
-    <Text style={styles(theme).mapDescription}>{item.description}</Text>
-  </TouchableOpacity>
-)
+  // Reset states when image changes
+  React.useEffect(() => {
+    if (visible) {
+      setImageError(false)
+      setIsLoading(true)
+    }
+  }, [visible, image])
+
+  // Get the appropriate image source - either a local asset or a remote URL
+  const getImageSource = () => {
+    try {
+      if (imageError) {
+        return { uri: FALLBACK_IMAGE }
+      }
+
+      // If it's a key in localAssets, use the local image
+      if (localAssets[image as keyof LocalAssets]) {
+        const source = localAssets[image as keyof LocalAssets]
+        console.log(`Modal: Using local asset for: ${image}`, source)
+        return source
+      }
+
+      // Otherwise assume it's a remote URL
+      console.log(`Modal: Using remote URL for: ${image}`)
+      return { uri: image }
+    } catch (error) {
+      console.error("Error getting modal image source:", error)
+      return { uri: FALLBACK_IMAGE }
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles(theme).modalContainer}>
+        <TouchableOpacity
+          style={styles(theme).closeButton}
+          onPress={onClose}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={30} color={theme.colors.background} />
+        </TouchableOpacity>
+
+        <View style={styles(theme).fullImageContainer}>
+          {isLoading && (
+            <View style={styles(theme).modalLoadingContainer}>
+              <Text style={styles(theme).modalLoadingText}>
+                Loading image...
+              </Text>
+            </View>
+          )}
+
+          {imageError && (
+            <View style={styles(theme).errorContainer}>
+              <Text style={styles(theme).errorText}>
+                Failed to load image. The image may be unavailable.
+              </Text>
+            </View>
+          )}
+
+          <Image
+            source={getImageSource()}
+            style={styles(theme).fullImage}
+            resizeMode="contain"
+            onError={(e) => {
+              console.error(
+                "Modal image loading error:",
+                image,
+                e.nativeEvent.error
+              )
+              setImageError(true)
+              setIsLoading(false)
+            }}
+            onLoad={() => {
+              console.log("Modal image loaded successfully:", image)
+              setIsLoading(false)
+            }}
+            onLoadStart={() => setIsLoading(true)}
+          />
+        </View>
+      </View>
+    </Modal>
+  )
+}
 
 // Amenities card component
 const AmenitiesCard = ({
@@ -234,6 +393,12 @@ export default function Maps() {
   const screenWidth = Dimensions.get("window").width
   const { theme } = useTheme()
 
+  // Function to handle image selection
+  const handleImagePress = (imageSrc: string) => {
+    console.log("Image selected:", imageSrc) // Debugging log
+    setSelectedImage(imageSrc)
+  }
+
   return (
     <ScrollView style={styles(theme).container}>
       {/* Venue Section */}
@@ -244,7 +409,7 @@ export default function Maps() {
           renderItem={({ item }) => (
             <MapItem
               item={item}
-              onPress={() => setSelectedImage(item.image)}
+              onPress={() => handleImagePress(item.image)}
               theme={theme}
             />
           )}
@@ -266,7 +431,7 @@ export default function Maps() {
           renderItem={({ item }) => (
             <MapItem
               item={item}
-              onPress={() => setSelectedImage(item.image)}
+              onPress={() => handleImagePress(item.image)}
               theme={theme}
             />
           )}
@@ -328,12 +493,18 @@ export default function Maps() {
         />
       </View>
 
-      <ImageViewer
-        visible={!!selectedImage}
-        image={selectedImage || ""}
-        onClose={() => setSelectedImage(null)}
-        theme={theme}
-      />
+      {/* Only show ImageViewer if selectedImage exists */}
+      {selectedImage && (
+        <ImageViewer
+          visible={!!selectedImage}
+          image={selectedImage}
+          onClose={() => {
+            console.log("Closing image viewer") // Debugging log
+            setSelectedImage(null)
+          }}
+          theme={theme}
+        />
+      )}
     </ScrollView>
   )
 }
@@ -347,7 +518,7 @@ const shadowStyles = {
   elevation: 3
 }
 
-const styles = (theme) =>
+const styles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -372,10 +543,32 @@ const styles = (theme) =>
       overflow: "hidden",
       ...shadowStyles
     },
+    imageContainer: {
+      width: "100%",
+      height: 200,
+      position: "relative",
+      backgroundColor: theme.colors.border, // Placeholder color
+      overflow: "hidden"
+    },
+    loadingContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.1)",
+      zIndex: 1
+    },
+    loadingText: {
+      color: theme.colors.text.primary,
+      fontWeight: "bold"
+    },
     mapImage: {
       width: "100%",
       height: 200,
-      backgroundColor: theme.colors.border // Placeholder color
+      resizeMode: "cover"
     },
     mapTitle: {
       ...theme.typography.h2,
@@ -398,11 +591,54 @@ const styles = (theme) =>
       position: "absolute",
       top: 40,
       right: 20,
-      zIndex: 1
+      zIndex: 10,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      borderRadius: 20,
+      padding: 8
+    },
+    fullImageContainer: {
+      width: "90%",
+      height: "80%",
+      justifyContent: "center",
+      alignItems: "center",
+      position: "relative"
     },
     fullImage: {
       width: "100%",
-      height: "80%"
+      height: "100%"
+    },
+    modalLoadingContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.3)",
+      zIndex: 5
+    },
+    modalLoadingText: {
+      color: "#ffffff",
+      fontSize: 18,
+      fontWeight: "bold"
+    },
+    errorContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.7)",
+      zIndex: 5,
+      padding: 20
+    },
+    errorText: {
+      color: "#ffffff",
+      fontSize: 16,
+      textAlign: "center"
     },
     amenitiesCard: {
       marginTop: theme.spacing.lg,

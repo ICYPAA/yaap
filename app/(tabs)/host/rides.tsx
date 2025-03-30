@@ -9,13 +9,63 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
+import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+
+interface RideRequest {
+  id: string
+  profiles?: {
+    full_name: string
+    email: string
+  }
+  pickup_location: string
+  destination: string
+  pickup_time: string
+  additional_info?: string
+  status: string
+  created_at: string
+}
+
+interface ThemeType {
+  colors: {
+    background: string
+    surface: string
+    primary: string
+    error: string
+    warning: string
+    success: string
+    text: {
+      primary: string
+      secondary: string
+    }
+  }
+  spacing: {
+    xs: number
+    sm: number
+    md: number
+  }
+  typography: {
+    h2: object
+    h3: object
+    body: object
+    caption: object
+  }
+  borderRadius: {
+    sm: number
+    md: number
+  }
+  shadows: {
+    small: object
+  }
+}
 
 export default function RideRequests() {
   const router = useRouter()
   const { theme } = useTheme()
-  const [requests, setRequests] = useState([])
+  const { isDebugMode } = useDebug()
+  const [requests, setRequests] = useState<RideRequest[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,10 +74,15 @@ export default function RideRequests() {
 
   const fetchRequests = async () => {
     try {
-      const { data, error } = await supabase
-        .from("ride_requests")
-        .select("*, profiles(full_name, email)")
-        .order("created_at", { ascending: false })
+      const { data, error } = await makeRequest({
+        table: "ride_requests",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("ride_requests")
+            .select("*, profiles(full_name, email)")
+            .order("created_at", { ascending: false })
+      })
 
       if (error) throw error
       setRequests(data || [])
@@ -38,12 +93,17 @@ export default function RideRequests() {
     }
   }
 
-  const handleStatusUpdate = async (id, newStatus) => {
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("ride_requests")
-        .update({ status: newStatus })
-        .eq("id", id)
+      const { error } = await makeRequest({
+        table: "ride_requests",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("ride_requests")
+            .update({ status: newStatus })
+            .eq("id", id)
+      })
 
       if (error) throw error
       fetchRequests()
@@ -52,7 +112,7 @@ export default function RideRequests() {
     }
   }
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: RideRequest }) => (
     <View style={styles(theme).requestCard}>
       <View style={styles(theme).requestHeader}>
         <Text style={styles(theme).requesterName}>
@@ -155,6 +215,11 @@ export default function RideRequests() {
           />
         </TouchableOpacity>
         <Text style={styles(theme).title}>Ride Requests</Text>
+        {isDebugMode && (
+          <View style={styles(theme).debugBadge}>
+            <Text style={styles(theme).debugText}>DEBUG</Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -177,7 +242,7 @@ export default function RideRequests() {
   )
 }
 
-const styles = (theme) =>
+const styles = (theme: ThemeType) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -195,6 +260,18 @@ const styles = (theme) =>
     title: {
       ...theme.typography.h2,
       color: theme.colors.background,
+      fontWeight: "bold",
+      flex: 1
+    },
+    debugBadge: {
+      backgroundColor: theme.colors.error,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.md
+    },
+    debugText: {
+      color: theme.colors.background,
+      fontSize: 12,
       fontWeight: "bold"
     },
     centered: {

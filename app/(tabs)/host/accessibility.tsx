@@ -9,13 +9,30 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
+import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+
+// Define interface for the requests
+interface AccessibilityRequest {
+  id: string
+  user_id: string
+  request_details?: string
+  details?: string
+  status: string
+  created_at: string
+  profiles?: {
+    full_name: string
+    email: string
+  }
+}
 
 export default function AccessibilityRequests() {
   const router = useRouter()
   const { theme } = useTheme()
-  const [requests, setRequests] = useState([])
+  const { isDebugMode } = useDebug()
+  const [requests, setRequests] = useState<AccessibilityRequest[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,10 +41,15 @@ export default function AccessibilityRequests() {
 
   const fetchRequests = async () => {
     try {
-      const { data, error } = await supabase
-        .from("accessibility_requests")
-        .select("*, profiles(full_name, email)")
-        .order("created_at", { ascending: false })
+      const { data, error } = await makeRequest({
+        table: "accessibility_requests",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("accessibility_requests")
+            .select("*, profiles(full_name, email)")
+            .order("created_at", { ascending: false })
+      })
 
       if (error) throw error
       setRequests(data || [])
@@ -38,12 +60,17 @@ export default function AccessibilityRequests() {
     }
   }
 
-  const handleStatusUpdate = async (id, newStatus) => {
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("accessibility_requests")
-        .update({ status: newStatus })
-        .eq("id", id)
+      const { error } = await makeRequest({
+        table: "accessibility_requests",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("accessibility_requests")
+            .update({ status: newStatus })
+            .eq("id", id)
+      })
 
       if (error) throw error
       fetchRequests()
@@ -52,7 +79,7 @@ export default function AccessibilityRequests() {
     }
   }
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: AccessibilityRequest }) => (
     <View style={styles(theme).requestCard}>
       <View style={styles(theme).requestHeader}>
         <Text style={styles(theme).requesterName}>
@@ -77,7 +104,9 @@ export default function AccessibilityRequests() {
         </View>
       </View>
 
-      <Text style={styles(theme).requestDetails}>{item.request_details}</Text>
+      <Text style={styles(theme).requestDetails}>
+        {item.request_details || item.details}
+      </Text>
       <Text style={styles(theme).timestamp}>
         Submitted: {new Date(item.created_at).toLocaleDateString()}
       </Text>
@@ -136,6 +165,11 @@ export default function AccessibilityRequests() {
           />
         </TouchableOpacity>
         <Text style={styles(theme).title}>Accessibility Requests</Text>
+        {isDebugMode && (
+          <View style={styles(theme).debugBadge}>
+            <Text style={styles(theme).debugText}>DEBUG</Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -160,7 +194,7 @@ export default function AccessibilityRequests() {
   )
 }
 
-const styles = (theme) =>
+const styles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -178,6 +212,18 @@ const styles = (theme) =>
     title: {
       ...theme.typography.h2,
       color: theme.colors.background,
+      fontWeight: "bold",
+      flex: 1
+    },
+    debugBadge: {
+      backgroundColor: theme.colors.error,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.md
+    },
+    debugText: {
+      color: theme.colors.background,
+      fontSize: 12,
       fontWeight: "bold"
     },
     centered: {

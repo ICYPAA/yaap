@@ -9,13 +9,65 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
+import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+
+interface HospitalityNotification {
+  id: string
+  profiles?: {
+    full_name: string
+    email: string
+  }
+  notification_type: string
+  location: string
+  time: string
+  description: string
+  status: string
+  created_at: string
+}
+
+interface ThemeType {
+  colors: {
+    background: string
+    surface: string
+    primary: string
+    error: string
+    warning: string
+    success: string
+    text: {
+      primary: string
+      secondary: string
+    }
+  }
+  spacing: {
+    xs: number
+    sm: number
+    md: number
+  }
+  typography: {
+    h2: object
+    h3: object
+    body: object
+    caption: object
+  }
+  borderRadius: {
+    sm: number
+    md: number
+  }
+  shadows: {
+    small: object
+  }
+}
 
 export default function HospitalityNotifications() {
   const router = useRouter()
   const { theme } = useTheme()
-  const [notifications, setNotifications] = useState([])
+  const { isDebugMode } = useDebug()
+  const [notifications, setNotifications] = useState<HospitalityNotification[]>(
+    []
+  )
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,10 +76,15 @@ export default function HospitalityNotifications() {
 
   const fetchNotifications = async () => {
     try {
-      const { data, error } = await supabase
-        .from("hospitality_notifications")
-        .select("*, profiles(full_name, email)")
-        .order("created_at", { ascending: false })
+      const { data, error } = await makeRequest({
+        table: "hospitality_notifications",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("hospitality_notifications")
+            .select("*, profiles(full_name, email)")
+            .order("created_at", { ascending: false })
+      })
 
       if (error) throw error
       setNotifications(data || [])
@@ -38,12 +95,17 @@ export default function HospitalityNotifications() {
     }
   }
 
-  const handleStatusUpdate = async (id, newStatus) => {
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("hospitality_notifications")
-        .update({ status: newStatus })
-        .eq("id", id)
+      const { error } = await makeRequest({
+        table: "hospitality_notifications",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("hospitality_notifications")
+            .update({ status: newStatus })
+            .eq("id", id)
+      })
 
       if (error) throw error
       fetchNotifications()
@@ -52,7 +114,7 @@ export default function HospitalityNotifications() {
     }
   }
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: HospitalityNotification }) => (
     <View style={styles(theme).notificationCard}>
       <View style={styles(theme).notificationHeader}>
         <Text style={styles(theme).notifierName}>
@@ -155,6 +217,11 @@ export default function HospitalityNotifications() {
           />
         </TouchableOpacity>
         <Text style={styles(theme).title}>Hospitality Notifications</Text>
+        {isDebugMode && (
+          <View style={styles(theme).debugBadge}>
+            <Text style={styles(theme).debugText}>DEBUG</Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -181,7 +248,7 @@ export default function HospitalityNotifications() {
   )
 }
 
-const styles = (theme) =>
+const styles = (theme: ThemeType) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -199,6 +266,18 @@ const styles = (theme) =>
     title: {
       ...theme.typography.h2,
       color: theme.colors.background,
+      fontWeight: "bold",
+      flex: 1
+    },
+    debugBadge: {
+      backgroundColor: theme.colors.error,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.md
+    },
+    debugText: {
+      color: theme.colors.background,
+      fontSize: 12,
       fontWeight: "bold"
     },
     centered: {

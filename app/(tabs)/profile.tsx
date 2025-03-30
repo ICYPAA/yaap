@@ -14,10 +14,12 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useDebug } from "../../context/DebugContext"
 import { useTheme } from "../../context/ThemeContext"
 
 export default function Profile() {
   const { theme, isDarkMode, toggleTheme } = useTheme()
+  const { isDebugMode, toggleDebugMode } = useDebug()
 
   const [firstName, setFirstName] = useState("")
   const [lastInitial, setLastInitial] = useState("")
@@ -255,13 +257,40 @@ export default function Profile() {
             information is always kept private.
           </Text>
         </View>
+
+        {/* Debug Mode Toggle (hidden at the bottom) */}
+        <View style={styles.debugContainer}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingLabel}>Debug Mode</Text>
+              <Text style={styles.settingDescription}>
+                Enable debug features for development and testing
+              </Text>
+            </View>
+            <Switch
+              value={isDebugMode}
+              onValueChange={toggleDebugMode}
+              trackColor={{ false: "#767577", true: theme.colors.error }}
+              thumbColor={isDebugMode ? "#f4f3f4" : "#f4f3f4"}
+            />
+          </View>
+
+          {isDebugMode && (
+            <View style={styles.debugWarning}>
+              <Ionicons name="warning" size={16} color={theme.colors.error} />
+              <Text style={styles.debugWarningText}>
+                Debug mode bypasses authentication and uses mock data
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
 // Move styles to a function to use the current theme
-const createStyles = (theme) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -410,5 +439,27 @@ const createStyles = (theme) =>
     privacyText: {
       ...theme.typography.body,
       color: theme.colors.text.secondary
+    },
+    debugContainer: {
+      marginBottom: theme.spacing.xl,
+      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      borderLeftWidth: 3,
+      borderLeftColor: theme.colors.error
+    },
+    debugWarning: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: theme.spacing.sm,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: "rgba(255, 0, 0, 0.05)",
+      borderRadius: theme.borderRadius.sm
+    },
+    debugWarningText: {
+      ...theme.typography.caption,
+      color: theme.colors.error,
+      marginLeft: theme.spacing.xs
     }
   })

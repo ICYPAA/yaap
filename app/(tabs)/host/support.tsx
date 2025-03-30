@@ -9,13 +9,36 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useDebug } from "../../../context/DebugContext"
+import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+
+interface ChatMessage {
+  id?: string
+  sender: string
+  message: string
+  timestamp: string
+}
+
+interface SupportChat {
+  id: string
+  profiles?: {
+    full_name: string
+    email: string
+  }
+  subject: string
+  initial_message: string
+  chat_history?: ChatMessage[]
+  status: string
+  created_at: string
+}
 
 export default function SupportChats() {
   const router = useRouter()
-  const [chats, setChats] = useState([])
+  const { isDebugMode } = useDebug()
+  const [chats, setChats] = useState<SupportChat[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedChat, setSelectedChat] = useState(null)
+  const [selectedChat, setSelectedChat] = useState<SupportChat | null>(null)
   const [replyText, setReplyText] = useState("")
 
   useEffect(() => {
@@ -24,10 +47,15 @@ export default function SupportChats() {
 
   const fetchChats = async () => {
     try {
-      const { data, error } = await supabase
-        .from("support_chats")
-        .select("*, profiles(full_name, email)")
-        .order("created_at", { ascending: false })
+      const { data, error } = await makeRequest({
+        table: "support_chats",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("support_chats")
+            .select("*, profiles(full_name, email)")
+            .order("created_at", { ascending: false })
+      })
 
       if (error) throw error
       setChats(data || [])
@@ -38,12 +66,17 @@ export default function SupportChats() {
     }
   }
 
-  const handleStatusUpdate = async (id, newStatus) => {
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("support_chats")
-        .update({ status: newStatus })
-        .eq("id", id)
+      const { error } = await makeRequest({
+        table: "support_chats",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("support_chats")
+            .update({ status: newStatus })
+            .eq("id", id)
+      })
 
       if (error) throw error
       fetchChats()
@@ -66,13 +99,18 @@ export default function SupportChats() {
         }
       ]
 
-      const { error } = await supabase
-        .from("support_chats")
-        .update({
-          chat_history: updatedHistory,
-          status: "replied"
-        })
-        .eq("id", selectedChat.id)
+      const { error } = await makeRequest({
+        table: "support_chats",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("support_chats")
+            .update({
+              chat_history: updatedHistory,
+              status: "replied"
+            })
+            .eq("id", selectedChat.id)
+      })
 
       if (error) throw error
 
@@ -90,7 +128,7 @@ export default function SupportChats() {
     }
   }
 
-  const renderChatItem = ({ item }) => (
+  const renderChatItem = ({ item }: { item: SupportChat }) => (
     <TouchableOpacity
       style={[
         styles.chatCard,
@@ -218,6 +256,11 @@ export default function SupportChats() {
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.title}>Support Chats</Text>
+        {isDebugMode && (
+          <View style={styles.debugBadge}>
+            <Text style={styles.debugText}>DEBUG</Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -274,7 +317,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "white"
+    color: "white",
+    flex: 1
+  },
+  debugBadge: {
+    backgroundColor: "#e74c3c",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+  debugText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold"
   },
   centered: {
     flex: 1,
