@@ -1,7 +1,6 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
 import { router } from "expo-router"
-import React, { useEffect, useState } from "react"
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import React, { useEffect } from "react"
+import { Image, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useTheme } from "../context/ThemeContext"
 
@@ -10,55 +9,63 @@ const HAS_LAUNCHED_KEY = "hasLaunchedApp"
 export default function LandingScreen() {
   const { theme } = useTheme()
   const styles = createStyles(theme)
-  const [isLoading, setIsLoading] = useState(true)
+  // const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    checkIfFirstLaunch()
+    // checkIfFirstLaunch()
+
+    // Delay navigation slightly to ensure layout is mounted
+    const timer = setTimeout(() => {
+      router.replace("/(tabs)/program")
+    }, 0)
+
+    // Clear the timeout if the component unmounts before navigation
+    return () => clearTimeout(timer)
   }, [])
 
-  const checkIfFirstLaunch = async () => {
-    try {
-      const hasLaunched = await AsyncStorage.getItem(HAS_LAUNCHED_KEY)
+  // const checkIfFirstLaunch = async () => {
+  //   try {
+  //     const hasLaunched = await AsyncStorage.getItem(HAS_LAUNCHED_KEY)
 
-      if (hasLaunched === "true") {
-        // User has launched the app before, redirect to program page
-        router.replace("/(tabs)/program")
-      } else {
-        // First time user, show the landing screen
-        setIsLoading(false)
-      }
-    } catch (error) {
-      console.error("Error checking first launch status:", error)
-      // If there's an error, show the landing screen as a fallback
-      setIsLoading(false)
-    }
-  }
+  //     if (hasLaunched === "true") {
+  //       // User has launched the app before, redirect to program page
+  //       router.replace("/(tabs)/program")
+  //     } else {
+  //       // First time user, show the landing screen
+  //       setIsLoading(false)
+  //     }
+  //   } catch (error) {
+  //     console.error("Error checking first launch status:", error)
+  //     // If there's an error, show the landing screen as a fallback
+  //     setIsLoading(false)
+  //   }
+  // }
 
-  const handleEnterApp = async () => {
-    try {
-      // Save that user has launched the app
-      await AsyncStorage.setItem(HAS_LAUNCHED_KEY, "true")
-      router.replace("/(tabs)/program")
-    } catch (error) {
-      console.error("Error saving launch status:", error)
-      // If saving fails, still navigate to the program page
-      router.replace("/(tabs)/program")
-    }
-  }
+  // const handleEnterApp = async () => {
+  //   try {
+  //     // Save that user has launched the app
+  //     await AsyncStorage.setItem(HAS_LAUNCHED_KEY, "true")
+  //     router.replace("/(tabs)/program")
+  //   } catch (error) {
+  //     console.error("Error saving launch status:", error)
+  //     // If saving fails, still navigate to the program page
+  //     router.replace("/(tabs)/program")
+  //   }
+  // }
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <Image
-            source={require("../assets/images/adaptive-icon.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </View>
-      </SafeAreaView>
-    )
-  }
+  // if (isLoading) {
+  //   return (
+  //     <SafeAreaView style={styles.container}>
+  //       <View style={styles.content}>
+  //         <Image
+  //           source={require("../assets/images/adaptive-icon.png")}
+  //           style={styles.logo}
+  //           resizeMode="contain"
+  //         />
+  //       </View>
+  //     </SafeAreaView>
+  //   )
+  // }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -74,9 +81,9 @@ export default function LandingScreen() {
         </Text>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.button} onPress={handleEnterApp}>
+          {/* <TouchableOpacity style={styles.button} onPress={handleEnterApp}>
             <Text style={styles.buttonText}>Enter Conference App</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
     </SafeAreaView>

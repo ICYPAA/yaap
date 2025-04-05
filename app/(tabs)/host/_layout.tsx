@@ -21,10 +21,12 @@ export default function HostLayout() {
       return
     }
 
-    checkAuth()
-
+    // The listener will fire initially with the restored session or null.
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
+        console.log("session", session)
+        // This will set the state correctly after storage is checked
+        // or after the redirect tokens are processed.
         setIsAuthenticated(!!session)
       }
     )
@@ -35,17 +37,6 @@ export default function HostLayout() {
       }
     }
   }, [isDebugMode])
-
-  const checkAuth = async () => {
-    try {
-      // Auth-related calls still use supabase directly
-      const { data } = await supabase.auth.getSession()
-      setIsAuthenticated(!!data.session)
-    } catch (error) {
-      console.error("Error checking auth:", error)
-      setIsAuthenticated(false)
-    }
-  }
 
   // Show loading while checking authentication
   if (isAuthenticated === null) {

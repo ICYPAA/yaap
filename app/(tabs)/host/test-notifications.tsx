@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
+import Constants from "expo-constants"
 import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
@@ -67,6 +68,7 @@ export default function TestNotifications() {
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null)
+  const [isSending, setIsSending] = useState(false)
 
   // Redirect if not in debug mode
   useEffect(() => {
@@ -128,13 +130,12 @@ export default function TestNotifications() {
   ]
 
   useEffect(() => {
-    checkNotificationPermissions()
+    const updateStatus = async () => {
+      const { status } = await Notifications.getPermissionsAsync()
+      setPermissionStatus(status)
+    }
+    updateStatus()
   }, [])
-
-  const checkNotificationPermissions = async () => {
-    const { status } = await Notifications.getPermissionsAsync()
-    setPermissionStatus(status)
-  }
 
   const requestPermissions = async () => {
     const { status } = await Notifications.requestPermissionsAsync()
@@ -142,39 +143,111 @@ export default function TestNotifications() {
     return status
   }
 
-  const sendTestNotification = async (notification: NotificationTest) => {
+  const sendPushNotification = async (
+    expoPushToken: string,
+    notification: NotificationTest
+  ) => {
+    const message = {
+      to: expoPushToken,
+      sound: "default",
+      title: notification.title,
+      body: getNotificationBody(notification.id),
+      data: { screen: getTargetScreen(notification.id) }
+    }
+
     try {
-      // Check if we have permission
-      let currentStatus = permissionStatus
-      if (currentStatus !== "granted") {
-        currentStatus = await requestPermissions()
-      }
-
-      if (currentStatus !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "To send test push notifications, you need to enable notifications for the app."
-        )
-        return
-      }
-
-      // Schedule the push notification
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: notification.title,
-          body: getNotificationBody(notification.id),
-          data: { screen: getTargetScreen(notification.id) }
+      await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Accept-encoding": "gzip, deflate",
+          "Content-Type": "application/json"
         },
-        trigger: null // Show immediately as a push notification
+        body: JSON.stringify(message)
       })
-
       Alert.alert(
         "Success",
         `Test push notification for "${notification.title}" sent successfully!`
       )
     } catch (error) {
-      console.error("Error sending push notification:", error)
-      Alert.alert("Error", "Failed to send test push notification.")
+      console.error("Error sending push notification via Expo server:", error)
+      Alert.alert(
+        "Error",
+        `Failed to send push notification: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+  }
+
+  const handleSendTestNotification = async (notification: NotificationTest) => {
+    if (isSending) return
+    setIsSending(true)
+
+    try {
+      let { status: currentStatus } = await Notifications.getPermissionsAsync()
+      setPermissionStatus(currentStatus)
+      if (currentStatus !== "granted") {
+        const { status: newStatus } =
+          await Notifications.requestPermissionsAsync()
+        currentStatus = newStatus
+        setPermissionStatus(currentStatus)
+      }
+
+      if (currentStatus !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Notification permissions are needed to get the push token and send a test notification."
+        )
+        setIsSending(false)
+        return
+      }
+
+      const projectId =
+        Constants?.expoConfig?.extra?.eas?.projectId ??
+        Constants?.easConfig?.projectId
+      if (!projectId) {
+        Alert.alert(
+          "Project ID Error",
+          "Could not find Project ID. Configure it in eas.json or app.json."
+        )
+        setIsSending(false)
+        return
+      }
+
+      let token: string | null = null
+      try {
+        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data
+        console.log("Expo Push Token:", token)
+      } catch (e) {
+        console.error("Error getting Expo Push Token:", e)
+        Alert.alert(
+          "Token Error",
+          `Failed to get Expo Push Token: ${
+            e instanceof Error ? e.message : String(e)
+          }`
+        )
+        setIsSending(false)
+        return
+      }
+
+      if (!token) {
+        Alert.alert("Token Error", "Failed to get Expo Push Token.")
+        setIsSending(false)
+        return
+      }
+
+      await sendPushNotification(token, notification)
+    } catch (error) {
+      console.error("Error in handleSendTestNotification:", error)
+      Alert.alert(
+        "Error",
+        `An unexpected error occurred: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    } finally {
+      setIsSending(false)
     }
   }
 
@@ -257,7 +330,8 @@ export default function TestNotifications() {
             <TouchableOpacity
               key={notification.id}
               style={styles(theme).notificationCard}
-              onPress={() => sendTestNotification(notification)}
+              onPress={() => handleSendTestNotification(notification)}
+              disabled={isSending}
             >
               <View
                 style={[
@@ -306,6 +380,7 @@ export default function TestNotifications() {
             <TouchableOpacity
               style={styles(theme).requestPermissionButton}
               onPress={requestPermissions}
+              disabled={isSending}
             >
               <Text style={styles(theme).requestPermissionText}>
                 Request Push Notification Permissions

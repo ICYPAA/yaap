@@ -13,6 +13,9 @@
       "bundleIdentifier": "com.themindfulpug.icypaa",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "permissions": {
+        "notifications": true
       }
     },
     "android": {

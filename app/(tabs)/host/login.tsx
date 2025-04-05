@@ -1,6 +1,5 @@
 import { makeRedirectUri } from "expo-auth-session"
-import * as Linking from "expo-linking"
-import { useRouter } from "expo-router"
+import { Href, useRouter } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
 import React, { useEffect, useState } from "react"
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native"
@@ -14,30 +13,58 @@ export default function HostLogin() {
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
 
-  // Check if user is already logged in or if in debug mode
+  // Listen for authentication state changes
   useEffect(() => {
-    checkUserSession()
-  }, [isDebugMode])
+    // Set initial loading to false once the first auth event is received.
+    let receivedFirstEvent = false
 
-  const checkUserSession = async () => {
-    try {
-      // In debug mode, we can skip the auth check and consider user as logged in
-      if (isDebugMode) {
-        router.replace("/host/index" as any)
-        return
-      }
-
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        // User is already logged in, redirect to dashboard
-        router.replace("/host/index" as any)
-      }
-    } catch (error) {
-      console.error("Error checking session:", error)
-    } finally {
+    // Check if debug mode bypasses auth
+    if (isDebugMode) {
+      console.log("Debug mode enabled, bypassing auth check.")
+      router.replace("/host/index" as Href)
       setInitialLoading(false)
+      return // Don't set up the listener if in debug mode
     }
-  }
+
+    // Get current session immediately (optional, but can speed up initial load)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!receivedFirstEvent) {
+        if (session) {
+          console.log("Found active session on initial check.")
+          router.replace("/host" as Href)
+        } else {
+          console.log("No active session on initial check.")
+        }
+        setInitialLoading(false)
+        receivedFirstEvent = true
+      }
+    })
+
+    // Set up the listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        console.log("Auth state changed:", _event, !!session)
+        if (!receivedFirstEvent) {
+          // If getSession finished first, this prevents double-redirect
+          setInitialLoading(false)
+          receivedFirstEvent = true
+        }
+
+        if (session) {
+          // User is logged in, redirect
+          router.replace("/host/index" as Href)
+        } else {
+          // User is logged out, ensure loading is false so login shows
+          setInitialLoading(false)
+        }
+      }
+    )
+
+    // Cleanup function to unsubscribe when the component unmounts
+    return () => {
+      authListener?.subscription.unsubscribe()
+    }
+  }, [isDebugMode, router]) // Add router to dependency array
 
   // Create a redirect URI
   const redirectUri = makeRedirectUri({
@@ -67,19 +94,9 @@ export default function HostLogin() {
         )
 
         if (result.type === "success") {
-          // Handle the redirect back to the app
-          const { url } = result
-          const extractedUrl = Linking.parse(url)
-
-          // Exchange the code for a session
-          if (extractedUrl.queryParams?.code) {
-            if (typeof extractedUrl.queryParams.code === "string") {
-              await supabase.auth.exchangeCodeForSession(
-                extractedUrl.queryParams.code
-              )
-              router.replace("/host/index" as any)
-            }
-          }
+          // Session is automatically set by the Supabase client library via AsyncStorage.
+          // We can just navigate to the protected route.
+          router.replace("/host" as Href)
         }
       }
     } catch (error) {
