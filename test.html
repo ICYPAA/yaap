@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conference Theme Color Palette</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+        background-color: #f8f9fa; /* Light background for contrast */
+        color: #333;
+      }
+      h1 {
+        text-align: center;
+        border-bottom: 2px solid #ccc;
+        padding-bottom: 10px;
+        margin-bottom: 30px;
+      }
+      h2 {
+        margin-top: 40px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
+      }
+      .palette-section {
+        margin-bottom: 30px;
+      }
+      .color-category {
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px dashed #ddd; /* Separator for categories */
+      }
+      .category-name {
+        font-weight: bold;
+        margin-bottom: 10px;
+        display: block; /* Ensure it takes its own line */
+        font-size: 1.1em;
+      }
+      .swatch-container {
+        display: flex; /* Arrange swatches side-by-side */
+        flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        gap: 15px; /* Space between swatches */
+        align-items: flex-start; /* Align items at the top */
+      }
+      .swatch {
+        display: flex;
+        flex-direction: column; /* Stack color block and label vertically */
+        align-items: center; /* Center items horizontally */
+        min-width: 100px; /* Minimum width for each swatch */
+      }
+      .color-block {
+        width: 80px;
+        height: 80px;
+        border: 1px solid #ccc; /* Slight border */
+        margin-bottom: 5px;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+      }
+      .color-label {
+        font-size: 0.85em;
+        text-align: center;
+        word-break: break-all; /* Break long hex codes if needed */
+      }
+      /* Specific text colors for better contrast on certain backgrounds */
+      .text-on-dark {
+        color: #ffffff;
+      }
+      .text-on-light {
+        color: #000000;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Conference Theme Color Palette</h1>
+
+    <div class="palette-section">
+      <h2>Basic App Colors</h2>
+
+      <div class="color-category">
+        <span class="category-name">Primary</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #17406a"></div>
+            <div class="color-label">#17406A</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #2980b9"></div>
+            <div class="color-label">#2980B9</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Secondary</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #e6c29a"></div>
+            <div class="color-label">#E6C29A</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #c09055"></div>
+            <div class="color-label">#C09055</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Error</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #dc3545"></div>
+            <div class="color-label">#DC3545</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #d9534f"></div>
+            <div class="color-label">#D9534F</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Info</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #31c3d7"></div>
+            <div class="color-label">#31C3D7</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #32c5d2"></div>
+            <div class="color-label">#32C5D2</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Success</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #28a745"></div>
+            <div class="color-label">#28A745</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #28a745"></div>
+            <div class="color-label">#28A745</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Warning</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #ffc107"></div>
+            <div class="color-label">#FFC107</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f0ad4e"></div>
+            <div class="color-label">#F0AD4E</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Text</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #212529"></div>
+            <div class="color-label">#212529</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #343a40"></div>
+            <div class="color-label">#343A40</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Secondary Text</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #a1a1a1"></div>
+            <div class="color-label">#A1A1A1</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #b0bec5"></div>
+            <div class="color-label">#B0BEC5</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="palette-section">
+      <h2>Dark Mode Variants</h2>
+
+      <div class="color-category">
+        <span class="category-name">Primary (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #b7e4e8"></div>
+            <div class="color-label">#B7E4E8</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #9ee0ff"></div>
+            <div class="color-label">#9EE0FF</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Secondary (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #d1b484"></div>
+            <div class="color-label">#D1B484</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #c9b387"></div>
+            <div class="color-label">#C9B387</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Error (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f5c6cb"></div>
+            <div class="color-label">#F5C6CB</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f8b4b6"></div>
+            <div class="color-label">#F8B4B6</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Info (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #92dce5"></div>
+            <div class="color-label">#92DCE5</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #96e1f4"></div>
+            <div class="color-label">#96E1F4</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Success (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #c3e6cb"></div>
+            <div class="color-label">#C3E6CB</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #c4dfb1"></div>
+            <div class="color-label">#C4DFB1</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Warning (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f5d56c"></div>
+            <div class="color-label">#F5D56C</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f7db96"></div>
+            <div class="color-label">#F7DB96</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Text (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f1f3f4"></div>
+            <div class="color-label">#F1F3F4</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #eeeeee"></div>
+            <div class="color-label">#EEEEEE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Secondary Text (Dark)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #888888"></div>
+            <div class="color-label">#888888</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #a0a0a0"></div>
+            <div class="color-label">#A0A0A0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="palette-section">
+      <h2>Card Accent Colors</h2>
+
+      <div class="color-category">
+        <span class="category-name">Speaker (Primary)</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #17406a"></div>
+            <div class="color-label">#17406A</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #2980b9"></div>
+            <div class="color-label">#2980B9</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Entertainment</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f9d784"></div>
+            <div class="color-label">#F9D784</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #fcd469"></div>
+            <div class="color-label">#FCD469</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Panel</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #b2c3d3"></div>
+            <div class="color-label">#B2C3D3</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #c4c4c4"></div>
+            <div class="color-label">#C4C4C4</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Marathon Meeting</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #2a5066"></div>
+            <div class="color-label">#2A5066</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #4876b8"></div>
+            <div class="color-label">#4876B8</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Registration & Merch</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #0d96ba"></div>
+            <div class="color-label">#0D96BA</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #39c2c8"></div>
+            <div class="color-label">#39C2C8</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Bid</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #6a309d"></div>
+            <div class="color-label">#6A309D</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #6e43c4"></div>
+            <div class="color-label">#6E43C4</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Workshop</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #f49239"></div>
+            <div class="color-label">#F49239</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #ffa000"></div>
+            <div class="color-label">#FFA000</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="color-category">
+        <span class="category-name">Archives</span>
+        <div class="swatch-container">
+          <div class="swatch">
+            <div class="color-block" style="background-color: #5b3f2e"></div>
+            <div class="color-label">#5B3F2E</div>
+          </div>
+          <div class="swatch">
+            <div class="color-block" style="background-color: #4c423a"></div>
+            <div class="color-label">#4C423A</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

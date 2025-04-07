@@ -16,6 +16,10 @@ import {
 } from "react-native"
 import { useDebug } from "../../context/DebugContext"
 import { useTheme } from "../../context/ThemeContext"
+import { supabase } from "../../lib/supabase"
+
+// TODO: Replace this with actual device ID retrieval logic
+const currentUserDeviceId = "DEVICE_ID_PLACEHOLDER"
 
 export default function Profile() {
   const { theme, isDarkMode, toggleTheme } = useTheme()
@@ -28,6 +32,49 @@ export default function Profile() {
   const [eventRemindersEnabled, setEventRemindersEnabled] = useState(true)
   const [messageNotificationsEnabled, setMessageNotificationsEnabled] =
     useState(true)
+  const [sharedWithList, setSharedWithList] = useState<string[]>([])
+  const [loadingSharing, setLoadingSharing] = useState(true)
+
+  // Fetch sharing info
+  useEffect(() => {
+    const fetchSharingInfo = async () => {
+      if (
+        !currentUserDeviceId ||
+        currentUserDeviceId === "DEVICE_ID_PLACEHOLDER"
+      ) {
+        console.warn("Device ID not available for fetching sharing info.")
+        setLoadingSharing(false)
+        return
+      }
+
+      setLoadingSharing(true)
+      try {
+        const { data, error } = await supabase
+          .from("schedule")
+          .select("shared_with")
+          .eq("id", currentUserDeviceId)
+          .single()
+
+        if (error && error.code !== "PGRST116") {
+          // PGRST116 = Row not found, which is okay
+          throw error
+        }
+
+        if (data && data.shared_with) {
+          setSharedWithList(data.shared_with)
+        } else {
+          setSharedWithList([]) // No one shared with yet, or no row exists
+        }
+      } catch (error: any) {
+        console.error("Error fetching sharing info:", error)
+        Alert.alert("Error", "Could not load sharing information.")
+      } finally {
+        setLoadingSharing(false)
+      }
+    }
+
+    fetchSharingInfo()
+  }, [])
 
   // Request permissions on component mount
   useEffect(() => {
@@ -60,6 +107,28 @@ export default function Profile() {
   const saveProfile = () => {
     // In a real app, you would save this to AsyncStorage or a backend
     Alert.alert("Profile Saved", "Your profile information has been updated.")
+  }
+
+  // Handle removing a shared user
+  const handleRemoveShare = async (deviceIdToRemove: string) => {
+    const updatedList = sharedWithList.filter((id) => id !== deviceIdToRemove)
+
+    try {
+      const { error } = await supabase
+        .from("schedule")
+        .update({ shared_with: updatedList })
+        .eq("id", currentUserDeviceId)
+
+      if (error) {
+        throw error
+      }
+
+      setSharedWithList(updatedList) // Update local state on success
+      Alert.alert("Success", `Sharing removed for ${deviceIdToRemove}.`)
+    } catch (error: any) {
+      console.error("Error removing share:", error)
+      Alert.alert("Error", "Could not remove sharing.")
+    }
   }
 
   // Create styles with the current theme
@@ -248,6 +317,45 @@ export default function Profile() {
           </View>
         </View>
 
+        {/* Schedule Sharing Section */}
+        <View style={styles.settingsContainer}>
+          <Text style={styles.sectionTitle}>Schedule Sharing</Text>
+          {loadingSharing ? (
+            <Text style={styles.loadingText}>Loading sharing info...</Text>
+          ) : sharedWithList.length > 0 ? (
+            sharedWithList.map((deviceId) => (
+              <View key={deviceId} style={styles.shareRow}>
+                <View style={styles.shareUserInfo}>
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={24}
+                    color={theme.colors.text.secondary}
+                    style={styles.shareUserIcon}
+                  />
+                  {/* TODO: Fetch and display actual user name based on deviceId */}
+                  <Text style={styles.shareUserText}>
+                    User ({deviceId.substring(0, 6)}...)
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleRemoveShare(deviceId)}
+                  style={styles.removeButton}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={24}
+                    color={theme.colors.error}
+                  />
+                </TouchableOpacity>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noSharingText}>
+              You haven't shared your schedule with anyone.
+            </Text>
+          )}
+        </View>
+
         {/* Privacy Notice */}
         <View style={styles.privacyContainer}>
           <Text style={styles.privacyTitle}>Privacy Information</Text>
@@ -373,8 +481,7 @@ const createStyles = (theme: any) =>
       marginTop: theme.spacing.lg
     },
     saveButtonText: {
-      color: theme.colors.background,
-      ...theme.typography.body,
+      color: "#FFFFFF", // White text for buttons
       fontWeight: "bold"
     },
     settingsContainer: {
@@ -461,5 +568,41 @@ const createStyles = (theme: any) =>
       ...theme.typography.caption,
       color: theme.colors.error,
       marginLeft: theme.spacing.xs
+    },
+    shareRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border
+    },
+    shareUserInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1 // Allow user info to take available space
+    },
+    shareUserIcon: {
+      marginRight: theme.spacing.sm
+    },
+    shareUserText: {
+      ...theme.typography.body,
+      color: theme.colors.text.primary,
+      flexShrink: 1 // Prevent text from pushing button away
+    },
+    removeButton: {
+      paddingLeft: theme.spacing.md // Add padding to make it easier to tap
+    },
+    loadingText: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      textAlign: "center",
+      paddingVertical: theme.spacing.md
+    },
+    noSharingText: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      textAlign: "center",
+      paddingVertical: theme.spacing.md
     }
   })

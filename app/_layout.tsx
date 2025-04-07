@@ -3,12 +3,15 @@ import * as Notifications from "expo-notifications"
 import { Stack } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { StatusBar } from "expo-status-bar"
-import { useEffect, useRef } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { Platform } from "react-native"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { DebugProvider } from "../context/DebugContext"
 import { ThemeProvider, useTheme } from "../context/ThemeContext"
+import { supabase } from "../lib/supabase"
+import { storeProgramDesign } from "../lib/theme"
+import { Program } from "../types/program"
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync()
@@ -78,9 +81,44 @@ export default function RootLayout() {
   })
   const notificationListener = useRef<Notifications.EventSubscription>()
   const responseListener = useRef<Notifications.EventSubscription>()
+  const [programLoaded, setProgramLoaded] = useState(false)
+
+  // Fetch program data on app start
+  useEffect(() => {
+    const fetchProgramData = async () => {
+      try {
+        // Assume program ID 1 for now
+        const programId = 1
+
+        const { data, error } = await supabase
+          .from("programs")
+          .select("*")
+          .eq("id", programId)
+          .maybeSingle()
+
+        if (error) {
+          console.error("Error fetching program data:", error)
+          return
+        }
+
+        if (data) {
+          // Store program data in AsyncStorage
+          await storeProgramDesign(data as Program)
+          console.log("Program data stored successfully")
+        }
+
+        setProgramLoaded(true)
+      } catch (error) {
+        console.error("Error in fetchProgramData:", error)
+        setProgramLoaded(true) // Set to true even on error to not block app loading
+      }
+    }
+
+    fetchProgramData()
+  }, [])
 
   useEffect(() => {
-    if (loaded) {
+    if (loaded && programLoaded) {
       SplashScreen.hideAsync()
 
       // Register for push notifications after fonts are loaded
@@ -129,11 +167,11 @@ export default function RootLayout() {
           Notifications.removeNotificationSubscription(responseListener.current)
       }
     }
-  }, [loaded]) // Rerun effect if 'loaded' changes
+  }, [loaded, programLoaded]) // Rerun effect when both fonts and program are loaded
 
   // useNotifications() // Keep this commented out unless it's a custom hook you intend to use
 
-  if (!loaded) {
+  if (!loaded || !programLoaded) {
     return null
   }
 

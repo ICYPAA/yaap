@@ -2,7 +2,14 @@ import { makeRedirectUri } from "expo-auth-session"
 import { Href, useRouter } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
 import React, { useEffect, useState } from "react"
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native"
 import { theme } from "../../../constants/theme"
 import { useDebug } from "../../../context/DebugContext"
 import { supabase } from "../../../lib/supabase"
@@ -12,6 +19,9 @@ export default function HostLogin() {
   const { isDebugMode } = useDebug()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [emailLoading, setEmailLoading] = useState(false)
 
   // Listen for authentication state changes
   useEffect(() => {
@@ -110,6 +120,19 @@ export default function HostLogin() {
     }
   }
 
+  // Sign in with Email/Password
+  async function handleSignInWithEmail() {
+    setEmailLoading(true)
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password
+    })
+
+    if (error) Alert.alert("Sign In Error", error.message)
+    // No need to redirect here, onAuthStateChange handles it
+    setEmailLoading(false)
+  }
+
   if (initialLoading) {
     return (
       <View style={styles.container}>
@@ -135,6 +158,49 @@ export default function HostLogin() {
           {loading ? "Logging in..." : "Login with Discord"}
         </Text>
       </TouchableOpacity>
+
+      {/* Email/Password Login Section */}
+      <View style={styles.separatorContainer}>
+        <View style={styles.separatorLine} />
+        <Text style={styles.separatorText}>OR</Text>
+        <View style={styles.separatorLine} />
+      </View>
+
+      <TextInput
+        style={styles.input}
+        onChangeText={setEmail}
+        value={email}
+        placeholder="email@address.com"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        placeholderTextColor={theme.colors.text.secondary}
+        editable={!emailLoading}
+      />
+      <TextInput
+        style={styles.input}
+        onChangeText={setPassword}
+        value={password}
+        secureTextEntry={true}
+        placeholder="Password"
+        autoCapitalize="none"
+        placeholderTextColor={theme.colors.text.secondary}
+        editable={!emailLoading}
+      />
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={[
+            styles.emailButton,
+            styles.signInButton,
+            styles.fullWidthButton
+          ]}
+          onPress={handleSignInWithEmail}
+          disabled={emailLoading || loading}
+        >
+          <Text style={styles.emailButtonText}>
+            {emailLoading ? "Signing In..." : "Sign In"}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {isDebugMode && (
         <View style={styles.debugContainer}>
@@ -177,6 +243,56 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: theme.colors.background,
     fontWeight: "500"
+  },
+  separatorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "80%",
+    marginVertical: theme.spacing.lg
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border
+  },
+  separatorText: {
+    marginHorizontal: theme.spacing.sm,
+    color: theme.colors.text.secondary,
+    ...theme.typography.caption
+  },
+  input: {
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.text.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+    width: "80%",
+    fontSize: theme.typography.body.fontSize
+  },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "80%",
+    marginTop: theme.spacing.xs
+  },
+  emailButton: {
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    flex: 1,
+    alignItems: "center"
+  },
+  signInButton: {
+    backgroundColor: theme.colors.primary
+  },
+  emailButtonText: {
+    color: theme.colors.background,
+    fontWeight: "500"
+  },
+  fullWidthButton: {
+    marginHorizontal: 0
   },
   debugContainer: {
     marginTop: theme.spacing.xl,
