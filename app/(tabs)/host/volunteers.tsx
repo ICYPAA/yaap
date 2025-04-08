@@ -33,6 +33,7 @@ export default function VolunteerSignups() {
   const { isDebugMode } = useDebug()
   const [volunteers, setVolunteers] = useState<VolunteerSignup[]>([])
   const [loading, setLoading] = useState(true)
+  const styles = createStyles(theme)
 
   useEffect(() => {
     fetchVolunteers()
@@ -90,10 +91,10 @@ export default function VolunteerSignups() {
             {
               backgroundColor:
                 item.status === "pending"
-                  ? "#e74c3c"
+                  ? theme.colors.error
                   : item.status === "assigned"
-                  ? "#f39c12"
-                  : "#2ecc71"
+                  ? theme.colors.warning
+                  : theme.colors.success
             }
           ]}
         >
@@ -103,23 +104,23 @@ export default function VolunteerSignups() {
 
       <View style={styles.volunteerDetails}>
         <View style={styles.detailRow}>
-          <Ionicons name="mail" size={16} color="#3498db" />
+          <Ionicons name="mail" size={16} color={theme.colors.primary} />
           <Text style={styles.detailText}>
             {item.profiles?.email || "No email provided"}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Ionicons name="call" size={16} color="#3498db" />
+          <Ionicons name="call" size={16} color={theme.colors.primary} />
           <Text style={styles.detailText}>
             {item.phone || "No phone provided"}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Ionicons name="calendar" size={16} color="#3498db" />
+          <Ionicons name="calendar" size={16} color={theme.colors.primary} />
           <Text style={styles.detailText}>Available: {item.availability}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Ionicons name="briefcase" size={16} color="#3498db" />
+          <Ionicons name="briefcase" size={16} color={theme.colors.primary} />
           <Text style={styles.detailText}>
             Preferred Role: {item.preferred_role}
           </Text>
@@ -134,7 +135,10 @@ export default function VolunteerSignups() {
       <View style={styles.actionButtons}>
         {item.status === "pending" && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: "#f39c12" }]}
+            style={[
+              styles.actionButton,
+              { backgroundColor: theme.colors.warning }
+            ]}
             onPress={() => handleStatusUpdate(item.id, "assigned")}
           >
             <Text style={styles.actionButtonText}>Assign Volunteer</Text>
@@ -143,7 +147,10 @@ export default function VolunteerSignups() {
 
         {item.status === "assigned" && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: "#2ecc71" }]}
+            style={[
+              styles.actionButton,
+              { backgroundColor: theme.colors.success }
+            ]}
             onPress={() => handleStatusUpdate(item.id, "completed")}
           >
             <Text style={styles.actionButtonText}>Mark Completed</Text>
@@ -152,7 +159,10 @@ export default function VolunteerSignups() {
 
         {item.status === "completed" && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: "#3498db" }]}
+            style={[
+              styles.actionButton,
+              { backgroundColor: theme.colors.primary }
+            ]}
             onPress={() => handleStatusUpdate(item.id, "pending")}
           >
             <Text style={styles.actionButtonText}>Reassign</Text>
@@ -169,7 +179,11 @@ export default function VolunteerSignups() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Ionicons
+            name="arrow-back"
+            size={24}
+            color={theme.colors.background}
+          />
         </TouchableOpacity>
         <Text style={styles.title}>Volunteer Sign-ups</Text>
         {isDebugMode && (
@@ -181,11 +195,11 @@ export default function VolunteerSignups() {
 
       {loading ? (
         <View style={styles.centered}>
-          <Text>Loading volunteer sign-ups...</Text>
+          <Text style={styles.centeredText}>Loading volunteer sign-ups...</Text>
         </View>
       ) : volunteers.length === 0 ? (
         <View style={styles.centered}>
-          <Text>No volunteer sign-ups found.</Text>
+          <Text style={styles.centeredText}>No volunteer sign-ups found.</Text>
         </View>
       ) : (
         <FlatList
@@ -199,115 +213,124 @@ export default function VolunteerSignups() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f5"
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#3498db"
-  },
-  backButton: {
-    marginRight: 16
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "white",
-    flex: 1
-  },
-  debugBadge: {
-    backgroundColor: "#e74c3c",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12
-  },
-  debugText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "bold"
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center"
-  },
-  listContainer: {
-    padding: 16
-  },
-  volunteerCard: {
-    backgroundColor: "white",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2
-  },
-  volunteerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8
-  },
-  volunteerName: {
-    fontSize: 18,
-    fontWeight: "500"
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12
-  },
-  statusText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "500",
-    textTransform: "capitalize"
-  },
-  volunteerDetails: {
-    marginBottom: 12,
-    backgroundColor: "#f8f9fa",
-    padding: 10,
-    borderRadius: 6
-  },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6
-  },
-  detailText: {
-    marginLeft: 8,
-    fontSize: 14
-  },
-  additionalInfo: {
-    fontSize: 16,
-    marginBottom: 12,
-    lineHeight: 22
-  },
-  timestamp: {
-    fontSize: 12,
-    color: "#7f8c8d",
-    marginBottom: 12
-  },
-  actionButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end"
-  },
-  actionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginLeft: 8
-  },
-  actionButtonText: {
-    color: "white",
-    fontWeight: "500",
-    fontSize: 14
-  }
-})
+const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      backgroundColor: theme.colors.primary
+    },
+    backButton: {
+      marginRight: 16
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: theme.colors.background,
+      flex: 1
+    },
+    debugBadge: {
+      backgroundColor: theme.colors.error,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12
+    },
+    debugText: {
+      color: theme.colors.background,
+      fontSize: 12,
+      fontWeight: "bold"
+    },
+    centered: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 16
+    },
+    centeredText: {
+      color: theme.colors.text.primary,
+      fontSize: 16
+    },
+    listContainer: {
+      padding: 16
+    },
+    volunteerCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 16,
+      elevation: 2,
+      shadowColor: theme.colors.border,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2
+    },
+    volunteerHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8
+    },
+    volunteerName: {
+      fontSize: 18,
+      fontWeight: "500",
+      color: theme.colors.text.primary
+    },
+    statusBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12
+    },
+    statusText: {
+      color: theme.colors.background,
+      fontSize: 12,
+      fontWeight: "500",
+      textTransform: "capitalize"
+    },
+    volunteerDetails: {
+      marginBottom: 12,
+      backgroundColor: theme.colors.surface,
+      padding: 10,
+      borderRadius: 6
+    },
+    detailRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 6
+    },
+    detailText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.colors.text.primary
+    },
+    additionalInfo: {
+      fontSize: 16,
+      marginBottom: 12,
+      lineHeight: 22,
+      color: theme.colors.text.primary
+    },
+    timestamp: {
+      fontSize: 12,
+      color: theme.colors.text.secondary,
+      marginBottom: 12
+    },
+    actionButtons: {
+      flexDirection: "row",
+      justifyContent: "flex-end"
+    },
+    actionButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 6,
+      marginLeft: 8
+    },
+    actionButtonText: {
+      color: theme.colors.background,
+      fontWeight: "500",
+      fontSize: 14
+    }
+  })

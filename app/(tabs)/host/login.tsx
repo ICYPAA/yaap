@@ -10,18 +10,20 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
-import { theme } from "../../../constants/theme"
 import { useDebug } from "../../../context/DebugContext"
+import { useTheme } from "../../../context/ThemeContext"
 import { supabase } from "../../../lib/supabase"
 
 export default function HostLogin() {
   const router = useRouter()
+  const { theme } = useTheme()
   const { isDebugMode } = useDebug()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [emailLoading, setEmailLoading] = useState(false)
+  const styles = createStyles(theme)
 
   // Listen for authentication state changes
   useEffect(() => {
@@ -213,97 +215,98 @@ export default function HostLogin() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.lg,
-    justifyContent: "center",
-    alignItems: "center"
-  },
-  title: {
-    fontSize: theme.typography.h1.fontSize,
-    fontWeight: "700",
-    marginBottom: theme.spacing.md,
-    color: theme.colors.text.primary
-  },
-  description: {
-    fontSize: theme.typography.body.fontSize,
-    textAlign: "center",
-    marginBottom: theme.spacing.xl,
-    color: theme.colors.text.secondary
-  },
-  loginButton: {
-    backgroundColor: "#5865F2", // Discord brand color
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-    minWidth: 200,
-    alignItems: "center"
-  },
-  loginButtonText: {
-    color: theme.colors.background,
-    fontWeight: "500"
-  },
-  separatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "80%",
-    marginVertical: theme.spacing.lg
-  },
-  separatorLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: theme.colors.border
-  },
-  separatorText: {
-    marginHorizontal: theme.spacing.sm,
-    color: theme.colors.text.secondary,
-    ...theme.typography.caption
-  },
-  input: {
-    backgroundColor: theme.colors.surface,
-    color: theme.colors.text.primary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: theme.spacing.md,
-    width: "80%",
-    fontSize: theme.typography.body.fontSize
-  },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "80%",
-    marginTop: theme.spacing.xs
-  },
-  emailButton: {
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    flex: 1,
-    alignItems: "center"
-  },
-  signInButton: {
-    backgroundColor: theme.colors.primary
-  },
-  emailButtonText: {
-    color: theme.colors.background,
-    fontWeight: "500"
-  },
-  fullWidthButton: {
-    marginHorizontal: 0
-  },
-  debugContainer: {
-    marginTop: theme.spacing.xl,
-    padding: theme.spacing.md,
-    backgroundColor: "rgba(255, 0, 0, 0.05)",
-    borderRadius: theme.borderRadius.md,
-    borderLeftWidth: 3,
-    borderLeftColor: theme.colors.error
-  },
-  debugText: {
-    color: theme.colors.error,
-    fontSize: theme.typography.caption.fontSize
-  }
-})
+const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      padding: theme.spacing.lg,
+      justifyContent: "center",
+      alignItems: "center"
+    },
+    title: {
+      fontSize: theme.typography.h1.fontSize,
+      fontWeight: "700",
+      marginBottom: theme.spacing.md,
+      color: theme.colors.text.primary
+    },
+    description: {
+      fontSize: theme.typography.body.fontSize,
+      textAlign: "center",
+      marginBottom: theme.spacing.xl,
+      color: theme.colors.text.secondary
+    },
+    loginButton: {
+      backgroundColor: "#5865F2",
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.sm,
+      minWidth: 200,
+      alignItems: "center"
+    },
+    loginButtonText: {
+      color: theme.colors.background,
+      fontWeight: "500"
+    },
+    separatorContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      width: "80%",
+      marginVertical: theme.spacing.lg
+    },
+    separatorLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.colors.border
+    },
+    separatorText: {
+      marginHorizontal: theme.spacing.sm,
+      color: theme.colors.text.secondary,
+      ...theme.typography.caption
+    },
+    input: {
+      backgroundColor: theme.colors.surface,
+      color: theme.colors.text.primary,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.sm,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: theme.spacing.md,
+      width: "80%",
+      fontSize: theme.typography.body.fontSize
+    },
+    buttonRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      width: "80%",
+      marginTop: theme.spacing.xs
+    },
+    emailButton: {
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.sm,
+      flex: 1,
+      alignItems: "center"
+    },
+    signInButton: {
+      backgroundColor: theme.colors.primary
+    },
+    emailButtonText: {
+      color: theme.colors.background,
+      fontWeight: "500"
+    },
+    fullWidthButton: {
+      marginHorizontal: 0
+    },
+    debugContainer: {
+      marginTop: theme.spacing.xl,
+      padding: theme.spacing.md,
+      backgroundColor: "rgba(255, 0, 0, 0.05)",
+      borderRadius: theme.borderRadius.md,
+      borderLeftWidth: 3,
+      borderLeftColor: theme.colors.error
+    },
+    debugText: {
+      color: theme.colors.error,
+      fontSize: theme.typography.caption.fontSize
+    }
+  })
