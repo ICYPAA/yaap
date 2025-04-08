@@ -237,6 +237,10 @@ const TimelineView = ({
   const roomHeadersScrollRef = React.useRef<ScrollView>(null)
   const roomColumnsScrollRef = React.useRef<ScrollView>(null)
   const { theme, isDarkMode } = useTheme()
+  // Add state to track expanded events
+  const [expandedEvents, setExpandedEvents] = useState<Record<number, boolean>>(
+    {}
+  )
 
   // Define local styles for the component with original table styles
   const timelineStyles = StyleSheet.create({
@@ -336,12 +340,43 @@ const TimelineView = ({
       overflow: "hidden",
       minHeight: 40
     },
+    timelineEventExpanded: {
+      zIndex: 10,
+      minHeight: 60 // At least 1 hour height when expanded
+    },
     timelineEventTitle: { fontSize: 12, fontWeight: "bold", marginBottom: 2 },
+    // Add style for compact event title with ellipsis
+    timelineEventTitleCompact: {
+      fontSize: 12,
+      fontWeight: "bold",
+      flexShrink: 1,
+      overflow: "hidden"
+    },
     eventTime: {
       flexDirection: "column"
     },
     timelineEventTime: { fontSize: 10 },
-    timelineSaveButton: { position: "absolute", top: 4, right: 4 }
+    timelineSaveButton: { position: "absolute", top: 4, right: 4 },
+    // Add style for compact event container
+    compactEventContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      width: "100%",
+      height: "100%"
+    },
+    expandedDetails: {
+      marginTop: 4
+    },
+    expandedDescription: {
+      fontSize: 10,
+      marginTop: 2
+    },
+    expandedSpeakers: {
+      fontSize: 10,
+      fontStyle: "italic",
+      marginTop: 2
+    }
   })
 
   // Helper function to handle synchronized horizontal scrolling
@@ -353,6 +388,14 @@ const TimelineView = ({
     } else if (!fromHeaders && roomHeadersScrollRef.current) {
       roomHeadersScrollRef.current.scrollTo({ x: scrollX, animated: false })
     }
+  }
+
+  // Add function to toggle event expansion
+  const toggleEventExpanded = (eventId: number) => {
+    setExpandedEvents((prev) => ({
+      ...prev,
+      [eventId]: !prev[eventId]
+    }))
   }
 
   // Use the passed formatTime function
@@ -388,32 +431,42 @@ const TimelineView = ({
 
   // Get unique room names from events but handle Galway rooms separately
   const roomColumns = useMemo(() => {
-    const rooms = new Set<string>()
+    // Start with venue_rooms from programDetails if available
+    const roomsArray: string[] = programDetails?.venue_rooms?.length
+      ? [...programDetails.venue_rooms]
+      : []
 
+    // Track which rooms we've already added
+    const roomsSet = new Set(roomsArray)
+
+    // Now go through events and add any rooms not already in our list
     dayEvents.forEach((event) => {
-      // Special handling for Galway rooms
+      let roomKey = event.location
+
+      // Special handling for Galway rooms to maintain previous logic
       if (event.location.includes("Galway")) {
-        // Check if it's specifically Galway C
         if (event.location.includes("Galway C")) {
-          rooms.add("Galway C")
+          roomKey = "Galway C"
         } else {
-          // All other Galway variants go to "Galway A/B"
-          rooms.add("Galway A/B")
+          roomKey = "Galway A/B"
         }
-      } else {
-        rooms.add(event.location)
+      }
+
+      // Only add if not already in the list
+      if (!roomsSet.has(roomKey)) {
+        roomsArray.push(roomKey)
+        roomsSet.add(roomKey)
       }
     })
 
-    // Return array without sorting to preserve original order
-    return Array.from(rooms)
-  }, [dayEvents])
+    return roomsArray
+  }, [dayEvents, programDetails?.venue_rooms])
 
   // Group events by room with the correct Galway distinction
   const eventsByRoom = useMemo(() => {
     const byRoom: Record<string, DisplayScheduleItem[]> = {}
 
-    // Initialize the room arrays
+    // Initialize the room arrays - maintain the exact order from roomColumns
     roomColumns.forEach((room) => {
       byRoom[room] = []
     })
@@ -438,7 +491,7 @@ const TimelineView = ({
     })
 
     return byRoom
-  }, [dayEvents, roomColumns])
+  }, [dayEvents, roomColumns]) // Add roomColumns as a dependency
 
   // Use program colors in timeline events
   const getProgramEventColor = (event: DisplayScheduleItem) => {
@@ -591,60 +644,140 @@ const TimelineView = ({
                           formattedEndTime
                         )
 
+                        // Determine if this is a short event (less than 1 hour)
+                        const isShortEvent =
+                          height < 60 && !expandedEvents[event.id]
+                        // Determine if event is expanded
+                        const isExpanded = expandedEvents[event.id]
+                        // Use min height of 60 (1 hour) if expanded
+                        const adjustedHeight = isExpanded
+                          ? Math.max(height, 60)
+                          : height
+
                         const eventColor = getProgramEventColor(event)
                         const textColor = getTextColorForBgUtil(eventColor)
 
                         return (
-                          <View
+                          <TouchableOpacity
                             key={event.id}
                             style={[
                               timelineStyles.timelineEvent,
                               {
                                 top,
-                                height,
+                                height: adjustedHeight,
                                 backgroundColor: eventColor,
-                                minHeight: 30 // Minimum height for visibility
-                              }
+                                minHeight: isShortEvent ? 30 : 40 // Lower minimum height for short events
+                              },
+                              isExpanded && timelineStyles.timelineEventExpanded
                             ]}
+                            onPress={() => toggleEventExpanded(event.id)}
                           >
-                            <Text
-                              style={[
-                                timelineStyles.timelineEventTitle,
-                                { color: textColor }
-                              ]}
-                            >
-                              {event.title}
-                            </Text>
-                            <View style={timelineStyles.eventTime}>
-                              <Text
-                                style={[
-                                  timelineStyles.timelineEventTime,
-                                  { color: textColor }
-                                ]}
+                            {isShortEvent ? (
+                              // Compact view for short events
+                              <View
+                                style={timelineStyles.compactEventContainer}
                               >
-                                {event.time}
-                                {formattedEndTime
-                                  ? ` - ${formattedEndTime}`
-                                  : ""}
-                              </Text>
-                            </View>
-                            {event.can_save !== false && (
-                              <TouchableOpacity
-                                style={timelineStyles.timelineSaveButton}
-                                onPress={() => onToggleSave(event.id)}
-                              >
-                                <Ionicons
-                                  name={
-                                    savedItems.includes(event.id)
-                                      ? "star"
-                                      : "star-outline"
-                                  }
-                                  size={16}
-                                  color={textColor}
-                                />
-                              </TouchableOpacity>
+                                <Text
+                                  style={[
+                                    timelineStyles.timelineEventTitleCompact,
+                                    { color: textColor }
+                                  ]}
+                                  numberOfLines={1}
+                                  ellipsizeMode="tail"
+                                >
+                                  {event.title}
+                                </Text>
+                                {event.can_save !== false && (
+                                  <Ionicons
+                                    name={
+                                      savedItems.includes(event.id)
+                                        ? "star"
+                                        : "star-outline"
+                                    }
+                                    size={16}
+                                    color={textColor}
+                                    onPress={(e) => {
+                                      e.stopPropagation()
+                                      onToggleSave(event.id)
+                                    }}
+                                  />
+                                )}
+                              </View>
+                            ) : (
+                              // Full or expanded view
+                              <>
+                                <Text
+                                  style={[
+                                    timelineStyles.timelineEventTitle,
+                                    { color: textColor }
+                                  ]}
+                                >
+                                  {event.title}
+                                </Text>
+                                <View style={timelineStyles.eventTime}>
+                                  <Text
+                                    style={[
+                                      timelineStyles.timelineEventTime,
+                                      { color: textColor }
+                                    ]}
+                                  >
+                                    {event.time}
+                                    {formattedEndTime
+                                      ? ` - ${formattedEndTime}`
+                                      : ""}
+                                  </Text>
+                                </View>
+
+                                {/* Show expanded details */}
+                                {isExpanded && (
+                                  <View style={timelineStyles.expandedDetails}>
+                                    {event.description && (
+                                      <Text
+                                        style={[
+                                          timelineStyles.expandedDescription,
+                                          { color: textColor }
+                                        ]}
+                                        numberOfLines={3}
+                                      >
+                                        {event.description}
+                                      </Text>
+                                    )}
+                                    {event.speakers &&
+                                      event.speakers.length > 0 && (
+                                        <Text
+                                          style={[
+                                            timelineStyles.expandedSpeakers,
+                                            { color: textColor }
+                                          ]}
+                                        >
+                                          {event.speakers.join(", ")}
+                                        </Text>
+                                      )}
+                                  </View>
+                                )}
+
+                                {event.can_save !== false && (
+                                  <TouchableOpacity
+                                    style={timelineStyles.timelineSaveButton}
+                                    onPress={(e) => {
+                                      e.stopPropagation()
+                                      onToggleSave(event.id)
+                                    }}
+                                  >
+                                    <Ionicons
+                                      name={
+                                        savedItems.includes(event.id)
+                                          ? "star"
+                                          : "star-outline"
+                                      }
+                                      size={16}
+                                      color={textColor}
+                                    />
+                                  </TouchableOpacity>
+                                )}
+                              </>
                             )}
-                          </View>
+                          </TouchableOpacity>
                         )
                       })}
                     </View>
