@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "icypaa",
+    "name": "YAAP!",
     "slug": "icypaa",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.themindfulpug.icypaa",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library for you to choose a profile picture."
       },
       "permissions": {
         "notifications": true

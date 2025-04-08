@@ -1683,6 +1683,16 @@ export default function Program() {
     return mockFriends.filter((friend) => friend.savedEvents.includes(eventId))
   }
 
+  // Add state for expanded items in My Schedule view
+  const [myScheduleExpandedItems, setMyScheduleExpandedItems] = useState<
+    Record<number, boolean>
+  >({})
+
+  // Toggle expanded state function
+  const toggleMyScheduleExpansion = (id: number) => {
+    setMyScheduleExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
   // Generate QR code data
   const qrData = JSON.stringify({
     userId: "user123", // This would be the actual user ID
@@ -1946,7 +1956,8 @@ export default function Program() {
       },
       eventHeader: {
         flexDirection: "row",
-        justifyContent: "space-between"
+        justifyContent: "space-between",
+        alignItems: "flex-start"
       },
       eventTime: {
         flexDirection: "column"
@@ -2006,6 +2017,34 @@ export default function Program() {
         fontSize: 12,
         color: theme.colors.text.secondary,
         marginLeft: 8
+      },
+      expandedDetails: {
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border
+      },
+      eventTimeSection: {
+        flexDirection: "row",
+        marginBottom: 8,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border
+      },
+      eventTimeLabel: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: theme.colors.text.primary,
+        marginRight: 4
+      },
+      eventTimeValue: {
+        fontSize: 14,
+        color: theme.colors.text.primary
+      },
+      itemDetailText: {
+        fontSize: 14,
+        color: theme.colors.text.secondary,
+        lineHeight: 20
       },
       qrSection: {
         marginTop: 24,
@@ -2085,7 +2124,6 @@ export default function Program() {
       </View>
     )
   }
-
   return (
     <View style={[programStyles(theme).container, { paddingTop: 0 }]}>
       {/* Program Header with dynamic height */}
@@ -2364,15 +2402,17 @@ export default function Program() {
                     const canSave = eventDetails?.can_save !== false
 
                     return (
-                      <View
+                      <TouchableOpacity
                         key={item.id}
                         style={[
                           programStyles(theme).eventCard,
                           hasConflict && programStyles(theme).conflictingEvent
                         ]}
+                        onPress={() => toggleMyScheduleExpansion(item.id)}
+                        activeOpacity={0.7}
                       >
                         <View style={programStyles(theme).eventHeader}>
-                          <View>
+                          <View style={{ flex: 1, marginRight: 8 }}>
                             <View
                               style={{
                                 flexDirection: "row",
@@ -2433,16 +2473,23 @@ export default function Program() {
                                   color: isDarkMode
                                     ? "#fff"
                                     : theme.colors.text.primary,
-                                  marginTop: 8
+                                  marginTop: 8,
+                                  flexShrink: 1
                                 }
                               ]}
+                              numberOfLines={
+                                myScheduleExpandedItems[item.id] ? undefined : 2
+                              }
                             >
                               {item.title}
                             </Text>
                           </View>
                           {canSave && (
                             <TouchableOpacity
-                              onPress={() => handleToggleSave(item.id)}
+                              onPress={(e) => {
+                                e.stopPropagation()
+                                handleToggleSave(item.id)
+                              }}
                               style={programStyles(theme).removeButton}
                             >
                               <Ionicons
@@ -2480,38 +2527,126 @@ export default function Program() {
                           </Text>
                         )}
 
-                        {/* Show friends attending */}
-                        {friendsGoing.length > 0 && (
-                          <View style={programStyles(theme).friendAvatars}>
-                            {friendsGoing.slice(0, 3).map((friend, index) => (
-                              <View
-                                key={friend.id}
-                                style={[
-                                  programStyles(theme).avatarContainer,
-                                  { marginLeft: index > 0 ? -10 : 0 }
-                                ]}
-                              >
-                                <Image
-                                  source={{ uri: friend.avatar }}
-                                  style={programStyles(theme).avatar}
-                                />
-                              </View>
-                            ))}
-                            {friendsGoing.length > 3 && (
-                              <Text style={programStyles(theme).friendCount}>
-                                +{friendsGoing.length - 3} more
+                        {/* Show expanded details when card is clicked */}
+                        {myScheduleExpandedItems[item.id] && (
+                          <View style={programStyles(theme).expandedDetails}>
+                            {/* Event time details */}
+                            <View style={programStyles(theme).eventTimeSection}>
+                              <Text style={programStyles(theme).eventTimeLabel}>
+                                Event Time:
+                              </Text>
+                              <Text style={programStyles(theme).eventTimeValue}>
+                                {item.time}
+                                {eventDetails?.end_time
+                                  ? ` - ${formatTime(eventDetails.end_time)}`
+                                  : ""}
+                              </Text>
+                            </View>
+
+                            {/* Event description if available */}
+                            {item.description && (
+                              <Text style={programStyles(theme).itemDetailText}>
+                                {item.description}
                               </Text>
                             )}
-                            {friendsGoing.length <= 3 && (
-                              <Text style={programStyles(theme).friendCount}>
-                                {friendsGoing.length === 1
-                                  ? `${friendsGoing[0].name} is going`
-                                  : `${friendsGoing.length} friends going`}
-                              </Text>
+
+                            {/* Speakers if available */}
+                            {item.speakers && item.speakers.length > 0 && (
+                              <View style={{ marginTop: 8 }}>
+                                <Text
+                                  style={[
+                                    programStyles(theme).eventTimeLabel,
+                                    { marginBottom: 4 }
+                                  ]}
+                                >
+                                  Speakers:
+                                </Text>
+                                <Text
+                                  style={programStyles(theme).itemDetailText}
+                                >
+                                  {item.speakers.join(", ")}
+                                </Text>
+                              </View>
+                            )}
+
+                            {/* Friends section - show all friends */}
+                            {friendsGoing.length > 0 && (
+                              <View style={{ marginTop: 12 }}>
+                                <Text
+                                  style={[
+                                    programStyles(theme).eventTimeLabel,
+                                    { marginBottom: 8 }
+                                  ]}
+                                >
+                                  Friends Going:
+                                </Text>
+                                {friendsGoing.map((friend) => (
+                                  <View
+                                    key={friend.id}
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      marginBottom: 6
+                                    }}
+                                  >
+                                    <Image
+                                      source={{ uri: friend.avatar }}
+                                      style={[
+                                        programStyles(theme).avatar,
+                                        {
+                                          width: 32,
+                                          height: 32,
+                                          marginRight: 8
+                                        }
+                                      ]}
+                                    />
+                                    <Text
+                                      style={
+                                        programStyles(theme).itemDetailText
+                                      }
+                                    >
+                                      {friend.name}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
                             )}
                           </View>
                         )}
-                      </View>
+
+                        {/* Show collapsed version of friends for non-expanded cards */}
+                        {!myScheduleExpandedItems[item.id] &&
+                          friendsGoing.length > 0 && (
+                            <View style={programStyles(theme).friendAvatars}>
+                              {friendsGoing.slice(0, 3).map((friend, index) => (
+                                <View
+                                  key={friend.id}
+                                  style={[
+                                    programStyles(theme).avatarContainer,
+                                    { marginLeft: index > 0 ? -10 : 0 }
+                                  ]}
+                                >
+                                  <Image
+                                    source={{ uri: friend.avatar }}
+                                    style={programStyles(theme).avatar}
+                                  />
+                                </View>
+                              ))}
+                              {friendsGoing.length > 3 && (
+                                <Text style={programStyles(theme).friendCount}>
+                                  +{friendsGoing.length - 3} more
+                                </Text>
+                              )}
+                              {friendsGoing.length <= 3 && (
+                                <Text style={programStyles(theme).friendCount}>
+                                  {friendsGoing.length === 1
+                                    ? `${friendsGoing[0].name} is going`
+                                    : `${friendsGoing.length} friends going`}
+                                </Text>
+                              )}
+                            </View>
+                          )}
+                      </TouchableOpacity>
                     )
                   })}
                 </View>

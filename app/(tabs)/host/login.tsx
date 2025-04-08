@@ -1,7 +1,8 @@
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6"
 import { makeRedirectUri } from "expo-auth-session"
-import { Href, useRouter } from "expo-router"
+import { useRouter } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
-import React, { useEffect, useState } from "react"
+import React, { useState } from "react"
 import {
   Alert,
   StyleSheet,
@@ -19,64 +20,10 @@ export default function HostLogin() {
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
   const [loading, setLoading] = useState(false)
-  const [initialLoading, setInitialLoading] = useState(true)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [emailLoading, setEmailLoading] = useState(false)
   const styles = createStyles(theme)
-
-  // Listen for authentication state changes
-  useEffect(() => {
-    // Set initial loading to false once the first auth event is received.
-    let receivedFirstEvent = false
-
-    // Check if debug mode bypasses auth
-    if (isDebugMode) {
-      console.log("Debug mode enabled, bypassing auth check.")
-      router.replace("/host/index" as Href)
-      setInitialLoading(false)
-      return // Don't set up the listener if in debug mode
-    }
-
-    // Get current session immediately (optional, but can speed up initial load)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!receivedFirstEvent) {
-        if (session) {
-          console.log("Found active session on initial check.")
-          router.replace("/host" as Href)
-        } else {
-          console.log("No active session on initial check.")
-        }
-        setInitialLoading(false)
-        receivedFirstEvent = true
-      }
-    })
-
-    // Set up the listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        console.log("Auth state changed:", _event, !!session)
-        if (!receivedFirstEvent) {
-          // If getSession finished first, this prevents double-redirect
-          setInitialLoading(false)
-          receivedFirstEvent = true
-        }
-
-        if (session) {
-          // User is logged in, redirect
-          router.replace("/host/index" as Href)
-        } else {
-          // User is logged out, ensure loading is false so login shows
-          setInitialLoading(false)
-        }
-      }
-    )
-
-    // Cleanup function to unsubscribe when the component unmounts
-    return () => {
-      authListener?.subscription.unsubscribe()
-    }
-  }, [isDebugMode, router]) // Add router to dependency array
 
   // Create a redirect URI
   const redirectUri = makeRedirectUri({
@@ -87,8 +34,9 @@ export default function HostLogin() {
   const handleDiscordLogin = async () => {
     try {
       setLoading(true)
+      console.log("Discord Login: Starting...")
+      console.log(`Discord Login: Redirect URI: ${redirectUri}`)
 
-      // Get the URL to the Supabase OAuth sign in page for Discord
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "discord",
         options: {
@@ -97,25 +45,191 @@ export default function HostLogin() {
       })
 
       if (error) throw error
+      console.log(`Discord Login: OAuth URL: ${data?.url}`)
 
-      // Open the browser for authentication
       if (data?.url) {
         const result = await WebBrowser.openAuthSessionAsync(
           data.url,
           redirectUri
         )
+        console.log("Discord Login: Auth result:", JSON.stringify(result))
 
         if (result.type === "success") {
-          // Session is automatically set by the Supabase client library via AsyncStorage.
-          // We can just navigate to the protected route.
-          router.replace("/host" as Href)
+          console.log(
+            "Discord Login: WebBrowser success, attempting to set session..."
+          )
+          // Extract tokens from the URL fragment
+          const params = new URLSearchParams(result.url.split("#")[1])
+          const access_token = params.get("access_token")
+          const refresh_token = params.get("refresh_token")
+          const provider_token = params.get("provider_token")
+
+          if (access_token && refresh_token && provider_token) {
+            const { error: setSessionError } = await supabase.auth.setSession({
+              access_token,
+              refresh_token
+            })
+
+            if (setSessionError) {
+              console.error(
+                "Discord Login: Error setting session",
+                setSessionError
+              )
+              Alert.alert("Login Error", "Failed to set session after login.")
+            } else {
+              console.log(
+                "Discord Login: Session set successfully. Verifying guild membership..."
+              )
+
+              // Get user from the now established session
+              const { data: sessionData, error: sessionError } =
+                await supabase.auth.getSession()
+
+              if (
+                sessionError ||
+                !sessionData.session ||
+                !sessionData.session.user
+              ) {
+                console.error(
+                  "Discord Login: Error retrieving user session after setting it",
+                  sessionError
+                )
+                Alert.alert(
+                  "Login Error",
+                  "Could not verify user session after login."
+                )
+                await supabase.auth.signOut() // Clean up potentially partial session
+                return // Stop further execution in this block
+              }
+
+              const { user } = sessionData.session
+
+              // Now use the provider_token extracted from the URL fragment
+              if (!provider_token) {
+                // This check is now theoretically redundant if the outer check passed,
+                // but kept for safety.
+                console.error(
+                  "Discord Login: Provider token was not extracted from URL."
+                )
+                Alert.alert(
+                  "Login Error",
+                  "Missing Discord token for verification."
+                )
+                await supabase.auth.signOut()
+                return
+              }
+
+              // Use user.user_metadata.iss for the Discord API base URL if available,
+              // otherwise fall back to a default.
+              const discordApiBase =
+                user?.user_metadata?.iss ?? "https://discord.com/api/v10"
+              console.log(`Using Discord API Base: ${discordApiBase}`)
+
+              const discordHostServerId =
+                process.env.EXPO_PUBLIC_DISCORD_HOST_SERVER
+
+              if (!discordHostServerId) {
+                console.error(
+                  "Discord Login: EXPO_PUBLIC_DISCORD_HOST_SERVER environment variable is not set."
+                )
+                Alert.alert(
+                  "Configuration Error",
+                  "Host server ID is not configured. Please contact support."
+                )
+                await supabase.auth.signOut()
+                return
+              }
+
+              try {
+                const guildsResponse = await fetch(
+                  `${discordApiBase}/users/@me/guilds`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${provider_token}`
+                    }
+                  }
+                )
+
+                if (!guildsResponse.ok) {
+                  const errorText = await guildsResponse.text()
+                  throw new Error(
+                    `Failed to fetch guilds: ${guildsResponse.status} ${errorText}`
+                  )
+                }
+
+                const guilds = await guildsResponse.json()
+                const isMember = guilds.some(
+                  (guild: any) => guild.id === discordHostServerId
+                )
+
+                if (isMember) {
+                  console.log(
+                    "Discord Login: User is a member of the host guild. Login approved."
+                  )
+                  // Optional: Fetch member details and update profile
+                  // try {
+                  //     const memberResponse = await fetch(`${discordApiBase}/users/@me/guilds/${discordHostServerId}/member`, {
+                  //         headers: { Authorization: `Bearer ${provider_token}` }
+                  //     });
+                  //     if (memberResponse.ok) {
+                  //         const memberDetails = await memberResponse.json();
+                  //         console.log("Discord Login: Fetched member details:", memberDetails.nick, memberDetails.roles);
+                  //         // Update Supabase profile here if needed
+                  //         // await supabase.from("profiles").update({ discord_roles: memberDetails.roles, discord_nickname: memberDetails.nick }).eq('id', user.id);
+                  //     } else {
+                  //          console.warn("Discord Login: Could not fetch member details.", memberResponse.status);
+                  //     }
+                  // } catch(memberError) {
+                  //     console.error("Discord Login: Error fetching member details:", memberError);
+                  // }
+                  // Navigation will be handled by onAuthStateChange listener
+                } else {
+                  console.log(
+                    "Discord Login: User is NOT a member of the host guild. Aborting login."
+                  )
+                  Alert.alert(
+                    "Access Denied",
+                    "You must be a member of the ICYPAA Host Discord server to log in here."
+                  )
+                  await supabase.auth.signOut() // Sign out the user
+                }
+              } catch (guildError) {
+                console.error(
+                  "Discord Login: Error checking guild membership:",
+                  guildError
+                )
+                Alert.alert(
+                  "Verification Error",
+                  "Could not verify your Discord server membership. Please try again."
+                )
+                await supabase.auth.signOut() // Sign out on error
+              }
+            }
+          } else {
+            console.warn(
+              "Discord Login: Tokens (access, refresh, or provider) not found in redirect URL."
+            )
+            Alert.alert(
+              "Login Error",
+              "Could not retrieve all required login tokens."
+            )
+          }
+        } else if (result.type === "cancel" || result.type === "dismiss") {
+          console.log("Discord Login: User cancelled or dismissed.")
+        } else {
+          console.warn(
+            "Discord Login: WebBrowser returned non-success result:",
+            result.type
+          )
         }
       }
     } catch (error) {
       console.error("Discord login error:", error)
       Alert.alert(
         "Login Error",
-        "An error occurred during login. Please try again."
+        error instanceof Error
+          ? error.message
+          : "An unknown error occurred during login. Please try again."
       )
     } finally {
       setLoading(false)
@@ -131,16 +245,7 @@ export default function HostLogin() {
     })
 
     if (error) Alert.alert("Sign In Error", error.message)
-    // No need to redirect here, onAuthStateChange handles it
     setEmailLoading(false)
-  }
-
-  if (initialLoading) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.description}>Checking login status...</Text>
-      </View>
-    )
   }
 
   return (
@@ -154,8 +259,14 @@ export default function HostLogin() {
       <TouchableOpacity
         style={styles.loginButton}
         onPress={handleDiscordLogin}
-        disabled={loading}
+        disabled={loading || emailLoading}
       >
+        <FontAwesome6
+          name="discord"
+          size={20}
+          color="#e0e3ff"
+          style={styles.iconStyle}
+        />
         <Text style={styles.loginButtonText}>
           {loading ? "Logging in..." : "Login with Discord"}
         </Text>
@@ -176,7 +287,7 @@ export default function HostLogin() {
         autoCapitalize="none"
         keyboardType="email-address"
         placeholderTextColor={theme.colors.text.secondary}
-        editable={!emailLoading}
+        editable={!emailLoading && !loading}
       />
       <TextInput
         style={styles.input}
@@ -186,14 +297,15 @@ export default function HostLogin() {
         placeholder="Password"
         autoCapitalize="none"
         placeholderTextColor={theme.colors.text.secondary}
-        editable={!emailLoading}
+        editable={!emailLoading && !loading}
       />
       <View style={styles.buttonRow}>
         <TouchableOpacity
           style={[
             styles.emailButton,
             styles.signInButton,
-            styles.fullWidthButton
+            styles.fullWidthButton,
+            (emailLoading || loading) && styles.disabledButton
           ]}
           onPress={handleSignInWithEmail}
           disabled={emailLoading || loading}
@@ -238,14 +350,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
     },
     loginButton: {
       backgroundColor: "#5865F2",
-      padding: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
       borderRadius: theme.borderRadius.sm,
       minWidth: 200,
-      alignItems: "center"
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "center"
+    },
+    iconStyle: {
+      marginRight: theme.spacing.sm
     },
     loginButtonText: {
-      color: theme.colors.background,
-      fontWeight: "500"
+      color: "#e0e3ff",
+      fontWeight: "500",
+      fontSize: theme.typography.body.fontSize
     },
     separatorContainer: {
       flexDirection: "row",
@@ -296,6 +415,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
     },
     fullWidthButton: {
       marginHorizontal: 0
+    },
+    disabledButton: {
+      backgroundColor: theme.colors.border,
+      opacity: 0.7
     },
     debugContainer: {
       marginTop: theme.spacing.xl,

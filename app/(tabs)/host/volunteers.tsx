@@ -41,18 +41,17 @@ export default function VolunteerSignups() {
 
   const fetchVolunteers = async () => {
     try {
-      const { data, error } = await makeRequest({
-        table: "volunteer_signups",
-        isDebugMode,
-        query: () =>
-          supabase
-            .from("volunteer_signups")
-            .select("*, profiles(full_name, email)")
-            .order("created_at", { ascending: false })
-      })
-
-      if (error) throw error
-      setVolunteers(data || [])
+      // const { data, error } = await makeRequest({
+      //   table: "volunteer_signups",
+      //   isDebugMode,
+      //   query: () =>
+      //     supabase
+      //       .from("volunteer_signups")
+      //       .select("*")
+      //       .order("created_at", { ascending: false })
+      // })
+      // if (error) throw error
+      // setVolunteers(data || [])
     } catch (error) {
       console.error("Error fetching volunteer signups:", error)
     } finally {
@@ -82,9 +81,7 @@ export default function VolunteerSignups() {
   const renderItem = ({ item }: { item: VolunteerSignup }) => (
     <View style={styles.volunteerCard}>
       <View style={styles.volunteerHeader}>
-        <Text style={styles.volunteerName}>
-          {item.profiles?.full_name || "Anonymous"}
-        </Text>
+        <Text style={styles.volunteerName}>Volunteer ID: {item.id}</Text>
         <View
           style={[
             styles.statusBadge,
@@ -105,9 +102,7 @@ export default function VolunteerSignups() {
       <View style={styles.volunteerDetails}>
         <View style={styles.detailRow}>
           <Ionicons name="mail" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>
-            {item.profiles?.email || "No email provided"}
-          </Text>
+          <Text style={styles.detailText}>Email N/A</Text>
         </View>
         <View style={styles.detailRow}>
           <Ionicons name="call" size={16} color={theme.colors.primary} />

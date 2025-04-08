@@ -1,6 +1,7 @@
+import { Session } from "@supabase/supabase-js"
 import { useFonts } from "expo-font"
 import * as Notifications from "expo-notifications"
-import { Stack } from "expo-router"
+import { Href, Stack, useRouter, useSegments } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { StatusBar } from "expo-status-bar"
 import React, { useEffect, useRef, useState } from "react"
@@ -44,7 +45,8 @@ async function registerForPushNotificationsAsync() {
       lightColor: "#FF231F7C" // Consider using theme color
     })
   }
-  return undefined // Return undefined in case of errors or not on device
+  // Add permissions request logic if needed for iOS/web
+  return undefined
 }
 
 function RootLayoutNav() {
@@ -76,20 +78,75 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf")
   })
   const notificationListener = useRef<Notifications.EventSubscription>()
   const responseListener = useRef<Notifications.EventSubscription>()
   const [programLoaded, setProgramLoaded] = useState(false)
+  const [session, setSession] = useState<Session | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const router = useRouter()
+  const segments = useSegments()
 
-  // Fetch program data on app start
+  useEffect(() => {
+    if (error) throw error
+  }, [error])
+
+  useEffect(() => {
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: initialSession } }) => {
+        console.log("RootLayout: Initial session check:", !!initialSession)
+        setSession(initialSession)
+        setAuthLoading(false)
+      })
+      .catch((err) => {
+        console.error("RootLayout: Error getting initial session:", err)
+        setAuthLoading(false)
+      })
+
+    // Set up the listener
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      console.log(`RootLayout: Auth state changed: ${_event}`, !!currentSession)
+      const currentSegments = segments
+      const currentRoute = currentSegments.join("/")
+      console.log(
+        `RootLayout: Current route on auth change: ${currentRoute || "(root)"}`
+      )
+
+      if (_event === "SIGNED_IN" && currentRoute === "(tabs)/host/login") {
+        console.log(
+          "RootLayout: Redirecting from Login to Host Index on SIGNED_IN"
+        )
+        router.replace("/(tabs)/host" as Href)
+      } else if (
+        _event === "SIGNED_OUT" &&
+        currentSegments[0] === "(tabs)" &&
+        currentSegments[1] === "host" &&
+        currentRoute !== "(tabs)/host/login"
+      ) {
+        console.log(
+          "RootLayout: Redirecting from Host Area to Login on SIGNED_OUT"
+        )
+        router.replace("/(tabs)/host/login" as Href)
+      }
+
+      setSession(currentSession)
+    })
+
+    // Cleanup function
+    return () => {
+      subscription?.unsubscribe()
+    }
+  }, [router, segments])
+
   useEffect(() => {
     const fetchProgramData = async () => {
       try {
-        // Assume program ID 1 for now
         const programId = 1
-
         const { data, error } = await supabase
           .from("programs")
           .select("*")
@@ -102,7 +159,6 @@ export default function RootLayout() {
         }
 
         if (data) {
-          // Store program data in AsyncStorage
           await storeProgramDesign(data as Program)
           console.log("Program data stored successfully")
         }
@@ -110,7 +166,7 @@ export default function RootLayout() {
         setProgramLoaded(true)
       } catch (error) {
         console.error("Error in fetchProgramData:", error)
-        setProgramLoaded(true) // Set to true even on error to not block app loading
+        setProgramLoaded(true)
       }
     }
 
@@ -118,14 +174,12 @@ export default function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (loaded && programLoaded) {
+    if (loaded && programLoaded && !authLoading) {
       SplashScreen.hideAsync()
 
-      // Register for push notifications after fonts are loaded
       registerForPushNotificationsAsync()
         .then((token) => {
           if (token) {
-            // You might want to store the token in state/context or send it to your backend
             console.log("Push token obtained:", token)
           }
         })
@@ -133,31 +187,20 @@ export default function RootLayout() {
           console.error("Error during push notification registration:", error)
         )
 
-      // Listener for when a notification is received while the app is foregrounded
       notificationListener.current =
         Notifications.addNotificationReceivedListener((notification) => {
           console.log("Notification Received:", notification)
-          // You could update app state or display an in-app message here
         })
 
-      // Listener for when a user taps on or interacts with a notification
-      // (works when app is foregrounded, backgrounded, or killed)
       responseListener.current =
         Notifications.addNotificationResponseReceivedListener((response) => {
           console.log("Notification Response Received:", response)
           const screen = response.notification.request.content.data?.screen
           if (screen) {
-            // Navigate to the specified screen
-            // Note: Ensure your navigation is ready before attempting to navigate
-            // You might need to use Linking or Expo Router's imperative API
             console.log(`Navigating to screen: ${screen}`)
-            // Example using expo-router (ensure router is available)
-            // import { router } from 'expo-router';
-            // router.push(`/${screen}`);
           }
         })
 
-      // Cleanup listeners on component unmount
       return () => {
         notificationListener.current &&
           Notifications.removeNotificationSubscription(
@@ -167,11 +210,9 @@ export default function RootLayout() {
           Notifications.removeNotificationSubscription(responseListener.current)
       }
     }
-  }, [loaded, programLoaded]) // Rerun effect when both fonts and program are loaded
+  }, [loaded, programLoaded, authLoading])
 
-  // useNotifications() // Keep this commented out unless it's a custom hook you intend to use
-
-  if (!loaded || !programLoaded) {
+  if (!loaded || !programLoaded || authLoading) {
     return null
   }
 

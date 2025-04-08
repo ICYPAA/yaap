@@ -27,8 +27,12 @@ export type User = {
 export type Schedule = {
   // Id of events that are saved
   saved_events: number[]
+  // Id of users that has requested to see your schedule
+  requested_share: number[]
   // Id of users that you have shared your schedule with
   shared_with: number[]
+  // Id of users that you have requested to see their schedule
+  pending_share: number[]
   // Id of users that have shared their schedule with you
   shared_by: number[]
 }

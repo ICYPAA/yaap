@@ -50,18 +50,17 @@ export default function SupportChats() {
 
   const fetchChats = async () => {
     try {
-      const { data, error } = await makeRequest({
-        table: "support_chats",
-        isDebugMode,
-        query: () =>
-          supabase
-            .from("support_chats")
-            .select("*, profiles(full_name, email)")
-            .order("created_at", { ascending: false })
-      })
-
-      if (error) throw error
-      setChats(data || [])
+      // const { data, error } = await makeRequest({
+      //   table: "support_chats",
+      //   isDebugMode,
+      //   query: () =>
+      //     supabase
+      //       .from("support_chats")
+      //       .select("*")
+      //       .order("created_at", { ascending: false })
+      // })
+      // if (error) throw error
+      // setChats(data || [])
     } catch (error) {
       console.error("Error fetching support chats:", error)
     } finally {
@@ -140,9 +139,7 @@ export default function SupportChats() {
       onPress={() => setSelectedChat(item)}
     >
       <View style={styles.chatHeader}>
-        <Text style={styles.userName}>
-          {item.profiles?.full_name || "Anonymous"}
-        </Text>
+        <Text style={styles.userName}>Chat ID: {item.id}</Text>
         <View
           style={[
             styles.statusBadge,
@@ -191,9 +188,7 @@ export default function SupportChats() {
       <View style={styles.chatDetailContainer}>
         <View style={styles.chatDetailHeader}>
           <Text style={styles.chatDetailTitle}>{selectedChat.subject}</Text>
-          <Text style={styles.chatDetailSubtitle}>
-            Conversation with {selectedChat.profiles?.full_name || "Anonymous"}
-          </Text>
+          <Text style={styles.chatDetailSubtitle}>Conversation Detail</Text>
         </View>
 
         <FlatList

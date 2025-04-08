@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -15,11 +16,12 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../context/ThemeContext"
+import { supabase } from "../../lib/supabase"
+import { Activity } from "../../types/activities"
+import { Transportation } from "../../types/transportation"
+import { Venue } from "../../types/venue"
 
-// Import programData
-import { programData } from "../../data/programData"
-
-// Define local asset images with proper TypeScript interface
+// Restore local asset images
 interface LocalAssets {
   [key: string]: ImageSourcePropType
   hotelPlan: ImageSourcePropType
@@ -32,111 +34,30 @@ interface LocalAssets {
 
 const localAssets: LocalAssets = {
   hotelPlan: require("../../assets/images/hotel.png"),
-  secondFloor: require("../../assets/images/hotel.png"),
-  thirdFloor: require("../../assets/images/hotel.png"),
+  secondFloor: require("../../assets/images/hotel.png"), // Assuming same image for now
+  thirdFloor: require("../../assets/images/hotel.png"), // Assuming same image for now
   airportToHotel: require("../../assets/images/airport-to-hotel.png"),
   airportToHotelPublic: require("../../assets/images/airport-to-hotel-public.png"),
   walkingMap: require("../../assets/images/walking-map.png")
 }
 
-// Mock data structure
-const mapData = {
-  venue: {
-    name: "Seattle Convention Center",
-    address: "705 Pike St, Seattle, WA 98101",
-    maps: [
-      {
-        id: 1,
-        title: "Main Floor Plan",
-        image: "hotelPlan", // use key from localAssets
-        description:
-          "Main convention level with registration desk, main meeting halls, and primary panel rooms"
-      },
-      {
-        id: 2,
-        title: "Second Floor Plan",
-        image: "secondFloor", // use key from localAssets
-        description:
-          "Breakout rooms, smaller meeting spaces, and additional seating areas"
-      },
-      {
-        id: 3,
-        title: "Third Floor Plan",
-        image: "thirdFloor", // use key from localAssets
-        description: "Hospitality suites and marathon meeting rooms"
-      }
-    ],
-    amenities: {
-      bathrooms: {
-        count: 12,
-        description: "Multiple accessible restrooms on each floor"
-      },
-      wifi: {
-        available: true,
-        network: "ICYPAA-2024",
-        description: "Free high-speed WiFi throughout the venue"
-      },
-      accessibility: {
-        elevators: 4,
-        ramps: "All areas accessible",
-        description:
-          "Full ADA compliance with accessible entrances and facilities"
-      },
-      parking: {
-        available: true,
-        description: "On-site parking garage, $15/day with validation"
-      },
-      food: {
-        options: ["Café", "Vending machines", "Restaurant"],
-        description: "Multiple dining options within the venue"
-      }
-    }
-  },
-  transportation: {
-    maps: [
-      {
-        id: 1,
-        title: "Airport to Venue",
-        image: "airportToHotel", // use key from localAssets
-        description:
-          "Direct light rail route from SeaTac Airport to Convention Center Station"
-      },
-      {
-        id: 2,
-        title: "Public Transit Overview",
-        image: "airportToHotelPublic", // use key from localAssets
-        description:
-          "Key bus and light rail routes serving the convention center"
-      },
-      {
-        id: 3,
-        title: "Walking Map",
-        image: "walkingMap", // use key from localAssets
-        description: "Walking routes from nearby hotels and attractions"
-      }
-    ],
-    travelTimes: {
-      airport: {
-        car: "25-35 minutes",
-        publicTransit: "40-45 minutes (Light Rail)",
-        shuttle: "35-45 minutes",
-        cost: "$3-45 depending on mode"
-      },
-      downtown: {
-        walking: "5-15 minutes from most downtown hotels",
-        publicTransit: "5-10 minutes",
-        car: "5-10 minutes"
-      },
-      parking: {
-        locations: [
-          "Convention Center Garage",
-          "Pacific Place",
-          "Street parking"
-        ],
-        rates: "$15-25/day"
-      }
-    }
-  }
+// Mapping functions to get local asset key from DB map name
+const getVenueMapKey = (name: string): string | null => {
+  const lowerName = name.toLowerCase()
+  if (lowerName.includes("main floor")) return "hotelPlan"
+  return null
+}
+
+const getTransportationMapKey = (name: string): string | null => {
+  const lowerName = name.toLowerCase()
+  if (
+    lowerName.includes("airport to venue") ||
+    lowerName.includes("airport to hotel")
+  )
+    return "airportToHotel"
+  if (lowerName.includes("public transit")) return "airportToHotelPublic"
+  if (lowerName.includes("walking map")) return "walkingMap"
+  return null
 }
 
 // Add helper function to open maps
@@ -172,67 +93,95 @@ const MapItem = ({
   onPress: () => void
   theme: any
 }) => {
-  // Use a state to track image loading errors and loading state
   const [imageError, setImageError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Get the appropriate image source - either a local asset or a remote URL
+  // Updated getImageSource to prioritize localAssets
   const getImageSource = () => {
     try {
       if (imageError) {
         return { uri: FALLBACK_IMAGE }
       }
-
       // If it's a key in localAssets, use the local image
-      if (localAssets[item.image as keyof LocalAssets]) {
+      if (item.image && localAssets[item.image as keyof LocalAssets]) {
         const source = localAssets[item.image as keyof LocalAssets]
         console.log(`Using local asset for: ${item.image}`, source)
         return source
       }
-
-      // Otherwise assume it's a remote URL
-      console.log(`Using remote URL for: ${item.image}`)
-      return { uri: item.image }
+      // Otherwise, if it looks like a URL, treat it as one
+      if (
+        item.image &&
+        (item.image.startsWith("http") || item.image.startsWith("https"))
+      ) {
+        console.log(`Using remote URL for: ${item.image}`)
+        return { uri: item.image }
+      }
+      // If it's neither a valid key nor a URL, trigger error state
+      console.warn(
+        `Invalid image source: ${item.image}. Not found in localAssets and not a valid URL.`
+      )
+      setImageError(true) // Set error state immediately
+      return { uri: FALLBACK_IMAGE } // Return fallback
     } catch (error) {
       console.error("Error getting image source:", error)
+      setImageError(true)
       return { uri: FALLBACK_IMAGE }
     }
   }
+
+  const source = getImageSource() // Get the source once
+  const isFallback =
+    typeof source === "object" &&
+    "uri" in source &&
+    source.uri === FALLBACK_IMAGE
 
   return (
     <TouchableOpacity
       onPress={() => {
         console.log("Pressed image:", item.title, item.image)
-        onPress()
+        // Only call onPress if it's not the fallback image (meaning a valid source was found)
+        if (!isFallback) onPress()
       }}
       style={styles(theme).mapItem}
       activeOpacity={0.7}
+      disabled={isFallback} // Disable if using fallback image
     >
-      <View style={styles(theme).imageContainer}>
-        {isLoading && (
-          <View style={styles(theme).loadingContainer}>
-            <Text style={styles(theme).loadingText}>Loading...</Text>
-          </View>
-        )}
-        <Image
-          source={getImageSource()}
-          style={styles(theme).mapImage}
-          onError={(e) => {
-            console.error(
-              "Image loading error:",
-              item.image,
-              e.nativeEvent.error
-            )
-            setImageError(true)
-            setIsLoading(false)
-          }}
-          onLoad={() => {
-            console.log("Image loaded successfully:", item.image)
-            setIsLoading(false)
-          }}
-          onLoadStart={() => setIsLoading(true)}
-        />
-      </View>
+      {isFallback ? (
+        <View
+          style={[
+            styles(theme).imageContainer,
+            styles(theme).placeholderContainer
+          ]}
+        >
+          <Text style={styles(theme).placeholderText}>Map N/A</Text>
+        </View>
+      ) : (
+        <View style={styles(theme).imageContainer}>
+          {isLoading && (
+            <View style={styles(theme).loadingContainer}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            </View>
+          )}
+          <Image
+            source={source} // Use the determined source
+            style={styles(theme).mapImage}
+            onError={(e) => {
+              console.error(
+                "Image loading error:",
+                item.image,
+                e.nativeEvent.error
+              )
+              setImageError(true)
+              setIsLoading(false)
+            }}
+            onLoad={() => {
+              console.log("Image loaded successfully:", item.image)
+              setIsLoading(false)
+            }}
+            onLoadStart={() => setIsLoading(true)}
+          />
+        </View>
+      )}
       <Text style={styles(theme).mapTitle}>{item.title}</Text>
       <Text style={styles(theme).mapDescription}>{item.description}</Text>
     </TouchableOpacity>
@@ -247,44 +196,56 @@ const ImageViewer = ({
   theme
 }: {
   visible: boolean
-  image: string
+  image: string | null
   onClose: () => void
   theme: any
 }) => {
-  // Use states to track image loading errors and loading state
   const [imageError, setImageError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Reset states when image changes
   React.useEffect(() => {
-    if (visible) {
+    if (visible && image) {
       setImageError(false)
       setIsLoading(true)
     }
   }, [visible, image])
 
-  // Get the appropriate image source - either a local asset or a remote URL
+  // Updated getImageSource for local assets and URLs
   const getImageSource = () => {
     try {
-      if (imageError) {
+      if (imageError || !image) {
         return { uri: FALLBACK_IMAGE }
       }
-
-      // If it's a key in localAssets, use the local image
+      // Check if it's a local asset key first
       if (localAssets[image as keyof LocalAssets]) {
         const source = localAssets[image as keyof LocalAssets]
         console.log(`Modal: Using local asset for: ${image}`, source)
         return source
       }
-
-      // Otherwise assume it's a remote URL
-      console.log(`Modal: Using remote URL for: ${image}`)
-      return { uri: image }
+      // Otherwise, assume it's a URL
+      if (image.startsWith("http") || image.startsWith("https")) {
+        console.log(`Modal: Using remote URL for: ${image}`)
+        return { uri: image }
+      }
+      // Invalid source
+      console.warn(`Modal: Invalid image source: ${image}`)
+      setImageError(true)
+      return { uri: FALLBACK_IMAGE }
     } catch (error) {
       console.error("Error getting modal image source:", error)
+      setImageError(true)
       return { uri: FALLBACK_IMAGE }
     }
   }
+
+  if (!image) return null
+
+  const source = getImageSource() // Determine source
+  const isFallbackOrError =
+    imageError ||
+    (typeof source === "object" &&
+      "uri" in source &&
+      source.uri === FALLBACK_IMAGE)
 
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -298,41 +259,50 @@ const ImageViewer = ({
         </TouchableOpacity>
 
         <View style={styles(theme).fullImageContainer}>
-          {isLoading && (
-            <View style={styles(theme).modalLoadingContainer}>
-              <Text style={styles(theme).modalLoadingText}>
-                Loading image...
-              </Text>
+          {(isLoading || isFallbackOrError) && ( // Show overlay for loading or error/fallback
+            <View style={styles(theme).modalOverlayContainer}>
+              {isLoading && !isFallbackOrError && (
+                <ActivityIndicator size="large" color="#ffffff" />
+              )}
+              {isFallbackOrError && (
+                <View style={styles(theme).errorContainer}>
+                  <Ionicons
+                    name="warning-outline"
+                    size={40}
+                    color="#ffffff"
+                    style={{ marginBottom: 10 }}
+                  />
+                  <Text style={styles(theme).errorText}>
+                    {imageError
+                      ? "Failed to load image."
+                      : "Image unavailable."}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
-
-          {imageError && (
-            <View style={styles(theme).errorContainer}>
-              <Text style={styles(theme).errorText}>
-                Failed to load image. The image may be unavailable.
-              </Text>
-            </View>
+          {/* Conditionally render Image only when not loading initially and not error/fallback */}
+          {!isFallbackOrError && (
+            <Image
+              source={source} // Use the determined source
+              style={styles(theme).fullImage}
+              resizeMode="contain"
+              onError={(e) => {
+                console.error(
+                  "Modal image loading error:",
+                  image,
+                  e.nativeEvent.error
+                )
+                setImageError(true)
+                setIsLoading(false)
+              }}
+              onLoad={() => {
+                console.log("Modal image loaded successfully:", image)
+                setIsLoading(false)
+              }}
+              onLoadStart={() => setIsLoading(true)}
+            />
           )}
-
-          <Image
-            source={getImageSource()}
-            style={styles(theme).fullImage}
-            resizeMode="contain"
-            onError={(e) => {
-              console.error(
-                "Modal image loading error:",
-                image,
-                e.nativeEvent.error
-              )
-              setImageError(true)
-              setIsLoading(false)
-            }}
-            onLoad={() => {
-              console.log("Modal image loaded successfully:", image)
-              setIsLoading(false)
-            }}
-            onLoadStart={() => setIsLoading(true)}
-          />
         </View>
       </View>
     </Modal>
@@ -344,167 +314,370 @@ const AmenitiesCard = ({
   amenities,
   theme
 }: {
-  amenities: typeof mapData.venue.amenities
+  amenities: Venue["amenities"] | undefined
   theme: any
-}) => (
-  <View style={styles(theme).amenitiesCard}>
-    <Text style={styles(theme).cardTitle}>Venue Amenities</Text>
-    {Object.entries(amenities).map(([key, value]) => (
-      <View key={key} style={styles(theme).amenityItem}>
-        <Text style={styles(theme).amenityTitle}>
-          {key.charAt(0).toUpperCase() + key.slice(1)}
-        </Text>
+}) => {
+  if (!amenities || amenities.length === 0) {
+    return (
+      <View style={styles(theme).amenitiesCard}>
+        <Text style={styles(theme).cardTitle}>Venue Amenities</Text>
         <Text style={styles(theme).amenityDescription}>
-          {typeof value === "object" ? value.description : value}
+          No amenities information available.
         </Text>
       </View>
-    ))}
-  </View>
-)
+    )
+  }
+  return (
+    <View style={styles(theme).amenitiesCard}>
+      <Text style={styles(theme).cardTitle}>Venue Amenities</Text>
+      {amenities.map((item, index) => (
+        <View key={index} style={styles(theme).amenityItem}>
+          <Text style={styles(theme).amenityTitle}>{item.name}</Text>
+          <Text style={styles(theme).amenityDescription}>
+            {item.description}
+          </Text>
+        </View>
+      ))}
+    </View>
+  )
+}
 
 // Travel times card component
 const TravelTimesCard = ({
-  times,
+  details,
   theme
 }: {
-  times: typeof mapData.transportation.travelTimes
+  details: Transportation["travel_details"] | undefined
   theme: any
-}) => (
-  <View style={styles(theme).travelTimesCard}>
-    <Text style={styles(theme).cardTitle}>Travel Times</Text>
-    {Object.entries(times).map(([key, value]) => (
-      <View key={key} style={styles(theme).travelTimeItem}>
-        <Text style={styles(theme).travelTimeTitle}>
-          {key.charAt(0).toUpperCase() + key.slice(1)}
+}) => {
+  if (!details || details.length === 0) {
+    return (
+      <View style={styles(theme).travelTimesCard}>
+        <Text style={styles(theme).cardTitle}>Travel Details</Text>
+        <Text style={styles(theme).travelTimeDetail}>
+          No travel details available.
         </Text>
-        {Object.entries(value).map(([subKey, subValue]) => (
-          <Text key={subKey} style={styles(theme).travelTimeDetail}>
-            • {subKey}: {subValue}
-          </Text>
-        ))}
       </View>
-    ))}
-  </View>
-)
+    )
+  }
+  return (
+    <View style={styles(theme).travelTimesCard}>
+      <Text style={styles(theme).cardTitle}>Travel Details</Text>
+      {details.map((item, index) => (
+        <View key={index} style={styles(theme).travelTimeItem}>
+          <Text style={styles(theme).travelTimeTitle}>{item.name}</Text>
+          <Text style={styles(theme).travelTimeDetail}>{item.description}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
 
-// Add Activities section to Maps page
+// Main Maps component
 export default function Maps() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const screenWidth = Dimensions.get("window").width
   const { theme } = useTheme()
 
-  // Function to handle image selection
-  const handleImagePress = (imageSrc: string) => {
-    console.log("Image selected:", imageSrc) // Debugging log
-    setSelectedImage(imageSrc)
+  // State for fetched data, loading, and errors
+  const [venueData, setVenueData] = useState<Venue | null>(null)
+  const [transportationData, setTransportationData] =
+    useState<Transportation | null>(null)
+  const [activitiesData, setActivitiesData] = useState<Activity[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Assume program_id = 1 for now, replace with dynamic value later
+  const programId = 1
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        // Fetch Venue data
+        const { data: venueResult, error: venueError } = await supabase
+          .from("venues")
+          .select("*")
+          .eq("program_id", programId)
+          .maybeSingle()
+
+        if (venueError)
+          throw new Error(`Venue fetch error: ${venueError.message}`)
+        setVenueData(venueResult)
+
+        // Fetch Transportation data
+        const { data: transportResult, error: transportError } = await supabase
+          .from("transportation")
+          .select("*")
+          .eq("program_id", programId)
+          .maybeSingle()
+
+        if (transportError)
+          throw new Error(
+            `Transportation fetch error: ${transportError.message}`
+          )
+        setTransportationData(transportResult)
+
+        // Fetch Activities data
+        const { data: activitiesResult, error: activitiesError } =
+          await supabase
+            .from("activities")
+            .select("*")
+            .eq("program_id", programId)
+
+        if (activitiesError)
+          throw new Error(`Activities fetch error: ${activitiesError.message}`)
+        setActivitiesData(activitiesResult || [])
+      } catch (err: any) {
+        console.error("Failed to fetch map data:", err)
+        setError(err.message || "Failed to load map information.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [programId])
+
+  const handleImagePress = (imageSrc: string | null) => {
+    if (imageSrc) {
+      console.log("Image selected:", imageSrc)
+      setSelectedImage(imageSrc)
+    } else {
+      console.log("Attempted to select null image.")
+    }
   }
 
+  // Render Loading state
+  if (loading) {
+    return (
+      <View style={[styles(theme).container, styles(theme).centerContent]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles(theme).loadingText}>Loading Maps...</Text>
+      </View>
+    )
+  }
+
+  // Render Error state
+  if (error) {
+    return (
+      <View style={[styles(theme).container, styles(theme).centerContent]}>
+        <Ionicons name="warning-outline" size={40} color={theme.colors.error} />
+        <Text style={styles(theme).errorTextDisplay}>Error Loading Maps</Text>
+        <Text style={styles(theme).errorTextDetails}>{error}</Text>
+      </View>
+    )
+  }
+
+  // Render content when data is loaded
   return (
     <ScrollView style={styles(theme).container}>
       {/* Venue Section */}
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>Venue Maps</Text>
-        <FlatList
-          data={mapData.venue.maps}
-          renderItem={({ item }) => (
-            <MapItem
-              item={item}
-              onPress={() => handleImagePress(item.image)}
-              theme={theme}
+      {venueData && (
+        <View style={styles(theme).section}>
+          <Text style={styles(theme).sectionTitle}>Venue Maps</Text>
+          {venueData.floors && venueData.floors.length > 0 ? (
+            <FlatList
+              data={venueData.floors}
+              renderItem={({ item }) => {
+                // Ensure imageSource is always a string
+                let imageSource: string = FALLBACK_IMAGE
+                const mapKey = getVenueMapKey(item.name)
+
+                if (mapKey) {
+                  imageSource = mapKey
+                } else if (item.url) {
+                  imageSource = item.url
+                  console.warn(
+                    `No local asset key found for venue map: ${item.name}. Falling back to URL: ${item.url}`
+                  )
+                } else {
+                  console.warn(
+                    `No local asset key or URL found for venue map: ${item.name}. Using fallback.`
+                  )
+                }
+
+                return (
+                  <MapItem
+                    item={{
+                      title: item.name,
+                      image: imageSource,
+                      description: item.description
+                    }}
+                    onPress={() => handleImagePress(imageSource)} // imageSource is guaranteed string
+                    theme={theme}
+                  />
+                )
+              }}
+              keyExtractor={(item, index) => `venue-map-${item.name}-${index}`}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              snapToInterval={screenWidth - 40}
+              contentContainerStyle={styles(theme).mapList}
             />
+          ) : (
+            <Text style={styles(theme).noDataText}>
+              No venue maps available.
+            </Text>
           )}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          snapToInterval={screenWidth - 40}
-          contentContainerStyle={styles(theme).mapList}
-        />
-        <AmenitiesCard amenities={mapData.venue.amenities} theme={theme} />
-      </View>
+          <AmenitiesCard amenities={venueData.amenities} theme={theme} />
+        </View>
+      )}
 
       {/* Transportation Section */}
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>Transportation</Text>
-        <FlatList
-          data={mapData.transportation.maps}
-          renderItem={({ item }) => (
-            <MapItem
-              item={item}
-              onPress={() => handleImagePress(item.image)}
-              theme={theme}
-            />
-          )}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          snapToInterval={screenWidth - 40}
-          contentContainerStyle={styles(theme).mapList}
-        />
-        <TravelTimesCard
-          times={mapData.transportation.travelTimes}
-          theme={theme}
-        />
-      </View>
+      {transportationData && (
+        <View style={styles(theme).section}>
+          <Text style={styles(theme).sectionTitle}>Transportation</Text>
+          {transportationData.maps && transportationData.maps.length > 0 ? (
+            <FlatList
+              data={transportationData.maps}
+              renderItem={({ item }) => {
+                // Ensure imageSource is always a string
+                let imageSource: string = FALLBACK_IMAGE
+                const mapKey = getTransportationMapKey(item.name)
 
-      {/* Activities Section - New */}
+                if (mapKey) {
+                  imageSource = mapKey
+                } else if (item.url) {
+                  imageSource = item.url
+                  console.warn(
+                    `No local asset key found for transportation map: ${item.name}. Falling back to URL: ${item.url}`
+                  )
+                } else {
+                  console.warn(
+                    `No local asset key or URL found for transportation map: ${item.name}. Using fallback.`
+                  )
+                }
+
+                return (
+                  <MapItem
+                    item={{
+                      title: item.name,
+                      image: imageSource,
+                      description: item.description
+                    }}
+                    onPress={() => handleImagePress(imageSource)} // imageSource is guaranteed string
+                    theme={theme}
+                  />
+                )
+              }}
+              keyExtractor={(item, index) =>
+                `transport-map-${item.name}-${index}`
+              }
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              snapToInterval={screenWidth - 40}
+              contentContainerStyle={styles(theme).mapList}
+            />
+          ) : (
+            <Text style={styles(theme).noDataText}>
+              No transportation maps available.
+            </Text>
+          )}
+          <TravelTimesCard
+            details={transportationData.travel_details}
+            theme={theme}
+          />
+        </View>
+      )}
+
+      {/* Activities Section */}
       <View style={styles(theme).section}>
         <Text style={styles(theme).sectionTitle}>Local Activities</Text>
-        <FlatList
-          data={programData.activities}
-          renderItem={({ item }) => (
-            <View style={styles(theme).activityCard}>
-              <View style={styles(theme).activityHeader}>
-                <View>
-                  <Text style={styles(theme).activityCategory}>
-                    {item.category}
-                  </Text>
-                  <Text style={styles(theme).activityTitle}>{item.title}</Text>
+        {activitiesData.length > 0 ? (
+          <FlatList
+            data={activitiesData}
+            renderItem={({ item }) => (
+              <View style={styles(theme).activityCard}>
+                <View style={styles(theme).activityHeader}>
+                  <View style={{ flex: 1, marginRight: theme.spacing.sm }}>
+                    <Text
+                      style={styles(theme).activityCategory}
+                      numberOfLines={1}
+                    >
+                      {item.category}
+                    </Text>
+                    <Text style={styles(theme).activityTitle} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => item.location && openMaps(item.location)}
+                    style={styles(theme).mapButton}
+                    disabled={!item.location}
+                  >
+                    <Ionicons
+                      name="map-outline"
+                      size={24}
+                      color={
+                        item.location
+                          ? theme.colors.primary
+                          : theme.colors.text.secondary
+                      }
+                    />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  onPress={() => openMaps(item.location)}
-                  style={styles(theme).mapButton}
+                {item.location && (
+                  <Text
+                    style={styles(theme).activityLocation}
+                    numberOfLines={1}
+                  >
+                    {item.location}
+                  </Text>
+                )}
+                {item.distance != null && (
+                  <Text style={styles(theme).activityDistance}>
+                    Approx. {item.distance} mi away
+                  </Text>
+                )}
+                <Text
+                  style={styles(theme).activityDescription}
+                  numberOfLines={3}
                 >
-                  <Ionicons
-                    name="map-outline"
-                    size={24}
-                    color={theme.colors.primary}
-                  />
-                </TouchableOpacity>
+                  {item.description}
+                </Text>
+                {item.image && (
+                  <TouchableOpacity
+                    onPress={() => handleImagePress(item.image!)}
+                    style={styles(theme).viewImageButton}
+                  >
+                    <Text style={styles(theme).viewImageButtonText}>
+                      View Image
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <Text style={styles(theme).activityLocation}>
-                {item.location}
-              </Text>
-              <Text style={styles(theme).activityDistance}>
-                {item.distance}
-              </Text>
-              <Text style={styles(theme).activityDescription}>
-                {item.description}
-              </Text>
-            </View>
-          )}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          snapToInterval={screenWidth - 40}
-          contentContainerStyle={styles(theme).mapList}
-        />
+            )}
+            keyExtractor={(item) => `activity-${item.id}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            snapToInterval={screenWidth - 40}
+            contentContainerStyle={styles(theme).mapList}
+          />
+        ) : (
+          <Text style={styles(theme).noDataText}>
+            No local activities information available.
+          </Text>
+        )}
       </View>
 
-      {/* Only show ImageViewer if selectedImage exists */}
-      {selectedImage && (
-        <ImageViewer
-          visible={!!selectedImage}
-          image={selectedImage}
-          onClose={() => {
-            console.log("Closing image viewer") // Debugging log
-            setSelectedImage(null)
-          }}
-          theme={theme}
-        />
-      )}
+      {/* Image Viewer */}
+      <ImageViewer
+        visible={!!selectedImage}
+        image={selectedImage}
+        onClose={() => {
+          console.log("Closing image viewer")
+          setSelectedImage(null)
+        }}
+        theme={theme}
+      />
     </ScrollView>
   )
 }
@@ -547,7 +720,7 @@ const styles = (theme: any) =>
       width: "100%",
       height: 200,
       position: "relative",
-      backgroundColor: theme.colors.border, // Placeholder color
+      backgroundColor: theme.colors.border,
       overflow: "hidden"
     },
     loadingContainer: {
@@ -562,8 +735,9 @@ const styles = (theme: any) =>
       zIndex: 1
     },
     loadingText: {
-      color: theme.colors.text.primary,
-      fontWeight: "bold"
+      marginTop: theme.spacing.md,
+      ...theme.typography.body,
+      color: theme.colors.text.secondary
     },
     mapImage: {
       width: "100%",
@@ -607,7 +781,7 @@ const styles = (theme: any) =>
       width: "100%",
       height: "100%"
     },
-    modalLoadingContainer: {
+    modalOverlayContainer: {
       position: "absolute",
       top: 0,
       left: 0,
@@ -615,24 +789,12 @@ const styles = (theme: any) =>
       bottom: 0,
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.3)",
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
       zIndex: 5
     },
-    modalLoadingText: {
-      color: "#ffffff",
-      fontSize: 18,
-      fontWeight: "bold"
-    },
     errorContainer: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.7)",
-      zIndex: 5,
       padding: 20
     },
     errorText: {
@@ -726,5 +888,51 @@ const styles = (theme: any) =>
     activityDescription: {
       ...theme.typography.body,
       color: theme.colors.text.secondary
+    },
+    centerContent: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: theme.spacing.lg
+    },
+    errorTextDisplay: {
+      marginTop: theme.spacing.md,
+      ...theme.typography.h2,
+      color: theme.colors.error,
+      textAlign: "center"
+    },
+    errorTextDetails: {
+      marginTop: theme.spacing.sm,
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      textAlign: "center"
+    },
+    noDataText: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      textAlign: "center",
+      paddingVertical: theme.spacing.lg,
+      fontStyle: "italic"
+    },
+    placeholderContainer: {
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: theme.colors.border
+    },
+    placeholderText: {
+      ...theme.typography.caption,
+      color: theme.colors.text.secondary
+    },
+    viewImageButton: {
+      marginTop: theme.spacing.md,
+      alignSelf: "flex-start",
+      paddingVertical: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.primaryMuted,
+      borderRadius: theme.borderRadius.sm
+    },
+    viewImageButtonText: {
+      ...theme.typography.button,
+      color: theme.colors.primary
     }
   })
