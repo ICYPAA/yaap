@@ -13,18 +13,16 @@ import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+import { getTextColorForBackground } from "../../../lib/theme"
 
 interface HospitalityNotification {
   id: string
-  profiles?: {
-    full_name: string
-    email: string
-  }
-  notification_type: string
-  location: string
-  time: string
-  description: string
-  status: string
+  program_id: number
+  group_name: string
+  item_description: string
+  allergies: string
+  notes: string
+  status?: string
   created_at: string
 }
 
@@ -77,12 +75,13 @@ export default function HospitalityNotifications() {
   const fetchNotifications = async () => {
     try {
       const { data, error } = await makeRequest({
-        table: "hospitality_notifications",
+        table: "hospitality_forms",
         isDebugMode,
         query: () =>
           supabase
-            .from("hospitality_notifications")
-            .select("*, profiles(full_name, email)")
+            .from("hospitality_forms")
+            .select("*")
+            .eq("program_id", 1)
             .order("created_at", { ascending: false })
       })
 
@@ -98,11 +97,11 @@ export default function HospitalityNotifications() {
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
       const { error } = await makeRequest({
-        table: "hospitality_notifications",
+        table: "hospitality_forms",
         isDebugMode,
         query: () =>
           supabase
-            .from("hospitality_notifications")
+            .from("hospitality_forms")
             .update({ status: newStatus })
             .eq("id", id)
       })
@@ -118,15 +117,15 @@ export default function HospitalityNotifications() {
     <View style={styles(theme).notificationCard}>
       <View style={styles(theme).notificationHeader}>
         <Text style={styles(theme).notifierName}>
-          {item.profiles?.full_name || "Anonymous"}
+          {item.group_name || "Anonymous"}
         </Text>
         <View
           style={[
             styles(theme).statusBadge,
             {
               backgroundColor:
-                item.status === "pending"
-                  ? theme.colors.error
+                !item.status || item.status === "pending"
+                  ? theme.colors.warning
                   : item.status === "in_progress"
                   ? theme.colors.warning
                   : theme.colors.success
@@ -134,7 +133,7 @@ export default function HospitalityNotifications() {
           ]}
         >
           <Text style={styles(theme).statusText}>
-            {item.status.replace("_", " ")}
+            {item.status?.replace("_", " ") || "pending"}
           </Text>
         </View>
       </View>
@@ -143,28 +142,27 @@ export default function HospitalityNotifications() {
         <View style={styles(theme).detailRow}>
           <Ionicons name="restaurant" size={16} color={theme.colors.primary} />
           <Text style={styles(theme).detailText}>
-            Type: {item.notification_type}
+            Item Description: {item.item_description}
           </Text>
         </View>
         <View style={styles(theme).detailRow}>
-          <Ionicons name="location" size={16} color={theme.colors.primary} />
+          <Ionicons name="warning" size={16} color={theme.colors.primary} />
           <Text style={styles(theme).detailText}>
-            Location: {item.location}
+            Allergies: {item.allergies}
           </Text>
         </View>
         <View style={styles(theme).detailRow}>
           <Ionicons name="time" size={16} color={theme.colors.primary} />
-          <Text style={styles(theme).detailText}>Time: {item.time}</Text>
+          <Text style={styles(theme).detailText}>
+            Submitted: {new Date(item.created_at).toLocaleDateString()}
+          </Text>
         </View>
       </View>
 
-      <Text style={styles(theme).description}>{item.description}</Text>
-      <Text style={styles(theme).timestamp}>
-        Submitted: {new Date(item.created_at).toLocaleDateString()}
-      </Text>
+      <Text style={styles(theme).description}>{item.notes}</Text>
 
       <View style={styles(theme).actionButtons}>
-        {item.status === "pending" && (
+        {(!item.status || item.status === "pending") && (
           <TouchableOpacity
             style={[
               styles(theme).actionButton,
@@ -213,7 +211,7 @@ export default function HospitalityNotifications() {
           <Ionicons
             name="arrow-back"
             size={24}
-            color={theme.colors.background}
+            color={getTextColorForBackground(theme.colors.primary)}
           />
         </TouchableOpacity>
         <Text style={styles(theme).title}>Hospitality Notifications</Text>
@@ -265,7 +263,7 @@ const styles = (theme: ThemeType) =>
     },
     title: {
       ...theme.typography.h2,
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "bold",
       flex: 1
     },
@@ -276,7 +274,7 @@ const styles = (theme: ThemeType) =>
       borderRadius: theme.borderRadius.md
     },
     debugText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.error),
       fontSize: 12,
       fontWeight: "bold"
     },
@@ -319,7 +317,7 @@ const styles = (theme: ThemeType) =>
       borderRadius: theme.borderRadius.md
     },
     statusText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.warning),
       fontSize: 12,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -346,11 +344,6 @@ const styles = (theme: ThemeType) =>
       marginBottom: theme.spacing.md,
       lineHeight: 22
     },
-    timestamp: {
-      ...theme.typography.caption,
-      color: theme.colors.text.secondary,
-      marginBottom: theme.spacing.md
-    },
     actionButtons: {
       flexDirection: "row",
       justifyContent: "flex-end"
@@ -362,7 +355,7 @@ const styles = (theme: ThemeType) =>
       marginLeft: theme.spacing.sm
     },
     actionButtonText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "500"
     }
   })

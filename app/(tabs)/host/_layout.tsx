@@ -72,10 +72,6 @@ export default function HostLayout() {
       <Stack.Screen name="volunteers" options={{ headerShown: false }} />
       <Stack.Screen name="hospitality" options={{ headerShown: false }} />
       <Stack.Screen name="support" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="test-notifications"
-        options={{ headerShown: false }}
-      />
     </Stack>
   )
 }

@@ -1,8 +1,12 @@
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import {
+  Animated,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +17,7 @@ import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+import { getTextColorForBackground } from "../../../lib/theme"
 
 interface ChatMessage {
   id?: string
@@ -23,14 +28,12 @@ interface ChatMessage {
 
 interface SupportChat {
   id: string
-  profiles?: {
-    full_name: string
-    email: string
-  }
-  subject: string
-  initial_message: string
-  chat_history?: ChatMessage[]
-  status: string
+  program_id: number
+  chat_title: string
+  device_id: string
+  name: string
+  messages: ChatMessage[]
+  status?: string
   created_at: string
 }
 
@@ -42,7 +45,10 @@ export default function SupportChats() {
   const [loading, setLoading] = useState(true)
   const [selectedChat, setSelectedChat] = useState<SupportChat | null>(null)
   const [replyText, setReplyText] = useState("")
-  const styles = createStyles(theme)
+  const [drawerVisible, setDrawerVisible] = useState(false)
+
+  const drawerAnimation = useRef(new Animated.Value(-300)).current
+  const styles = React.useMemo(() => createStyles(theme), [theme])
 
   useEffect(() => {
     fetchChats()
@@ -50,17 +56,24 @@ export default function SupportChats() {
 
   const fetchChats = async () => {
     try {
-      // const { data, error } = await makeRequest({
-      //   table: "support_chats",
-      //   isDebugMode,
-      //   query: () =>
-      //     supabase
-      //       .from("support_chats")
-      //       .select("*")
-      //       .order("created_at", { ascending: false })
-      // })
-      // if (error) throw error
-      // setChats(data || [])
+      const { data, error } = await makeRequest({
+        table: "support_chats",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("support_chats")
+            .select("*")
+            .eq("program_id", 1)
+            .order("created_at", { ascending: false })
+      })
+
+      if (error) throw error
+      setChats(data || [])
+
+      // Auto-select the first chat if available and none selected
+      if (data && data.length > 0 && !selectedChat) {
+        setSelectedChat(data[0])
+      }
     } catch (error) {
       console.error("Error fetching support chats:", error)
     } finally {
@@ -92,8 +105,8 @@ export default function SupportChats() {
 
     try {
       // Add reply to chat history
-      const updatedHistory = [
-        ...(selectedChat.chat_history || []),
+      const updatedMessages = [
+        ...(selectedChat.messages || []),
         {
           sender: "host",
           message: replyText,
@@ -108,7 +121,7 @@ export default function SupportChats() {
           supabase
             .from("support_chats")
             .update({
-              chat_history: updatedHistory,
+              messages: updatedMessages,
               status: "replied"
             })
             .eq("id", selectedChat.id)
@@ -122,11 +135,40 @@ export default function SupportChats() {
       // Update the selected chat with the new history
       setSelectedChat({
         ...selectedChat,
-        chat_history: updatedHistory,
+        messages: updatedMessages,
         status: "replied"
       })
     } catch (error) {
       console.error("Error sending reply:", error)
+    }
+  }
+
+  const openDrawer = () => {
+    setDrawerVisible(true)
+    Animated.timing(drawerAnimation, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true
+    }).start()
+  }
+
+  const closeDrawer = () => {
+    Animated.timing(drawerAnimation, {
+      toValue: -300,
+      duration: 250,
+      useNativeDriver: true
+    }).start(() => {
+      setDrawerVisible(false)
+    })
+  }
+
+  const selectChat = (chat: SupportChat) => {
+    setSelectedChat(chat)
+    closeDrawer()
+
+    // Mark as read if it's unread
+    if (chat.status === "unread") {
+      handleStatusUpdate(chat.id, "read")
     }
   }
 
@@ -136,181 +178,231 @@ export default function SupportChats() {
         styles.chatCard,
         selectedChat?.id === item.id && styles.selectedChatCard
       ]}
-      onPress={() => setSelectedChat(item)}
+      onPress={() => selectChat(item)}
     >
       <View style={styles.chatHeader}>
-        <Text style={styles.userName}>Chat ID: {item.id}</Text>
+        <Text style={styles.userName}>{item.name || "Anonymous"}</Text>
         <View
           style={[
             styles.statusBadge,
             {
               backgroundColor:
                 item.status === "unread"
-                  ? theme.colors.error
-                  : item.status === "read"
                   ? theme.colors.warning
+                  : item.status === "read"
+                  ? theme.colors.primary
                   : theme.colors.success
             }
           ]}
         >
-          <Text style={styles.statusText}>{item.status}</Text>
+          <Text style={styles.statusText}>{item.status || "unread"}</Text>
         </View>
       </View>
 
-      <Text style={styles.chatSubject}>{item.subject}</Text>
+      <Text style={styles.chatSubject}>{item.chat_title}</Text>
       <Text style={styles.chatPreview} numberOfLines={2}>
-        {item.chat_history && item.chat_history.length > 0
-          ? item.chat_history[item.chat_history.length - 1].message
-          : item.initial_message}
+        {item.messages && item.messages.length > 0
+          ? item.messages[item.messages.length - 1].message
+          : "No messages yet"}
       </Text>
       <Text style={styles.timestamp}>
         {new Date(item.created_at).toLocaleDateString()}
       </Text>
-
-      {item.status === "unread" && (
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            { backgroundColor: theme.colors.warning }
-          ]}
-          onPress={() => handleStatusUpdate(item.id, "read")}
-        >
-          <Text style={styles.actionButtonText}>Mark as Read</Text>
-        </TouchableOpacity>
-      )}
     </TouchableOpacity>
   )
 
-  const renderChatDetail = () => {
-    if (!selectedChat) return null
-
+  const ChatMessage = ({ message }: { message: ChatMessage }) => {
+    const isHost = message.sender === "host"
     return (
-      <View style={styles.chatDetailContainer}>
-        <View style={styles.chatDetailHeader}>
-          <Text style={styles.chatDetailTitle}>{selectedChat.subject}</Text>
-          <Text style={styles.chatDetailSubtitle}>Conversation Detail</Text>
-        </View>
-
-        <FlatList
-          data={[
-            {
-              id: "initial",
-              sender: "user",
-              message: selectedChat.initial_message,
-              timestamp: selectedChat.created_at
-            },
-            ...(selectedChat.chat_history || []).map((msg, idx) => ({
-              ...msg,
-              id: `msg-${idx}`
-            }))
+      <View
+        style={[
+          styles.messageContainer,
+          isHost ? styles.hostMessage : styles.userMessage
+        ]}
+      >
+        <Text
+          style={[
+            styles.messageText,
+            isHost
+              ? { color: getTextColorForBackground(theme.colors.primary) }
+              : {}
           ]}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.messageContainer,
-                item.sender === "host" ? styles.hostMessage : styles.userMessage
-              ]}
-            >
-              <Text style={styles.messageText}>{item.message}</Text>
-              <Text style={styles.messageTime}>
-                {new Date(item.timestamp).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit"
-                })}
-              </Text>
-            </View>
-          )}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.chatMessagesContainer}
-        />
-
-        <View style={styles.replyContainer}>
-          <TextInput
-            style={styles.replyInput}
-            value={replyText}
-            onChangeText={setReplyText}
-            placeholder="Type your reply..."
-            placeholderTextColor={theme.colors.text.secondary}
-            multiline
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              !replyText.trim() && styles.disabledButton
-            ]}
-            onPress={handleReply}
-            disabled={!replyText.trim()}
-          >
-            <Ionicons name="send" size={20} color={theme.colors.background} />
-          </TouchableOpacity>
-        </View>
+        >
+          {message.message}
+        </Text>
+        <Text style={styles.messageTime}>
+          {new Date(message.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          })}
+        </Text>
       </View>
     )
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color={theme.colors.background}
-          />
-        </TouchableOpacity>
-        <Text style={styles.title}>Support Chats</Text>
-        {isDebugMode && (
-          <View style={styles.debugBadge}>
-            <Text style={styles.debugText}>DEBUG</Text>
-          </View>
-        )}
-      </View>
-
-      {loading ? (
-        <View style={styles.centered}>
-          <Text style={styles.centeredText}>Loading support chats...</Text>
-        </View>
-      ) : (
-        <View style={styles.content}>
-          <View style={styles.chatListContainer}>
-            {chats.length === 0 ? (
-              <View style={styles.centered}>
-                <Text style={styles.centeredText}>No support chats found.</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={chats}
-                renderItem={renderChatItem}
-                keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={styles.listContainer}
-              />
-            )}
-          </View>
-
-          {selectedChat ? (
-            renderChatDetail()
-          ) : (
-            <View style={styles.noChatSelected}>
-              <Ionicons
-                name="chatbubbles-outline"
-                size={48}
-                color={theme.colors.text.secondary}
-              />
-              <Text style={styles.noChatText}>
-                Select a chat to view the conversation
-              </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={getTextColorForBackground(theme.colors.primary)}
+            />
+          </TouchableOpacity>
+          <Text style={styles.title}>
+            {selectedChat ? selectedChat.chat_title : "Support Chats"}
+          </Text>
+          {isDebugMode && (
+            <View style={styles.debugBadge}>
+              <Text style={styles.debugText}>DEBUG</Text>
             </View>
           )}
+          <TouchableOpacity onPress={openDrawer} style={{ padding: 8 }}>
+            <Ionicons
+              name="chatbubbles-outline"
+              size={24}
+              color={getTextColorForBackground(theme.colors.primary)}
+            />
+          </TouchableOpacity>
         </View>
-      )}
-    </View>
+
+        {loading ? (
+          <View style={styles.centered}>
+            <Text style={styles.centeredText}>Loading support chats...</Text>
+          </View>
+        ) : chats.length === 0 ? (
+          <View style={styles.centered}>
+            <Ionicons
+              name="chatbubbles-outline"
+              size={48}
+              color={theme.colors.text.secondary}
+            />
+            <Text style={styles.centeredText}>No support chats found.</Text>
+          </View>
+        ) : selectedChat ? (
+          <View style={styles.chatDetailContainer}>
+            <FlatList
+              data={[
+                {
+                  id: "initial",
+                  sender: "user",
+                  message: "Initial message",
+                  timestamp: selectedChat.created_at
+                },
+                ...(selectedChat.messages || []).map((msg, idx) => ({
+                  ...msg,
+                  id: `msg-${idx}`
+                }))
+              ]}
+              renderItem={({ item }) => (
+                <View
+                  style={[
+                    styles.messageContainer,
+                    item.sender === "host"
+                      ? styles.hostMessage
+                      : styles.userMessage
+                  ]}
+                >
+                  <Text style={styles.messageText}>{item.message}</Text>
+                  <Text style={styles.messageTime}>
+                    {new Date(item.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </Text>
+                </View>
+              )}
+              keyExtractor={(item) => item.id || item.timestamp}
+              contentContainerStyle={styles.chatMessagesContainer}
+            />
+
+            <View style={styles.replyContainer}>
+              <TextInput
+                style={styles.replyInput}
+                value={replyText}
+                onChangeText={setReplyText}
+                placeholder="Type your reply..."
+                placeholderTextColor={theme.colors.text.secondary}
+                multiline
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  !replyText.trim() && styles.disabledButton
+                ]}
+                onPress={handleReply}
+                disabled={!replyText.trim()}
+              >
+                <Ionicons
+                  name="send"
+                  size={20}
+                  color={getTextColorForBackground(theme.colors.primary)}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.centered}>
+            <Ionicons
+              name="chatbubbles-outline"
+              size={48}
+              color={theme.colors.text.secondary}
+            />
+            <Text style={styles.centeredText}>
+              Select a chat to view the conversation
+            </Text>
+          </View>
+        )}
+
+        {/* Chat Drawer */}
+        {drawerVisible && (
+          <Animated.View
+            style={[
+              styles.drawer,
+              { transform: [{ translateX: drawerAnimation }] }
+            ]}
+          >
+            <View style={styles.drawerHeader}>
+              <Text style={styles.drawerTitle}>Support Chats</Text>
+              <TouchableOpacity onPress={closeDrawer}>
+                <Ionicons
+                  name="close"
+                  size={24}
+                  color={theme.colors.text.primary}
+                />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={chats}
+              renderItem={renderChatItem}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.drawerList}
+            />
+          </Animated.View>
+        )}
+
+        {/* Overlay when drawer is open */}
+        {drawerVisible && (
+          <TouchableOpacity
+            style={styles.overlay}
+            activeOpacity={0.5}
+            onPress={closeDrawer}
+          />
+        )}
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   )
 }
 
-const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -328,51 +420,76 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
     title: {
       fontSize: 20,
       fontWeight: "bold",
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       flex: 1
     },
     debugBadge: {
       backgroundColor: theme.colors.error,
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 12
+      borderRadius: 12,
+      marginRight: 8
     },
     debugText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.error),
       fontSize: 12,
       fontWeight: "bold"
     },
     centered: {
       flex: 1,
       justifyContent: "center",
-      alignItems: "center"
+      alignItems: "center",
+      padding: 16
     },
     centeredText: {
-      color: theme.colors.text.primary,
-      fontSize: 16
+      marginTop: 16,
+      fontSize: 16,
+      color: theme.colors.text.secondary
     },
-    content: {
-      flex: 1,
-      flexDirection: "row"
+    drawer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      bottom: 0,
+      width: 300,
+      backgroundColor: theme.colors.surface,
+      zIndex: 1000,
+      elevation: 5,
+      shadowColor: "#000",
+      shadowOffset: { width: 2, height: 0 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4
     },
-    chatListContainer: {
-      width: "40%",
-      borderRightWidth: 1,
-      borderRightColor: theme.colors.border
+    overlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      zIndex: 999
     },
-    listContainer: {
+    drawerHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border || "#eee"
+    },
+    drawerTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text.primary
+    },
+    drawerList: {
       padding: 8
     },
     chatCard: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 8,
       padding: 12,
-      marginBottom: 8,
-      elevation: 1,
-      shadowColor: theme.colors.border,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 1
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border || "#eee",
+      backgroundColor: theme.colors.surface
     },
     selectedChatCard: {
       backgroundColor: theme.colors.surface,
@@ -396,7 +513,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       borderRadius: 10
     },
     statusText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.warning),
       fontSize: 10,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -414,50 +531,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
     },
     timestamp: {
       fontSize: 10,
-      color: theme.colors.text.secondary,
-      marginBottom: 8
-    },
-    actionButton: {
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 4,
-      alignSelf: "flex-end"
-    },
-    actionButtonText: {
-      color: theme.colors.background,
-      fontSize: 12,
-      fontWeight: "500"
+      color: theme.colors.text.secondary
     },
     chatDetailContainer: {
       flex: 1,
-      padding: 16,
-      backgroundColor: theme.colors.background
-    },
-    noChatSelected: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      backgroundColor: theme.colors.background
-    },
-    noChatText: {
-      marginTop: 16,
-      color: theme.colors.text.secondary,
-      fontSize: 16
-    },
-    chatDetailHeader: {
-      marginBottom: 16,
-      paddingBottom: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border
-    },
-    chatDetailTitle: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: theme.colors.text.primary
-    },
-    chatDetailSubtitle: {
-      fontSize: 14,
-      color: theme.colors.text.secondary
+      padding: 16
     },
     chatMessagesContainer: {
       paddingVertical: 8
@@ -469,12 +547,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       marginBottom: 8
     },
     userMessage: {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.background,
       alignSelf: "flex-start",
       borderBottomLeftRadius: 4
     },
     hostMessage: {
-      backgroundColor: theme.colors.primaryDark || theme.colors.primary,
+      backgroundColor: theme.colors.primary,
       alignSelf: "flex-end",
       borderBottomRightRadius: 4
     },
@@ -493,19 +571,18 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       alignItems: "center",
       marginTop: 8,
       borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
-      paddingTop: 12,
-      paddingBottom: 8
+      borderTopColor: theme.colors.border || "#eee",
+      paddingTop: 12
     },
     replyInput: {
       flex: 1,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.background,
       borderRadius: 20,
       paddingHorizontal: 16,
       paddingVertical: 10,
       maxHeight: 100,
-      color: theme.colors.text.primary,
-      marginRight: 8
+      marginRight: 8,
+      color: theme.colors.text.primary
     },
     sendButton: {
       backgroundColor: theme.colors.primary,
@@ -516,6 +593,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       alignItems: "center"
     },
     disabledButton: {
-      backgroundColor: theme.colors.border
+      backgroundColor: theme.colors.disabled || "#cccccc"
     }
   })

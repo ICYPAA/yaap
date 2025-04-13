@@ -13,17 +13,18 @@ import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+import { getTextColorForBackground } from "../../../lib/theme"
 
 interface RideRequest {
   id: string
-  profiles?: {
-    full_name: string
-    email: string
-  }
-  pickup_location: string
+  program_id: number
+  name: string
+  phone: string
+  location: string
   destination: string
-  pickup_time: string
-  additional_info?: string
+  datetime: string
+  passengers: number
+  notes?: string
   status: string
   created_at: string
 }
@@ -75,12 +76,13 @@ export default function RideRequests() {
   const fetchRequests = async () => {
     try {
       const { data, error } = await makeRequest({
-        table: "ride_requests",
+        table: "ride_forms",
         isDebugMode,
         query: () =>
           supabase
-            .from("ride_requests")
-            .select("*, profiles(full_name, email)")
+            .from("ride_forms")
+            .select("*")
+            .eq("program_id", 1)
             .order("created_at", { ascending: false })
       })
 
@@ -96,13 +98,10 @@ export default function RideRequests() {
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
       const { error } = await makeRequest({
-        table: "ride_requests",
+        table: "ride_forms",
         isDebugMode,
         query: () =>
-          supabase
-            .from("ride_requests")
-            .update({ status: newStatus })
-            .eq("id", id)
+          supabase.from("ride_forms").update({ status: newStatus }).eq("id", id)
       })
 
       if (error) throw error
@@ -116,15 +115,15 @@ export default function RideRequests() {
     <View style={styles(theme).requestCard}>
       <View style={styles(theme).requestHeader}>
         <Text style={styles(theme).requesterName}>
-          {item.profiles?.full_name || "Anonymous"}
+          {item.name || "Anonymous"}
         </Text>
         <View
           style={[
             styles(theme).statusBadge,
             {
               backgroundColor:
-                item.status === "pending"
-                  ? theme.colors.error
+                !item.status || item.status === "pending"
+                  ? theme.colors.warning
                   : item.status === "in_progress"
                   ? theme.colors.warning
                   : theme.colors.success
@@ -132,7 +131,7 @@ export default function RideRequests() {
           ]}
         >
           <Text style={styles(theme).statusText}>
-            {item.status.replace("_", " ")}
+            {item.status ? item.status.replace("_", " ") : "pending"}
           </Text>
         </View>
       </View>
@@ -140,9 +139,7 @@ export default function RideRequests() {
       <View style={styles(theme).rideDetails}>
         <View style={styles(theme).locationContainer}>
           <Ionicons name="location" size={16} color={theme.colors.primary} />
-          <Text style={styles(theme).locationText}>
-            From: {item.pickup_location}
-          </Text>
+          <Text style={styles(theme).locationText}>From: {item.location}</Text>
         </View>
         <View style={styles(theme).locationContainer}>
           <Ionicons name="navigate" size={16} color={theme.colors.primary} />
@@ -151,18 +148,24 @@ export default function RideRequests() {
         <View style={styles(theme).locationContainer}>
           <Ionicons name="time" size={16} color={theme.colors.primary} />
           <Text style={styles(theme).locationText}>
-            When: {item.pickup_time}
+            When: {new Date(item.datetime).toLocaleString()}
+          </Text>
+        </View>
+        <View style={styles(theme).locationContainer}>
+          <Ionicons name="people" size={16} color={theme.colors.primary} />
+          <Text style={styles(theme).locationText}>
+            Passengers: {item.passengers}
           </Text>
         </View>
       </View>
 
-      <Text style={styles(theme).requestDetails}>{item.additional_info}</Text>
+      <Text style={styles(theme).requestDetails}>{item.notes}</Text>
       <Text style={styles(theme).timestamp}>
         Submitted: {new Date(item.created_at).toLocaleDateString()}
       </Text>
 
       <View style={styles(theme).actionButtons}>
-        {item.status === "pending" && (
+        {(!item.status || item.status === "pending") && (
           <TouchableOpacity
             style={[
               styles(theme).actionButton,
@@ -211,7 +214,7 @@ export default function RideRequests() {
           <Ionicons
             name="arrow-back"
             size={24}
-            color={theme.colors.background}
+            color={getTextColorForBackground(theme.colors.primary)}
           />
         </TouchableOpacity>
         <Text style={styles(theme).title}>Ride Requests</Text>
@@ -259,7 +262,7 @@ const styles = (theme: ThemeType) =>
     },
     title: {
       ...theme.typography.h2,
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "bold",
       flex: 1
     },
@@ -313,7 +316,7 @@ const styles = (theme: ThemeType) =>
       borderRadius: theme.borderRadius.md
     },
     statusText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.error),
       fontSize: 12,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -356,7 +359,7 @@ const styles = (theme: ThemeType) =>
       marginLeft: theme.spacing.sm
     },
     actionButtonText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "500"
     }
   })

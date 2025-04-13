@@ -12,18 +12,41 @@ import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+import { getTextColorForBackground } from "../../../lib/theme"
 
 interface VolunteerSignup {
   id: string
-  profiles?: {
-    full_name: string
-    email: string
+  program_id: number
+  name: string
+  last_initial: string
+  phone: string
+  email: string
+  type: string
+  data: {
+    interests: {
+      greeter: boolean
+      security: boolean
+      cleanup: boolean
+      setup: boolean
+      host_committee: boolean
+      wherever_needed: boolean
+    }
+    time_slots: {
+      thursday_pm: boolean
+      friday_am: boolean
+      friday_midday: boolean
+      friday_pm: boolean
+      saturday_am: boolean
+      saturday_midday: boolean
+      saturday_pm: boolean
+      sunday_am: boolean
+      sunday_midday: boolean
+      sunday_pm: boolean
+      other: string
+    }
+    comments: string
   }
-  phone?: string
-  availability: string
-  preferred_role: string
-  additional_info?: string
-  status: string
+  status?: string
   created_at: string
 }
 
@@ -41,17 +64,19 @@ export default function VolunteerSignups() {
 
   const fetchVolunteers = async () => {
     try {
-      // const { data, error } = await makeRequest({
-      //   table: "volunteer_signups",
-      //   isDebugMode,
-      //   query: () =>
-      //     supabase
-      //       .from("volunteer_signups")
-      //       .select("*")
-      //       .order("created_at", { ascending: false })
-      // })
-      // if (error) throw error
-      // setVolunteers(data || [])
+      const { data, error } = await makeRequest({
+        table: "volunteering_interest",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("volunteering_interest")
+            .select("*")
+            .eq("program_id", 1)
+            .order("created_at", { ascending: false })
+      })
+
+      if (error) throw error
+      setVolunteers(data || [])
     } catch (error) {
       console.error("Error fetching volunteer signups:", error)
     } finally {
@@ -62,11 +87,11 @@ export default function VolunteerSignups() {
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
       const { error } = await makeRequest({
-        table: "volunteer_signups",
+        table: "volunteering_interest",
         isDebugMode,
         query: () =>
           supabase
-            .from("volunteer_signups")
+            .from("volunteering_interest")
             .update({ status: newStatus })
             .eq("id", id)
       })
@@ -81,54 +106,99 @@ export default function VolunteerSignups() {
   const renderItem = ({ item }: { item: VolunteerSignup }) => (
     <View style={styles.volunteerCard}>
       <View style={styles.volunteerHeader}>
-        <Text style={styles.volunteerName}>Volunteer ID: {item.id}</Text>
+        <Text style={styles.volunteerName}>
+          {item.name} {item.last_initial}.
+        </Text>
         <View
           style={[
             styles.statusBadge,
             {
               backgroundColor:
-                item.status === "pending"
-                  ? theme.colors.error
+                !item.status || item.status === "pending"
+                  ? theme.colors.warning
                   : item.status === "assigned"
                   ? theme.colors.warning
                   : theme.colors.success
             }
           ]}
         >
-          <Text style={styles.statusText}>{item.status.replace("_", " ")}</Text>
+          <Text style={styles.statusText}>
+            {item.status?.replace("_", " ") || "pending"}
+          </Text>
         </View>
       </View>
 
       <View style={styles.volunteerDetails}>
         <View style={styles.detailRow}>
           <Ionicons name="mail" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>Email N/A</Text>
+          <Text style={styles.detailText}>Email: {item.email}</Text>
         </View>
         <View style={styles.detailRow}>
           <Ionicons name="call" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>
-            {item.phone || "No phone provided"}
-          </Text>
+          <Text style={styles.detailText}>Phone: {item.phone}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Ionicons name="calendar" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>Available: {item.availability}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="briefcase" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>
-            Preferred Role: {item.preferred_role}
-          </Text>
+          <Ionicons name="person" size={16} color={theme.colors.primary} />
+          <Text style={styles.detailText}>Type: {item.type}</Text>
         </View>
       </View>
 
-      <Text style={styles.additionalInfo}>{item.additional_info}</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Interests</Text>
+      </View>
+      <View style={styles.interestsContainer}>
+        {Object.entries(item.data.interests).map(
+          ([key, value]) =>
+            value && (
+              <View key={key} style={styles.interestItem}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={16}
+                  color={theme.colors.success}
+                />
+                <Text style={styles.interestText}>
+                  {key
+                    .replace(/_/g, " ")
+                    .replace(/\b\w/g, (l) => l.toUpperCase())}
+                </Text>
+              </View>
+            )
+        )}
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Available Times</Text>
+      </View>
+      <View style={styles.timeSlotsContainer}>
+        {Object.entries(item.data.time_slots)
+          .filter(([key, value]) => key !== "other" && value)
+          .map(([key, value]) => (
+            <View key={key} style={styles.timeSlotItem}>
+              <Ionicons name="time" size={16} color={theme.colors.primary} />
+              <Text style={styles.timeSlotText}>
+                {key
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (l) => l.toUpperCase())}
+              </Text>
+            </View>
+          ))}
+        {item.data.time_slots.other && (
+          <View style={styles.timeSlotItem}>
+            <Ionicons name="time" size={16} color={theme.colors.primary} />
+            <Text style={styles.timeSlotText}>
+              Other: {item.data.time_slots.other}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={styles.additionalInfo}>{item.data.comments}</Text>
       <Text style={styles.timestamp}>
         Signed up: {new Date(item.created_at).toLocaleDateString()}
       </Text>
 
       <View style={styles.actionButtons}>
-        {item.status === "pending" && (
+        {(!item.status || item.status === "pending") && (
           <TouchableOpacity
             style={[
               styles.actionButton,
@@ -177,7 +247,7 @@ export default function VolunteerSignups() {
           <Ionicons
             name="arrow-back"
             size={24}
-            color={theme.colors.background}
+            color={getTextColorForBackground(theme.colors.primary)}
           />
         </TouchableOpacity>
         <Text style={styles.title}>Volunteer Sign-ups</Text>
@@ -226,7 +296,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
     title: {
       fontSize: 20,
       fontWeight: "bold",
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       flex: 1
     },
     debugBadge: {
@@ -236,7 +306,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       borderRadius: 12
     },
     debugText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.error),
       fontSize: 12,
       fontWeight: "bold"
     },
@@ -281,7 +351,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       borderRadius: 12
     },
     statusText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.warning),
       fontSize: 12,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -324,8 +394,42 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       marginLeft: 8
     },
     actionButtonText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "500",
       fontSize: 14
+    },
+    sectionHeader: {
+      marginBottom: 8
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text.primary
+    },
+    interestsContainer: {
+      marginBottom: 12
+    },
+    interestItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 4
+    },
+    interestText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.colors.text.primary
+    },
+    timeSlotsContainer: {
+      marginBottom: 12
+    },
+    timeSlotItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 4
+    },
+    timeSlotText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.colors.text.primary
     }
   })

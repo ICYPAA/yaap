@@ -13,6 +13,7 @@ import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeCountRequest, makeRequest } from "../../../lib/requestHelper"
 import { supabase } from "../../../lib/supabase"
+import { getTextColorForBackground } from "../../../lib/theme"
 
 type ServiceSection = {
   title: string
@@ -96,40 +97,44 @@ export default function HostDashboard() {
         { count: supportCount }
       ] = await Promise.all([
         makeCountRequest({
-          table: "accessibility_requests",
+          table: "accessibility_forms",
           isDebugMode,
           query: () =>
             supabase
-              .from("accessibility_requests")
+              .from("accessibility_forms")
               .select("*", { count: "exact", head: true })
-              .eq("status", "pending")
+              .eq("program_id", 1)
+              .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
-          table: "ride_requests",
+          table: "ride_forms",
           isDebugMode,
           query: () =>
             supabase
-              .from("ride_requests")
+              .from("ride_forms")
               .select("*", { count: "exact", head: true })
-              .eq("status", "pending")
+              .eq("program_id", 1)
+              .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
-          table: "volunteer_signups",
+          table: "volunteering_interest",
           isDebugMode,
           query: () =>
             supabase
-              .from("volunteer_signups")
+              .from("volunteering_interest")
               .select("*", { count: "exact", head: true })
-              .eq("status", "pending")
+              .eq("program_id", 1)
+              .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
-          table: "hospitality_notifications",
+          table: "hospitality_forms",
           isDebugMode,
           query: () =>
             supabase
-              .from("hospitality_notifications")
+              .from("hospitality_forms")
               .select("*", { count: "exact", head: true })
-              .eq("status", "pending")
+              .eq("program_id", 1)
+              .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
           table: "support_chats",
@@ -138,16 +143,33 @@ export default function HostDashboard() {
             supabase
               .from("support_chats")
               .select("*", { count: "exact", head: true })
-              .eq("status", "unread")
+              .eq("program_id", 1)
         })
       ])
 
+      console.log("Counts fetched:", {
+        accessibility: accessibilityCount,
+        rides: ridesCount,
+        volunteers: volunteersCount,
+        hospitality: hospitalityCount,
+        support: supportCount
+      })
+
+      // Force some dummy values for debug display if all counts are 0
+      const counts = [
+        accessibilityCount || (isDebugMode ? 2 : 0),
+        ridesCount || (isDebugMode ? 3 : 0),
+        volunteersCount || (isDebugMode ? 5 : 0),
+        hospitalityCount || (isDebugMode ? 1 : 0),
+        supportCount || (isDebugMode ? 4 : 0)
+      ]
+
       setServiceSections((prev) => [
-        { ...prev[0], count: accessibilityCount || 0 },
-        { ...prev[1], count: ridesCount || 0 },
-        { ...prev[2], count: volunteersCount || 0 },
-        { ...prev[3], count: hospitalityCount || 0 },
-        { ...prev[4], count: supportCount || 0 }
+        { ...prev[0], count: counts[0] },
+        { ...prev[1], count: counts[1] },
+        { ...prev[2], count: counts[2] },
+        { ...prev[3], count: counts[3] },
+        { ...prev[4], count: counts[4] }
       ])
     } catch (error) {
       console.error("Error fetching pending counts:", error)
@@ -191,74 +213,57 @@ export default function HostDashboard() {
 
       <ScrollView style={styles(theme).scrollContainer}>
         <View style={styles(theme).servicesContainer}>
-          {/* Test Notifications Card */}
-          <TouchableOpacity
-            style={[styles(theme).serviceCard, styles(theme).testCard]}
-            onPress={() => navigateToService("test-notifications")}
-          >
-            <View style={styles(theme).serviceCardContent}>
-              <View
-                style={[
-                  styles(theme).iconContainer,
-                  { backgroundColor: theme.colors.warning }
-                ]}
-              >
-                <Ionicons
-                  name="notifications"
-                  size={24}
-                  color={theme.colors.background}
-                />
-              </View>
-              <Text style={styles(theme).serviceTitle}>Test Notifications</Text>
-            </View>
-            <View style={styles(theme).arrowContainer}>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={theme.colors.text.secondary}
-              />
-            </View>
-          </TouchableOpacity>
-
-          {serviceSections.map((section, index) => (
+          {serviceSections.map((service) => (
             <TouchableOpacity
-              key={index}
+              key={service.route}
               style={styles(theme).serviceCard}
-              onPress={() => navigateToService(section.route)}
+              onPress={() => navigateToService(service.route)}
             >
               <View style={styles(theme).serviceCardContent}>
-                <View style={styles(theme).iconContainer}>
+                <View
+                  style={[
+                    styles(theme).serviceIconContainer,
+                    { backgroundColor: theme.colors.primary }
+                  ]}
+                >
                   <Ionicons
-                    name={section.icon}
-                    size={24}
-                    color={theme.colors.background}
+                    name={service.icon}
+                    size={28}
+                    color={getTextColorForBackground(theme.colors.primary)}
                   />
                 </View>
-                <Text style={styles(theme).serviceTitle}>{section.title}</Text>
+                <View style={styles(theme).serviceTextContainer}>
+                  <Text style={styles(theme).serviceTitle}>
+                    {service.title}
+                  </Text>
+                  <Text style={styles(theme).serviceSubtitle}>
+                    {service.count} {service.count === 1 ? "item" : "items"} to
+                    handle
+                  </Text>
+                </View>
               </View>
-              <View style={styles(theme).countContainer}>
-                <Text style={styles(theme).countText}>{section.count}</Text>
-                <Text style={styles(theme).pendingText}>pending</Text>
+              <View style={styles(theme).serviceCardAction}>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={theme.colors.text.secondary}
+                />
               </View>
             </TouchableOpacity>
           ))}
-
-          <TouchableOpacity
-            style={styles(theme).logoutCard}
-            onPress={handleLogout}
-          >
-            <View style={styles(theme).serviceCardContent}>
-              <View style={styles(theme).iconContainer}>
-                <Ionicons
-                  name="log-out-outline"
-                  size={24}
-                  color={theme.colors.background}
-                />
-              </View>
-              <Text style={styles(theme).serviceTitle}>Logout</Text>
-            </View>
-          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={styles(theme).logoutButton}
+          onPress={handleLogout}
+        >
+          <Text style={styles(theme).logoutButtonText}>Logout</Text>
+          <Ionicons
+            name="log-out-outline"
+            size={20}
+            color={getTextColorForBackground(theme.colors.error)}
+          />
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   )
@@ -270,35 +275,26 @@ const styles = (theme: any) =>
       flex: 1,
       backgroundColor: theme.colors.background
     },
-    loadingText: {
-      ...theme.typography.body,
-      color: theme.colors.text.primary,
-      textAlign: "center",
-      marginTop: theme.spacing.xl
-    },
-    scrollContainer: {
-      flex: 1
-    },
     header: {
-      padding: theme.spacing.md,
-      backgroundColor: theme.colors.primary,
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center"
+      alignItems: "center",
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.primary
     },
     headerContent: {
       flex: 1
     },
     title: {
-      ...theme.typography.h1,
-      color: theme.colors.background,
-      fontWeight: "bold"
+      fontSize: 24,
+      fontWeight: "bold",
+      color: getTextColorForBackground(theme.colors.primary),
+      marginBottom: 4
     },
     userInfo: {
-      ...theme.typography.caption,
-      color: theme.colors.background,
-      marginTop: theme.spacing.xs,
-      opacity: 0.9
+      fontSize: 14,
+      color: getTextColorForBackground(theme.colors.primary),
+      opacity: 0.8
     },
     debugBadge: {
       backgroundColor: theme.colors.error,
@@ -307,74 +303,88 @@ const styles = (theme: any) =>
       borderRadius: theme.borderRadius.md
     },
     debugText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.error),
       fontSize: 12,
       fontWeight: "bold"
     },
-    servicesContainer: {
+    loadingText: {
+      color: theme.colors.text.primary,
+      fontSize: 16,
+      textAlign: "center",
+      marginTop: 20
+    },
+    scrollContainer: {
+      flex: 1,
       padding: theme.spacing.md
+    },
+    servicesContainer: {
+      gap: theme.spacing.md
     },
     serviceCard: {
       backgroundColor: theme.colors.surface,
       borderRadius: theme.borderRadius.md,
-      padding: theme.spacing.sm,
-      marginBottom: theme.spacing.md,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      ...theme.shadows.small
-    },
-    testCard: {
-      borderWidth: 1,
-      borderColor: theme.colors.warning,
-      backgroundColor: theme.isDarkMode
-        ? "rgba(255, 193, 7, 0.05)"
-        : "rgba(255, 193, 7, 0.1)"
-    },
-    logoutCard: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.borderRadius.md,
       padding: theme.spacing.md,
-      marginTop: theme.spacing.md,
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "space-between",
       ...theme.shadows.small
     },
     serviceCardContent: {
       flexDirection: "row",
-      alignItems: "center"
+      alignItems: "center",
+      flex: 1
     },
-    iconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.primary,
+    serviceIconContainer: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
       justifyContent: "center",
       alignItems: "center",
-      marginRight: theme.spacing.sm
+      marginRight: theme.spacing.md
+    },
+    serviceTextContainer: {
+      flex: 1
     },
     serviceTitle: {
-      ...theme.typography.body,
+      fontSize: 16,
+      fontWeight: "600",
       color: theme.colors.text.primary,
-      fontWeight: "500"
+      marginBottom: 2
     },
-    countContainer: {
-      backgroundColor: theme.colors.background,
-      borderRadius: 12,
-      padding: theme.spacing.md,
-      alignItems: "center",
-      minWidth: 70
-    },
-    countText: {
-      ...theme.typography.h3,
-      color: theme.colors.primary,
-      fontWeight: "bold"
-    },
-    pendingText: {
-      ...theme.typography.caption,
+    serviceSubtitle: {
+      fontSize: 14,
       color: theme.colors.text.secondary
     },
-    arrowContainer: {
-      padding: theme.spacing.xs
+    serviceCardAction: {
+      marginLeft: theme.spacing.sm
+    },
+    countBadge: {
+      minWidth: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: theme.colors.error,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 6
+    },
+    countText: {
+      color: getTextColorForBackground(theme.colors.error),
+      fontSize: 12,
+      fontWeight: "bold"
+    },
+    logoutButton: {
+      marginTop: theme.spacing.xl,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.error,
+      borderRadius: theme.borderRadius.md,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center"
+    },
+    logoutButtonText: {
+      color: getTextColorForBackground(theme.colors.error),
+      fontSize: 16,
+      fontWeight: "600",
+      marginRight: theme.spacing.sm
     }
   })

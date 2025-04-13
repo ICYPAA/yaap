@@ -29,6 +29,7 @@ CREATE TABLE programs (
     big_book_passage TEXT NOT NULL,
     design JSONB, -- { primary_color: string, ... }
     promote NUMERIC[] -- [event_id, event_id, ...]
+    content JSONB -- { feature: { component: { text: string, ... }, ... }, ... }
 );
 
 -- Event Categories Table
