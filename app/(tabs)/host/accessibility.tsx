@@ -27,19 +27,69 @@ interface AccessibilityRequest {
   arrival_date: string
   duration: string
   status?: string
+  owner_id?: string
+  owner_email?: string
   created_at: string
 }
+
+type FilterType = "all" | "active" | "completed" | "closed"
 
 export default function AccessibilityRequests() {
   const router = useRouter()
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
   const [requests, setRequests] = useState<AccessibilityRequest[]>([])
+  const [filteredRequests, setFilteredRequests] = useState<
+    AccessibilityRequest[]
+  >([])
   const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [activeFilter, setActiveFilter] = useState<FilterType>("all")
 
   useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session?.user) {
+        setCurrentUser(data.session.user.id)
+      }
+    }
+
+    getUser()
     fetchRequests()
   }, [])
+
+  useEffect(() => {
+    if (requests.length > 0) {
+      filterRequests(activeFilter)
+    }
+  }, [requests, activeFilter])
+
+  const filterRequests = (filter: FilterType) => {
+    switch (filter) {
+      case "active":
+        setFilteredRequests(
+          requests.filter(
+            (req) =>
+              !req.status ||
+              req.status === "pending" ||
+              req.status === "in_progress"
+          )
+        )
+        break
+      case "completed":
+        setFilteredRequests(
+          requests.filter((req) => req.status === "completed")
+        )
+        break
+      case "closed":
+        setFilteredRequests(requests.filter((req) => req.status === "closed"))
+        break
+      case "all":
+      default:
+        setFilteredRequests(requests)
+        break
+    }
+  }
 
   const fetchRequests = async () => {
     try {
@@ -55,7 +105,26 @@ export default function AccessibilityRequests() {
       })
 
       if (error) throw error
-      setRequests(data || [])
+
+      // Get the list of accessibility requests
+      const requests = data || []
+
+      // Since we can't directly query auth.users from the client,
+      // we'll use the current user's session to at least identify the current user's records
+      const { data: sessionData } = await supabase.auth.getSession()
+      const currentUserEmail = sessionData.session?.user?.email || "Unknown"
+      const currentUserId = sessionData.session?.user?.id
+
+      // Add owner identification to each request
+      const mappedRequests = requests.map((req: AccessibilityRequest) => ({
+        ...req,
+        owner_email:
+          req.owner_id === currentUserId
+            ? currentUserEmail
+            : "User " + req.owner_id?.substring(0, 6)
+      }))
+
+      setRequests(mappedRequests)
     } catch (error) {
       console.error("Error fetching accessibility requests:", error)
     } finally {
@@ -65,14 +134,20 @@ export default function AccessibilityRequests() {
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
+      const updateData: { status: string; owner_id?: string } = {
+        status: newStatus
+      }
+
+      // If transitioning to in_progress, set the current user as owner
+      if (newStatus === "in_progress" && currentUser) {
+        updateData.owner_id = currentUser
+      }
+
       const { error } = await makeRequest({
         table: "accessibility_forms",
         isDebugMode,
         query: () =>
-          supabase
-            .from("accessibility_forms")
-            .update({ status: newStatus })
-            .eq("id", id)
+          supabase.from("accessibility_forms").update(updateData).eq("id", id)
       })
 
       if (error) throw error
@@ -97,7 +172,9 @@ export default function AccessibilityRequests() {
                   ? theme.colors.warning
                   : item.status === "in_progress"
                   ? theme.colors.warning
-                  : theme.colors.success
+                  : item.status === "completed"
+                  ? theme.colors.success
+                  : theme.colors.error
             }
           ]}
         >
@@ -106,6 +183,15 @@ export default function AccessibilityRequests() {
           </Text>
         </View>
       </View>
+
+      {item.owner_id && (
+        <View style={styles(theme).ownerContainer}>
+          <Ionicons name="person" size={16} color={theme.colors.primary} />
+          <Text style={styles(theme).ownerText}>
+            Owner: {item.owner_email || "Unknown"}
+          </Text>
+        </View>
+      )}
 
       <View style={styles(theme).requestInfo}>
         <View style={styles(theme).infoRow}>
@@ -153,24 +239,35 @@ export default function AccessibilityRequests() {
         )}
 
         {item.status === "in_progress" && (
-          <TouchableOpacity
-            style={[
-              styles(theme).actionButton,
-              { backgroundColor: theme.colors.success }
-            ]}
-            onPress={() => handleStatusUpdate(item.id, "completed")}
-          >
-            <Text style={styles(theme).actionButtonText}>Mark Completed</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[
+                styles(theme).actionButton,
+                { backgroundColor: theme.colors.success }
+              ]}
+              onPress={() => handleStatusUpdate(item.id, "completed")}
+            >
+              <Text style={styles(theme).actionButtonText}>Complete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles(theme).actionButton,
+                { backgroundColor: theme.colors.error }
+              ]}
+              onPress={() => handleStatusUpdate(item.id, "closed")}
+            >
+              <Text style={styles(theme).actionButtonText}>Close</Text>
+            </TouchableOpacity>
+          </>
         )}
 
-        {item.status === "completed" && (
+        {(item.status === "completed" || item.status === "closed") && (
           <TouchableOpacity
             style={[
               styles(theme).actionButton,
               { backgroundColor: theme.colors.primary }
             ]}
-            onPress={() => handleStatusUpdate(item.id, "pending")}
+            onPress={() => handleStatusUpdate(item.id, "in_progress")}
           >
             <Text style={styles(theme).actionButtonText}>Reopen</Text>
           </TouchableOpacity>
@@ -200,11 +297,50 @@ export default function AccessibilityRequests() {
         )}
       </View>
 
+      <View style={styles(theme).filterContainer}>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "all" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("all")}
+        >
+          <Text style={styles(theme).filterButtonText}>All</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "active" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("active")}
+        >
+          <Text style={styles(theme).filterButtonText}>Active</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "completed" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("completed")}
+        >
+          <Text style={styles(theme).filterButtonText}>Completed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "closed" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("closed")}
+        >
+          <Text style={styles(theme).filterButtonText}>Closed</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <View style={styles(theme).centered}>
           <Text style={styles(theme).loadingText}>Loading requests...</Text>
         </View>
-      ) : requests.length === 0 ? (
+      ) : filteredRequests.length === 0 ? (
         <View style={styles(theme).centered}>
           <Text style={styles(theme).emptyText}>
             No accessibility requests found.
@@ -212,7 +348,7 @@ export default function AccessibilityRequests() {
         </View>
       ) : (
         <FlatList
-          data={requests}
+          data={filteredRequests}
           renderItem={renderItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles(theme).listContainer}
@@ -335,5 +471,40 @@ const styles = (theme: any) =>
       ...theme.typography.body,
       color: theme.colors.text.primary,
       marginLeft: theme.spacing.sm
+    },
+    filterContainer: {
+      flexDirection: "row",
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.background,
+      justifyContent: "space-around"
+    },
+    filterButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+      backgroundColor: theme.colors.background
+    },
+    activeFilterButton: {
+      backgroundColor: theme.colors.primary
+    },
+    filterButtonText: {
+      fontWeight: "500",
+      color: theme.colors.text.primary
+    },
+    ownerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.background,
+      padding: theme.spacing.xs,
+      borderRadius: theme.borderRadius.sm,
+      marginBottom: theme.spacing.sm
+    },
+    ownerText: {
+      ...theme.typography.body,
+      color: theme.colors.text.primary,
+      marginLeft: theme.spacing.sm,
+      fontStyle: "italic"
     }
   })

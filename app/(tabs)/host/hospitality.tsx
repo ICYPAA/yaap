@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
+import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
@@ -23,6 +24,8 @@ interface HospitalityNotification {
   allergies: string
   notes: string
   status?: string
+  owner_id?: string
+  owner_email?: string
   created_at: string
 }
 
@@ -67,10 +70,62 @@ export default function HospitalityNotifications() {
     []
   )
   const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [filteredNotifications, setFilteredNotifications] = useState<
+    HospitalityNotification[]
+  >([])
+  const [activeFilter, setActiveFilter] = useState<
+    "all" | "active" | "completed" | "closed"
+  >("all")
 
   useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session?.user) {
+        setCurrentUser(data.session.user.id)
+      }
+    }
+
+    getUser()
     fetchNotifications()
   }, [])
+
+  useEffect(() => {
+    if (notifications.length > 0) {
+      filterNotifications(activeFilter)
+    }
+  }, [notifications, activeFilter])
+
+  const filterNotifications = (
+    filter: "all" | "active" | "completed" | "closed"
+  ) => {
+    switch (filter) {
+      case "active":
+        setFilteredNotifications(
+          notifications.filter(
+            (item) =>
+              !item.status ||
+              item.status === "pending" ||
+              item.status === "in_progress"
+          )
+        )
+        break
+      case "completed":
+        setFilteredNotifications(
+          notifications.filter((item) => item.status === "completed")
+        )
+        break
+      case "closed":
+        setFilteredNotifications(
+          notifications.filter((item) => item.status === "closed")
+        )
+        break
+      case "all":
+      default:
+        setFilteredNotifications(notifications)
+        break
+    }
+  }
 
   const fetchNotifications = async () => {
     try {
@@ -86,7 +141,28 @@ export default function HospitalityNotifications() {
       })
 
       if (error) throw error
-      setNotifications(data || [])
+
+      // Get the list of hospitality notifications
+      const items = data || []
+
+      // Since we can't directly query auth.users from the client,
+      // we'll use the current user's session to at least identify the current user's records
+      const { data: sessionData } = await supabase.auth.getSession()
+      const currentUserEmail = sessionData.session?.user?.email || "Unknown"
+      const currentUserId = sessionData.session?.user?.id
+
+      // Add owner identification to each notification
+      const mappedNotifications = items.map(
+        (item: HospitalityNotification) => ({
+          ...item,
+          owner_email:
+            item.owner_id === currentUserId
+              ? currentUserEmail
+              : "User " + item.owner_id?.substring(0, 6)
+        })
+      )
+
+      setNotifications(mappedNotifications)
     } catch (error) {
       console.error("Error fetching hospitality notifications:", error)
     } finally {
@@ -94,22 +170,88 @@ export default function HospitalityNotifications() {
     }
   }
 
-  const handleStatusUpdate = async (id: string, newStatus: string) => {
+  const handleStatusUpdate = async (
+    id: string,
+    newStatus: string,
+    shouldNotify = false
+  ) => {
     try {
+      const updateData: { status: string; owner_id?: string } = {
+        status: newStatus
+      }
+
+      // If transitioning to in_progress, set the current user as owner
+      if (newStatus === "in_progress" && currentUser) {
+        updateData.owner_id = currentUser
+      }
+
       const { error } = await makeRequest({
         table: "hospitality_forms",
         isDebugMode,
         query: () =>
-          supabase
-            .from("hospitality_forms")
-            .update({ status: newStatus })
-            .eq("id", id)
+          supabase.from("hospitality_forms").update(updateData).eq("id", id)
       })
 
       if (error) throw error
+
+      // If this is an approval and notification is requested, send notifications
+      if (shouldNotify && newStatus === "completed") {
+        await sendHospitalityNotifications(id)
+      }
+
       fetchNotifications()
     } catch (error) {
       console.error("Error updating notification status:", error)
+    }
+  }
+
+  const sendHospitalityNotifications = async (hospitalityId: string) => {
+    try {
+      // Find the hospitality item
+      const item = notifications.find((n) => n.id === hospitalityId)
+      if (!item) return
+
+      // Get all users with hospitality notifications enabled
+      const { data: users, error } = await makeRequest({
+        table: "users",
+        isDebugMode,
+        query: () =>
+          supabase
+            .from("users")
+            .select("id, device_id, expo_push_token, settings")
+            .neq("device_id", null)
+      })
+
+      if (error) throw error
+
+      // Filter users who have notifications and hospitality notifications enabled
+      const eligibleUsers = users.filter((user: any) => {
+        const settings = user.settings || {}
+        return (
+          settings.notifications === true &&
+          settings.hospitality_notifications === true
+        )
+      })
+
+      // Send notifications to eligible users
+      for (const user of eligibleUsers) {
+        if (user.expo_push_token) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "Hospitality Item Approved",
+              body: `${item.group_name}'s item "${item.item_description}" has been approved`,
+              data: { screen: "/hospitality" }
+            },
+            trigger: null // Send immediately
+          })
+        }
+      }
+
+      console.log(
+        `Sent hospitality notifications to ${eligibleUsers.length} users`
+      )
+    } catch (error) {
+      console.error("Error sending hospitality notifications:", error)
     }
   }
 
@@ -128,7 +270,9 @@ export default function HospitalityNotifications() {
                   ? theme.colors.warning
                   : item.status === "in_progress"
                   ? theme.colors.warning
-                  : theme.colors.success
+                  : item.status === "completed"
+                  ? theme.colors.success
+                  : theme.colors.error
             }
           ]}
         >
@@ -137,6 +281,15 @@ export default function HospitalityNotifications() {
           </Text>
         </View>
       </View>
+
+      {item.owner_id && (
+        <View style={styles(theme).ownerContainer}>
+          <Ionicons name="person" size={16} color={theme.colors.primary} />
+          <Text style={styles(theme).ownerText}>
+            Owner: {item.owner_email || "Unknown"}
+          </Text>
+        </View>
+      )}
 
       <View style={styles(theme).notificationDetails}>
         <View style={styles(theme).detailRow}>
@@ -163,36 +316,58 @@ export default function HospitalityNotifications() {
 
       <View style={styles(theme).actionButtons}>
         {(!item.status || item.status === "pending") && (
-          <TouchableOpacity
-            style={[
-              styles(theme).actionButton,
-              { backgroundColor: theme.colors.warning }
-            ]}
-            onPress={() => handleStatusUpdate(item.id, "in_progress")}
-          >
-            <Text style={styles(theme).actionButtonText}>Start Handling</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[
+                styles(theme).actionButton,
+                { backgroundColor: theme.colors.success }
+              ]}
+              onPress={() => handleStatusUpdate(item.id, "completed", true)}
+            >
+              <Text style={styles(theme).actionButtonText}>Approve</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles(theme).actionButton,
+                { backgroundColor: theme.colors.error }
+              ]}
+              onPress={() => handleStatusUpdate(item.id, "closed")}
+            >
+              <Text style={styles(theme).actionButtonText}>Deny</Text>
+            </TouchableOpacity>
+          </>
         )}
 
         {item.status === "in_progress" && (
-          <TouchableOpacity
-            style={[
-              styles(theme).actionButton,
-              { backgroundColor: theme.colors.success }
-            ]}
-            onPress={() => handleStatusUpdate(item.id, "completed")}
-          >
-            <Text style={styles(theme).actionButtonText}>Mark Completed</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[
+                styles(theme).actionButton,
+                { backgroundColor: theme.colors.success }
+              ]}
+              onPress={() => handleStatusUpdate(item.id, "completed", true)}
+            >
+              <Text style={styles(theme).actionButtonText}>Approve</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles(theme).actionButton,
+                { backgroundColor: theme.colors.error }
+              ]}
+              onPress={() => handleStatusUpdate(item.id, "closed")}
+            >
+              <Text style={styles(theme).actionButtonText}>Deny</Text>
+            </TouchableOpacity>
+          </>
         )}
 
-        {item.status === "completed" && (
+        {(item.status === "completed" || item.status === "closed") && (
           <TouchableOpacity
             style={[
               styles(theme).actionButton,
               { backgroundColor: theme.colors.primary }
             ]}
-            onPress={() => handleStatusUpdate(item.id, "pending")}
+            onPress={() => handleStatusUpdate(item.id, "in_progress")}
           >
             <Text style={styles(theme).actionButtonText}>Reopen</Text>
           </TouchableOpacity>
@@ -222,13 +397,52 @@ export default function HospitalityNotifications() {
         )}
       </View>
 
+      <View style={styles(theme).filterContainer}>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "all" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("all")}
+        >
+          <Text style={styles(theme).filterButtonText}>All</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "active" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("active")}
+        >
+          <Text style={styles(theme).filterButtonText}>Active</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "completed" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("completed")}
+        >
+          <Text style={styles(theme).filterButtonText}>Completed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles(theme).filterButton,
+            activeFilter === "closed" && styles(theme).activeFilterButton
+          ]}
+          onPress={() => setActiveFilter("closed")}
+        >
+          <Text style={styles(theme).filterButtonText}>Closed</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <View style={styles(theme).centered}>
           <Text style={styles(theme).loadingText}>
             Loading notifications...
           </Text>
         </View>
-      ) : notifications.length === 0 ? (
+      ) : filteredNotifications.length === 0 ? (
         <View style={styles(theme).centered}>
           <Text style={styles(theme).emptyText}>
             No hospitality notifications found.
@@ -236,7 +450,7 @@ export default function HospitalityNotifications() {
         </View>
       ) : (
         <FlatList
-          data={notifications}
+          data={filteredNotifications}
           renderItem={renderItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles(theme).listContainer}
@@ -357,5 +571,40 @@ const styles = (theme: ThemeType) =>
     actionButtonText: {
       color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "500"
+    },
+    ownerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.background,
+      padding: theme.spacing.xs,
+      borderRadius: theme.borderRadius.sm,
+      marginBottom: theme.spacing.sm
+    },
+    ownerText: {
+      ...theme.typography.body,
+      color: theme.colors.text.primary,
+      marginLeft: theme.spacing.sm,
+      fontStyle: "italic"
+    },
+    filterContainer: {
+      flexDirection: "row",
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.background,
+      justifyContent: "space-around"
+    },
+    filterButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+      backgroundColor: theme.colors.background
+    },
+    activeFilterButton: {
+      backgroundColor: theme.colors.primary
+    },
+    filterButtonText: {
+      fontWeight: "500",
+      color: theme.colors.text.primary
     }
   })

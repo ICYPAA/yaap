@@ -163,6 +163,11 @@ export default function SupportRequest() {
         await AsyncStorage.setItem("device_id", deviceId)
       }
 
+      // Save the user name to AsyncStorage
+      if (userName.trim()) {
+        await AsyncStorage.setItem("user_name", userName)
+      }
+
       // Create the chat in Supabase
       const { data, error } = await supabase
         .from("support_chats")
@@ -618,34 +623,32 @@ export default function SupportRequest() {
                 Create New Support Chat
               </Text>
 
-              {!userName && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text
-                    style={{
-                      ...theme.typography.body,
-                      color: theme.colors.text.primary,
-                      marginBottom: 8,
-                      fontWeight: "500"
-                    }}
-                  >
-                    Your Name
-                  </Text>
-                  <TextInput
-                    style={{
-                      flex: 1,
-                      backgroundColor: theme.colors.surface,
-                      padding: 12,
-                      borderRadius: 8,
-                      marginBottom: 10,
-                      color: theme.colors.text.primary
-                    }}
-                    placeholder="Your name"
-                    placeholderTextColor={theme.colors.text.secondary}
-                    value={userName}
-                    onChangeText={setUserName}
-                  />
-                </View>
-              )}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    ...theme.typography.body,
+                    color: theme.colors.text.primary,
+                    marginBottom: 8,
+                    fontWeight: "500"
+                  }}
+                >
+                  Your Name
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: theme.colors.surface,
+                    padding: 12,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text.primary
+                  }}
+                  placeholder="Your name"
+                  placeholderTextColor={theme.colors.text.secondary}
+                  value={userName}
+                  onChangeText={setUserName}
+                />
+              </View>
 
               <Text
                 style={{

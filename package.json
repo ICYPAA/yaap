@@ -6,8 +6,8 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
+    "ios:prebuild": "expo prebuild -p ios --clean",
     "ios": "expo run:ios",
-    "ios:device": "expo run:ios --device",
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint"

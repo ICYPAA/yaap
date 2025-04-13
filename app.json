@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "icypaa",
+    "name": "YAAP!",
     "slug": "icypaa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "icypaa",
+    "scheme": "yaap",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.themindfulpug.icypaa",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library for you to choose a profile picture.",
+        "NSPhotoLibraryUsageDescription": "YAAP! needs access to your photo library for you to choose a profile picture.",
+        "CFBundleDisplayName": "YAAP!",
         "UIBackgroundModes": ["remote-notification"]
       },
       "usesAppleSignIn": true

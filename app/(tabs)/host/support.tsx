@@ -42,17 +42,26 @@ export default function SupportChats() {
   const { isDebugMode } = useDebug()
   const { theme } = useTheme()
   const [chats, setChats] = useState<SupportChat[]>([])
+  const [filteredChats, setFilteredChats] = useState<SupportChat[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedChat, setSelectedChat] = useState<SupportChat | null>(null)
   const [replyText, setReplyText] = useState("")
-  const [drawerVisible, setDrawerVisible] = useState(false)
+  const [drawerVisible, setDrawerVisible] = useState(true)
 
-  const drawerAnimation = useRef(new Animated.Value(-300)).current
+  const drawerAnimation = useRef(new Animated.Value(0)).current
   const styles = React.useMemo(() => createStyles(theme), [theme])
 
   useEffect(() => {
     fetchChats()
   }, [])
+
+  useEffect(() => {
+    // Filter out resolved chats
+    if (chats.length > 0) {
+      const filteredResult = chats.filter((chat) => chat.status !== "resolved")
+      setFilteredChats(filteredResult)
+    }
+  }, [chats])
 
   const fetchChats = async () => {
     try {
@@ -70,9 +79,14 @@ export default function SupportChats() {
       if (error) throw error
       setChats(data || [])
 
-      // Auto-select the first chat if available and none selected
+      // Auto-select the first non-resolved chat if available and none selected
       if (data && data.length > 0 && !selectedChat) {
-        setSelectedChat(data[0])
+        const nonResolvedChats = data.filter(
+          (chat) => chat.status !== "resolved"
+        )
+        if (nonResolvedChats.length > 0) {
+          setSelectedChat(nonResolvedChats[0])
+        }
       }
     } catch (error) {
       console.error("Error fetching support chats:", error)
@@ -94,6 +108,12 @@ export default function SupportChats() {
       })
 
       if (error) throw error
+
+      // If resolving the currently selected chat, clear selection
+      if (newStatus === "resolved" && selectedChat?.id === id) {
+        setSelectedChat(null)
+      }
+
       fetchChats()
     } catch (error) {
       console.error("Error updating chat status:", error)
@@ -172,6 +192,10 @@ export default function SupportChats() {
     }
   }
 
+  const handleResolveChat = (chatId: string) => {
+    handleStatusUpdate(chatId, "resolved")
+  }
+
   const renderChatItem = ({ item }: { item: SupportChat }) => (
     <TouchableOpacity
       style={[
@@ -208,6 +232,16 @@ export default function SupportChats() {
       <Text style={styles.timestamp}>
         {new Date(item.created_at).toLocaleDateString()}
       </Text>
+
+      <TouchableOpacity
+        style={styles.resolveButton}
+        onPress={(e) => {
+          e.stopPropagation()
+          handleResolveChat(item.id)
+        }}
+      >
+        <Text style={styles.resolveButtonText}>Resolve</Text>
+      </TouchableOpacity>
     </TouchableOpacity>
   )
 
@@ -278,14 +312,16 @@ export default function SupportChats() {
           <View style={styles.centered}>
             <Text style={styles.centeredText}>Loading support chats...</Text>
           </View>
-        ) : chats.length === 0 ? (
+        ) : filteredChats.length === 0 ? (
           <View style={styles.centered}>
             <Ionicons
               name="chatbubbles-outline"
               size={48}
               color={theme.colors.text.secondary}
             />
-            <Text style={styles.centeredText}>No support chats found.</Text>
+            <Text style={styles.centeredText}>
+              No active support chats found.
+            </Text>
           </View>
         ) : selectedChat ? (
           <View style={styles.chatDetailContainer}>
@@ -381,7 +417,7 @@ export default function SupportChats() {
               </TouchableOpacity>
             </View>
             <FlatList
-              data={chats}
+              data={filteredChats}
               renderItem={renderChatItem}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.drawerList}
@@ -489,7 +525,8 @@ const createStyles = (theme: any) =>
       padding: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border || "#eee",
-      backgroundColor: theme.colors.surface
+      backgroundColor: theme.colors.surface,
+      position: "relative"
     },
     selectedChatCard: {
       backgroundColor: theme.colors.surface,
@@ -532,6 +569,20 @@ const createStyles = (theme: any) =>
     timestamp: {
       fontSize: 10,
       color: theme.colors.text.secondary
+    },
+    resolveButton: {
+      position: "absolute",
+      right: 10,
+      bottom: 10,
+      backgroundColor: theme.colors.success,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 4
+    },
+    resolveButtonText: {
+      color: getTextColorForBackground(theme.colors.success),
+      fontSize: 12,
+      fontWeight: "500"
     },
     chatDetailContainer: {
       flex: 1,
