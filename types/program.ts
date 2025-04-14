@@ -41,6 +41,8 @@ export type Program = {
   design: ConferenceDesign
   // Reference to the events that are promoted
   promote?: number[]
+  // Content to override in the app
+  content?: ProgramContent
 }
 
 export type Event = {
@@ -102,5 +104,49 @@ export type ConferenceDesign = {
   }
   font?: {
     family?: string
+  }
+}
+
+export type ProgramContent = {
+  // Services to override
+  services?: {
+    rides?: {
+      // Title of the service
+      title: string
+      // Content of the service
+      description: string
+      // Content for the service's page
+      internal_description: string
+    }
+    hospitality?: {
+      // Title of the service
+      title: string
+      // Content of the service
+      description: string
+      // Content for the service's page
+      internal_description: string
+    }
+    volunteering?: {
+      // Title of the service
+      title: string
+      // Content of the service
+      description: string
+      // Content for the service's page
+      internal_description: string
+    }
+    accessibility?: {
+      // Title of the service
+      title: string
+      // Content of the service
+      description: string
+      // Content for the service's page
+      internal_description: string
+    }
+    support?: {
+      // Title of the service
+      title: string
+      // Content of the service
+      description: string
+    }
   }
 }

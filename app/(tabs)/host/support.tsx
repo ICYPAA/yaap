@@ -58,7 +58,9 @@ export default function SupportChats() {
   useEffect(() => {
     // Filter out resolved chats
     if (chats.length > 0) {
-      const filteredResult = chats.filter((chat) => chat.status !== "resolved")
+      const filteredResult = chats.filter(
+        (chat: SupportChat) => chat.status !== "resolved"
+      )
       setFilteredChats(filteredResult)
     }
   }, [chats])
@@ -82,7 +84,7 @@ export default function SupportChats() {
       // Auto-select the first non-resolved chat if available and none selected
       if (data && data.length > 0 && !selectedChat) {
         const nonResolvedChats = data.filter(
-          (chat) => chat.status !== "resolved"
+          (chat: SupportChat) => chat.status !== "resolved"
         )
         if (nonResolvedChats.length > 0) {
           setSelectedChat(nonResolvedChats[0])
@@ -219,7 +221,21 @@ export default function SupportChats() {
             }
           ]}
         >
-          <Text style={styles.statusText}>{item.status || "unread"}</Text>
+          <Text
+            style={[
+              styles.statusText,
+              {
+                color:
+                  item.status === "unread"
+                    ? getTextColorForBackground(theme.colors.warning)
+                    : item.status === "read"
+                    ? getTextColorForBackground(theme.colors.primary)
+                    : getTextColorForBackground(theme.colors.success)
+              }
+            ]}
+          >
+            {item.status || "unread"}
+          </Text>
         </View>
       </View>
 
@@ -244,35 +260,6 @@ export default function SupportChats() {
       </TouchableOpacity>
     </TouchableOpacity>
   )
-
-  const ChatMessage = ({ message }: { message: ChatMessage }) => {
-    const isHost = message.sender === "host"
-    return (
-      <View
-        style={[
-          styles.messageContainer,
-          isHost ? styles.hostMessage : styles.userMessage
-        ]}
-      >
-        <Text
-          style={[
-            styles.messageText,
-            isHost
-              ? { color: getTextColorForBackground(theme.colors.primary) }
-              : {}
-          ]}
-        >
-          {message.message}
-        </Text>
-        <Text style={styles.messageTime}>
-          {new Date(message.timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit"
-          })}
-        </Text>
-      </View>
-    )
-  }
 
   return (
     <KeyboardAvoidingView
@@ -326,18 +313,7 @@ export default function SupportChats() {
         ) : selectedChat ? (
           <View style={styles.chatDetailContainer}>
             <FlatList
-              data={[
-                {
-                  id: "initial",
-                  sender: "user",
-                  message: "Initial message",
-                  timestamp: selectedChat.created_at
-                },
-                ...(selectedChat.messages || []).map((msg, idx) => ({
-                  ...msg,
-                  id: `msg-${idx}`
-                }))
-              ]}
+              data={selectedChat.messages || []}
               renderItem={({ item }) => (
                 <View
                   style={[
@@ -347,33 +323,73 @@ export default function SupportChats() {
                       : styles.userMessage
                   ]}
                 >
-                  <Text style={styles.messageText}>{item.message}</Text>
-                  <Text style={styles.messageTime}>
-                    {new Date(item.timestamp).toLocaleTimeString([], {
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color:
+                        item.sender === "host"
+                          ? getTextColorForBackground(theme.colors.primary)
+                          : theme.colors.text.primary
+                    }}
+                  >
+                    {item.message}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color:
+                        item.sender === "host"
+                          ? getTextColorForBackground(theme.colors.primary)
+                          : theme.colors.text.secondary,
+                      alignSelf: "flex-end",
+                      marginTop: 4,
+                      opacity: 0.8
+                    }}
+                  >
+                    {new Date(item.timestamp || "").toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit"
                     })}
                   </Text>
                 </View>
               )}
-              keyExtractor={(item) => item.id || item.timestamp}
+              keyExtractor={(item, index) => item.id || `msg-${index}`}
               contentContainerStyle={styles.chatMessagesContainer}
             />
 
-            <View style={styles.replyContainer}>
+            <View
+              style={{
+                flexDirection: "row",
+                padding: 10,
+                borderTopWidth: 1,
+                borderTopColor: theme.colors.border,
+                backgroundColor: theme.colors.background
+              }}
+            >
               <TextInput
-                style={styles.replyInput}
+                style={{
+                  flex: 1,
+                  backgroundColor: theme.colors.surface,
+                  padding: 12,
+                  borderRadius: 20,
+                  marginRight: 10,
+                  color: theme.colors.text.primary
+                }}
                 value={replyText}
                 onChangeText={setReplyText}
-                placeholder="Type your reply..."
+                placeholder="Type a message..."
                 placeholderTextColor={theme.colors.text.secondary}
-                multiline
               />
               <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  !replyText.trim() && styles.disabledButton
-                ]}
+                style={{
+                  backgroundColor: theme.colors.primary,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  opacity: !replyText.trim() ? 0.5 : 1
+                }}
                 onPress={handleReply}
                 disabled={!replyText.trim()}
               >
@@ -407,7 +423,14 @@ export default function SupportChats() {
             ]}
           >
             <View style={styles.drawerHeader}>
-              <Text style={styles.drawerTitle}>Support Chats</Text>
+              <Text
+                style={[
+                  styles.drawerTitle,
+                  { color: theme.colors.text.primary }
+                ]}
+              >
+                Support Chats
+              </Text>
               <TouchableOpacity onPress={closeDrawer}>
                 <Ionicons
                   name="close"
@@ -550,7 +573,6 @@ const createStyles = (theme: any) =>
       borderRadius: 10
     },
     statusText: {
-      color: getTextColorForBackground(theme.colors.warning),
       fontSize: 10,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -606,44 +628,5 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.primary,
       alignSelf: "flex-end",
       borderBottomRightRadius: 4
-    },
-    messageText: {
-      fontSize: 14,
-      color: theme.colors.text.primary
-    },
-    messageTime: {
-      fontSize: 10,
-      color: theme.colors.text.secondary,
-      alignSelf: "flex-end",
-      marginTop: 4
-    },
-    replyContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border || "#eee",
-      paddingTop: 12
-    },
-    replyInput: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-      borderRadius: 20,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      maxHeight: 100,
-      marginRight: 8,
-      color: theme.colors.text.primary
-    },
-    sendButton: {
-      backgroundColor: theme.colors.primary,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: "center",
-      alignItems: "center"
-    },
-    disabledButton: {
-      backgroundColor: theme.colors.disabled || "#cccccc"
     }
   })

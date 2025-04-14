@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Link } from "expo-router"
-import React from "react"
+import React, { useEffect, useState } from "react"
 import {
   ScrollView,
   StyleSheet,
@@ -10,6 +10,8 @@ import {
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
 import { programData } from "../../../data/programData"
+import { getStoredProgram } from "../../../lib/theme"
+import { Program } from "../../../types/program"
 
 // Service section type
 type ServiceSection = {
@@ -20,67 +22,91 @@ type ServiceSection = {
   route: `/(tabs)/services/${string}`
 }
 
-// Service sections data
-const serviceSections = {
-  help: {
-    title: "How can we help?",
-    items: [
-      {
-        id: "accessibility",
-        title: "Request Accessibility Assistance",
-        description:
-          "Need physical assistance, ASL interpreter, or language translator? Let us help make your conference experience accessible.",
-        icon: "accessibility-outline" as const,
-        route: "/(tabs)/services/accessibility"
-      },
-      {
-        id: "ride",
-        title: "Request a Ride",
-        description:
-          "Need a ride within 30 miles of the conference? Connect with local members offering rides.",
-        icon: "car-outline" as const,
-        route: "/(tabs)/services/ride"
-      }
-    ]
-  },
-  volunteer: {
-    title: "If you want to help us",
-    items: [
-      {
-        id: "volunteer",
-        title: "Volunteer at Conference",
-        description:
-          "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities.",
-        icon: "people-outline" as const,
-        route: "/(tabs)/services/volunteer"
-      },
-      {
-        id: "hospitality",
-        title: "Hospitality Updates",
-        description:
-          "Let everyone know when you're bringing food or supplies to the hospitality suite!",
-        icon: "restaurant-outline" as const,
-        route: "/(tabs)/services/hospitality"
-      }
-    ]
-  },
-  other: {
-    title: "Other",
-    items: [
-      {
-        id: "support",
-        title: "Support Chat",
-        description: "Need help? Start a chat with our support team.",
-        icon: "chatbubbles-outline" as const,
-        route: "/(tabs)/services/support"
-      }
-    ]
-  }
-}
-
 export default function Services() {
   const { theme } = useTheme()
   const styles = createStyles(theme)
+  const [program, setProgram] = useState<Program | null>(null)
+
+  useEffect(() => {
+    const loadProgram = async () => {
+      const storedProgram = await getStoredProgram()
+      if (storedProgram) {
+        setProgram(storedProgram)
+      }
+    }
+
+    loadProgram()
+  }, [])
+
+  // Service sections data with dynamic content from program if available
+  const serviceSections = {
+    help: {
+      title: "How can we help?",
+      items: [
+        {
+          id: "accessibility",
+          title:
+            program?.content?.services?.accessibility?.title ||
+            "Request Accessibility Assistance",
+          description:
+            program?.content?.services?.accessibility?.description ||
+            "Need physical assistance, ASL interpreter, or language translator? Let us help make your conference experience accessible.",
+          icon: "accessibility-outline" as const,
+          route: "/(tabs)/services/accessibility"
+        },
+        {
+          id: "ride",
+          title: program?.content?.services?.rides?.title || "Request a Ride",
+          description:
+            program?.content?.services?.rides?.description ||
+            "Need a ride within 30 miles of the conference? Connect with local members offering rides.",
+          icon: "car-outline" as const,
+          route: "/(tabs)/services/ride"
+        }
+      ]
+    },
+    volunteer: {
+      title: "If you want to help us",
+      items: [
+        {
+          id: "volunteer",
+          title:
+            program?.content?.services?.volunteering?.title ||
+            "Volunteer at Conference",
+          description:
+            program?.content?.services?.volunteering?.description ||
+            "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities.",
+          icon: "people-outline" as const,
+          route: "/(tabs)/services/volunteer"
+        },
+        {
+          id: "hospitality",
+          title:
+            program?.content?.services?.hospitality?.title ||
+            "Hospitality Updates",
+          description:
+            program?.content?.services?.hospitality?.description ||
+            "Let everyone know when you're bringing food or supplies to the hospitality suite!",
+          icon: "restaurant-outline" as const,
+          route: "/(tabs)/services/hospitality"
+        }
+      ]
+    },
+    other: {
+      title: "Other",
+      items: [
+        {
+          id: "support",
+          title: program?.content?.services?.support?.title || "Support Chat",
+          description:
+            program?.content?.services?.support?.description ||
+            "Need help? Start a chat with our support team.",
+          icon: "chatbubbles-outline" as const,
+          route: "/(tabs)/services/support"
+        }
+      ]
+    }
+  }
 
   // Service section component
   const ServiceSection = ({

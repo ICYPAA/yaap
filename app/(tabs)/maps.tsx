@@ -255,7 +255,9 @@ const ImageViewer = ({
           onPress={onClose}
           activeOpacity={0.7}
         >
-          <Ionicons name="close" size={30} color={theme.colors.background} />
+          <View style={styles(theme).closeButtonInner}>
+            <Ionicons name="close" size={30} color="#ffffff" />
+          </View>
         </TouchableOpacity>
 
         <View style={styles(theme).fullImageContainer}>
@@ -766,9 +768,12 @@ const styles = (theme: any) =>
       top: 40,
       right: 20,
       zIndex: 10,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-      borderRadius: 20,
       padding: 8
+    },
+    closeButtonInner: {
+      backgroundColor: "rgba(0, 0, 0, 0.7)",
+      borderRadius: 20,
+      padding: 5
     },
     fullImageContainer: {
       width: "90%",

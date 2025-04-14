@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Stack, useRouter } from "expo-router"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   ScrollView,
   Text,
@@ -10,7 +10,8 @@ import {
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
 import { supabase } from "../../../lib/supabase"
-import { getTextColorForBackground } from "../../../lib/theme"
+import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
+import { Program } from "../../../types/program"
 
 // Define the volunteer interest form data structure
 type VolunteerInterestFormData = {
@@ -43,9 +44,13 @@ type VolunteerInterestFormData = {
 }
 
 export default function VolunteerSignup() {
-  const { theme } = useTheme()
+  const { theme, isDarkMode } = useTheme()
   const router = useRouter()
   const [formSubmitted, setFormSubmitted] = useState(false)
+  const [program, setProgram] = useState<Program | null>(null)
+  const [description, setDescription] = useState<string>(
+    "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities."
+  )
 
   const [formData, setFormData] = useState<VolunteerInterestFormData>({
     name: "",
@@ -75,6 +80,23 @@ export default function VolunteerSignup() {
     },
     comments: ""
   })
+
+  useEffect(() => {
+    const loadProgram = async () => {
+      const storedProgram = await getStoredProgram()
+      if (
+        storedProgram &&
+        storedProgram.content?.services?.volunteering?.internal_description
+      ) {
+        setProgram(storedProgram)
+        setDescription(
+          storedProgram.content.services.volunteering.internal_description
+        )
+      }
+    }
+
+    loadProgram()
+  }, [])
 
   const handleInputChange = (name: string, value: string) => {
     setFormData((prev) => ({
@@ -256,7 +278,9 @@ export default function VolunteerSignup() {
       >
         <Stack.Screen
           options={{
-            title: "Volunteer Registration",
+            title:
+              program?.content?.services?.volunteering?.title ||
+              "Volunteer Registration",
             headerStyle: {
               backgroundColor: theme.colors.background
             },
@@ -346,7 +370,9 @@ export default function VolunteerSignup() {
     >
       <Stack.Screen
         options={{
-          title: "Volunteer Registration",
+          title:
+            program?.content?.services?.volunteering?.title ||
+            "Volunteer Signup",
           headerStyle: {
             backgroundColor: theme.colors.background
           },
@@ -376,9 +402,7 @@ export default function VolunteerSignup() {
           marginBottom: theme.spacing.xl
         }}
       >
-        Please let us know if, when and how you would like to be of service
-        during the 2025 ICYPAA. Questions or comments can be left in the
-        additional comments section.
+        {description}
       </Text>
 
       <View style={{ gap: theme.spacing.lg }}>

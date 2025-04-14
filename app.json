@@ -15,7 +15,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "YAAP! needs access to your photo library for you to choose a profile picture.",
         "CFBundleDisplayName": "YAAP!",
-        "UIBackgroundModes": ["remote-notification"]
+        "NSCameraUsageDescription": "YAAP! needs access to your camera to scan QR codes.",
+        "UIBackgroundModes": ["fetch", "remote-notification"]
       },
       "usesAppleSignIn": true
     },
@@ -28,7 +29,6 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

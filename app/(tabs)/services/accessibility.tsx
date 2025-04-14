@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Stack, useRouter } from "expo-router"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   ScrollView,
   Text,
@@ -10,12 +10,34 @@ import {
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
 import { supabase } from "../../../lib/supabase"
-import { getTextColorForBackground } from "../../../lib/theme"
+import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
+import { Program } from "../../../types/program"
 
 export default function AccessibilityRequest() {
   const { theme, isDarkMode } = useTheme()
   const router = useRouter()
   const [formSubmitted, setFormSubmitted] = useState(false)
+  const [program, setProgram] = useState<Program | null>(null)
+  const [description, setDescription] = useState<string>(
+    "Request physical assistance, ASL interpreter, or language translation services for the conference."
+  )
+
+  useEffect(() => {
+    const loadProgram = async () => {
+      const storedProgram = await getStoredProgram()
+      if (
+        storedProgram &&
+        storedProgram.content?.services?.accessibility?.internal_description
+      ) {
+        setProgram(storedProgram)
+        setDescription(
+          storedProgram.content.services.accessibility.internal_description
+        )
+      }
+    }
+
+    loadProgram()
+  }, [])
 
   const [form, setForm] = useState({
     name: "",
@@ -79,7 +101,9 @@ export default function AccessibilityRequest() {
       >
         <Stack.Screen
           options={{
-            title: "Accessibility Request",
+            title:
+              program?.content?.services?.accessibility?.title ||
+              "Accessibility Request",
             headerStyle: {
               backgroundColor: theme.colors.background
             },
@@ -169,7 +193,9 @@ export default function AccessibilityRequest() {
     >
       <Stack.Screen
         options={{
-          title: "Accessibility Request",
+          title:
+            program?.content?.services?.accessibility?.title ||
+            "Accessibility Request",
           headerStyle: {
             backgroundColor: theme.colors.background
           },
@@ -199,8 +225,7 @@ export default function AccessibilityRequest() {
           marginBottom: theme.spacing.xl
         }}
       >
-        Request physical assistance, ASL interpreter, or language translation
-        services for the conference.
+        {description}
       </Text>
 
       <View style={{ gap: theme.spacing.lg }}>

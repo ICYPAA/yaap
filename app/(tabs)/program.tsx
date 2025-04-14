@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import * as Application from "expo-application"
+import { router } from "expo-router"
 import React, { useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
@@ -804,7 +806,7 @@ const FoodCard = ({ item }: { item: Food }) => {
   // Define local styles for FoodCard
   const foodCardStyles = StyleSheet.create({
     activityCard: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.colors.surface,
       padding: 16,
       borderRadius: 8,
       width: 300,
@@ -832,11 +834,11 @@ const FoodCard = ({ item }: { item: Food }) => {
     mapButton: {
       padding: 8,
       borderRadius: 4,
-      backgroundColor: theme.colors.surface
+      backgroundColor: theme.colors.background
     },
     activityLocation: {
       fontSize: 14,
-      color: theme.colors.text.secondary,
+      color: theme.colors.text.primary,
       marginBottom: 4
     },
     activityDistance: {
@@ -1450,6 +1452,21 @@ export default function Program() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
+  // Function to get device identifier based on platform
+  async function getIdentifier() {
+    if (Platform.OS === "ios") {
+      let idfv = await Application.getIosIdForVendorAsync()
+      console.log("iOS IDFV:", idfv)
+      return idfv // Example: T563P9YS-856G-473X-H1J2-FC94L0T37IC6 or null
+    }
+    if (Platform.OS === "android") {
+      let androidId = Application.getAndroidId()
+      console.log("Android ID:", androidId)
+      return androidId // Example: '9774d56d682e549c' or null
+    }
+    return null
+  }
+
   // Load saved items from AsyncStorage on mount
   useEffect(() => {
     const loadSavedItems = async () => {
@@ -1457,13 +1474,19 @@ export default function Program() {
         // Try to get device ID
         let storedDeviceId = await AsyncStorage.getItem("device_id")
         if (!storedDeviceId) {
-          // Generate a new device ID if none exists
-          storedDeviceId = `device_${Date.now()}_${Math.random()
-            .toString(36)
-            .substring(2, 9)}`
+          // Use Application info to get a reliable device identifier
+          storedDeviceId = await getIdentifier()
+
+          if (!storedDeviceId) {
+            console.error("Could not get device ID from expo-application")
+            return
+          }
+
+          // Save the device ID to AsyncStorage for future use
           await AsyncStorage.setItem("device_id", storedDeviceId)
         }
         setDeviceId(storedDeviceId)
+        console.log("Using device ID:", storedDeviceId)
 
         // Load saved schedule from AsyncStorage
         const savedScheduleJson = await AsyncStorage.getItem("user_schedule")
@@ -1478,6 +1501,52 @@ export default function Program() {
 
     loadSavedItems()
   }, [])
+
+  // Add state to track if user has a profile
+  const [hasProfile, setHasProfile] = useState(false)
+  const [userId, setUserId] = useState<number | null>(null)
+  const [checkingProfile, setCheckingProfile] = useState(true)
+
+  // Check if user has a profile in Supabase
+  useEffect(() => {
+    const checkUserProfile = async () => {
+      if (!deviceId) return
+      console.log(deviceId)
+
+      setCheckingProfile(true)
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, first_name, last_initial")
+          .eq("device_id", deviceId)
+          .single()
+
+        console.log(data)
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Error checking user profile:", error)
+        }
+
+        if (data) {
+          // User profile exists
+          setHasProfile(true)
+          setUserId(data.id)
+        } else {
+          // No profile
+          setHasProfile(false)
+          setUserId(null)
+        }
+      } catch (error) {
+        console.error("Error checking user profile:", error)
+      } finally {
+        setCheckingProfile(false)
+      }
+    }
+
+    if (deviceId) {
+      checkUserProfile()
+    }
+  }, [deviceId])
 
   // Fetch data from Supabase
   useEffect(() => {
@@ -1664,8 +1733,11 @@ export default function Program() {
       // Create schedule object matching the user.ts type
       const schedule: Schedule = {
         saved_events: newSavedItems,
+        banned: [],
+        shared_by: [],
         shared_with: [],
-        shared_by: []
+        pending_share: [],
+        requested_share: []
       }
 
       // Save to AsyncStorage
@@ -1826,11 +1898,15 @@ export default function Program() {
     setMyScheduleExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
-  // Generate QR code data
-  const qrData = JSON.stringify({
-    userId: "user123", // This would be the actual user ID
-    savedEvents: savedItems
-  })
+  // Navigate to profile page
+  const goToProfilePage = () => {
+    router.replace("/(tabs)/profile" as any)
+  }
+
+  // Generate QR code data - now with user ID for schedule sharing
+  const qrData = userId
+    ? `yaap://schedule_share=${userId}`
+    : JSON.stringify({ type: "schedule_share", userId: null })
 
   // Generate dynamic filter options from categories
   const filterOptions = useMemo(() => {
@@ -2201,6 +2277,18 @@ export default function Program() {
         padding: 16,
         borderRadius: 8,
         alignItems: "center"
+      },
+      createProfileButton: {
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        marginTop: 16,
+        alignItems: "center",
+        justifyContent: "center"
+      },
+      createProfileButtonText: {
+        fontSize: 16,
+        fontWeight: "bold"
       },
       foodSection: {
         marginVertical: 16
@@ -2785,7 +2873,7 @@ export default function Program() {
                 </View>
               </View>
             )}
-            {/* QR Code Section */}
+            {/* QR Code or Profile Button Section */}
             <View style={programStyles(theme).qrSection}>
               <Text
                 style={[
@@ -2795,22 +2883,60 @@ export default function Program() {
               >
                 Share Your Schedule
               </Text>
-              <Text
-                style={[
-                  programStyles(theme).qrSubtitle,
-                  { color: isDarkMode ? "#ddd" : theme.colors.text.secondary }
-                ]}
-              >
-                Let friends scan to see your saved events
-              </Text>
-              <View style={programStyles(theme).qrContainer}>
-                <QRCode
-                  value={qrData}
-                  size={200}
-                  backgroundColor={isDarkMode ? "#333" : "#fff"}
-                  color={isDarkMode ? "#fff" : "#000"}
-                />
-              </View>
+
+              {checkingProfile ? (
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+              ) : hasProfile ? (
+                <>
+                  <Text
+                    style={[
+                      programStyles(theme).qrSubtitle,
+                      {
+                        color: isDarkMode ? "#ddd" : theme.colors.text.secondary
+                      }
+                    ]}
+                  >
+                    Let friends scan to see your saved events
+                  </Text>
+                  <View style={programStyles(theme).qrContainer}>
+                    <QRCode
+                      value={qrData}
+                      size={200}
+                      backgroundColor={isDarkMode ? "#333" : "#fff"}
+                      color={isDarkMode ? "#fff" : "#000"}
+                    />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      programStyles(theme).qrSubtitle,
+                      {
+                        color: isDarkMode ? "#ddd" : theme.colors.text.secondary
+                      }
+                    ]}
+                  >
+                    You need to create a profile before sharing your schedule
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      programStyles(theme).createProfileButton,
+                      { backgroundColor: theme.colors.primary }
+                    ]}
+                    onPress={goToProfilePage}
+                  >
+                    <Text
+                      style={[
+                        programStyles(theme).createProfileButtonText,
+                        { color: "#FFFFFF" }
+                      ]}
+                    >
+                      Create Profile
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         )}
@@ -2825,7 +2951,14 @@ export default function Program() {
 
         {/* Food section */}
         <View style={programStyles(theme).foodSection}>
-          <Text style={programStyles(theme).sectionTitle}>Food</Text>
+          <Text
+            style={{
+              ...programStyles(theme).sectionTitle,
+              color: theme.colors.text.primary
+            }}
+          >
+            Food
+          </Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}

@@ -1,5 +1,6 @@
 import { Session } from "@supabase/supabase-js"
 import { useFonts } from "expo-font"
+import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
 import { Href, Stack, useRouter, useSegments } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
@@ -111,8 +112,9 @@ export default function RootLayout() {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       console.log(`RootLayout: Auth state changed: ${_event}`, !!currentSession)
-      const currentSegments = segments
-      const currentRoute = currentSegments.join("/")
+      const currentSegments = segments as string[]
+      const currentRoute =
+        currentSegments.length > 0 ? currentSegments.join("/") : ""
       console.log(
         `RootLayout: Current route on auth change: ${currentRoute || "(root)"}`
       )
@@ -211,6 +213,31 @@ export default function RootLayout() {
       }
     }
   }, [loaded, programLoaded, authLoading])
+
+  // Initialize URL handler
+  useEffect(() => {
+    // Setup deep linking handling
+    const initializeUrlHandler = async () => {
+      // Get initial URL that opened the app
+      const initialUrl = await Linking.getInitialURL()
+      if (initialUrl) {
+        console.log("App opened with URL:", initialUrl)
+        // Process the URL (our linking.tsx will handle this)
+      }
+
+      // Add event listener for URL changes when app is open
+      const subscription = Linking.addEventListener("url", (event) => {
+        console.log("Received URL event:", event.url)
+        // Process the URL (our linking.tsx will handle this)
+      })
+
+      return () => {
+        subscription.remove()
+      }
+    }
+
+    initializeUrlHandler()
+  }, [])
 
   if (!loaded || !programLoaded || authLoading) {
     return null

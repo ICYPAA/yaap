@@ -35,4 +35,6 @@ export type Schedule = {
   pending_share: number[]
   // Id of users that have shared their schedule with you
   shared_by: number[]
+  // Id of users that you have banned from seeing your schedule
+  banned: number[]
 }

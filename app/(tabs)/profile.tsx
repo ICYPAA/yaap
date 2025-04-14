@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
-import * as Device from "expo-device"
+import * as Application from "expo-application"
 import * as ImagePicker from "expo-image-picker"
 import React, { useEffect, useState } from "react"
 import {
@@ -18,7 +18,23 @@ import {
 } from "react-native"
 import { useTheme } from "../../context/ThemeContext"
 import { supabase } from "../../lib/supabase"
+import { getTextColorForBackground } from "../../lib/theme"
 import { Schedule, User } from "../../types/user"
+
+// Function to get device identifier based on platform
+async function getIdentifier() {
+  if (Platform.OS === "ios") {
+    let idfv = await Application.getIosIdForVendorAsync()
+    console.log("iOS IDFV:", idfv)
+    return idfv // Example: T563P9YS-856G-473X-H1J2-FC94L0T37IC6 or null
+  }
+  if (Platform.OS === "android") {
+    let androidId = Application.getAndroidId()
+    console.log("Android ID:", androidId)
+    return androidId // Example: '9774d56d682e549c' or null
+  }
+  return null
+}
 
 // Type for the data needed for display in lists (subset of User)
 type DisplayUser = Pick<
@@ -61,10 +77,21 @@ export default function Profile() {
 
   // Get Device ID on mount
   useEffect(() => {
-    // Using osInternalBuildId as a placeholder - consider alternatives for persistence
-    const id = Device.osInternalBuildId ?? `unknown-device-${Math.random()}`
-    console.log("Device ID:", id)
-    setDeviceId(id)
+    async function fetchDeviceId() {
+      try {
+        const id = await getIdentifier()
+        if (!id) {
+          console.error("Could not get a device identifier")
+          return
+        }
+        console.log("Device ID:", id)
+        setDeviceId(id)
+      } catch (error) {
+        console.error("Error getting device identifier:", error)
+      }
+    }
+
+    fetchDeviceId()
   }, [])
 
   // Fetch current user profile and schedule data based on deviceId
@@ -1368,7 +1395,7 @@ const createStyles = (theme: any) =>
       marginTop: theme.spacing.lg
     },
     saveButtonText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "bold",
       ...theme.typography.button
     },

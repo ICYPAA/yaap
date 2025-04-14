@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
 import DateTimePicker from "@react-native-community/datetimepicker"
 import { Stack, useRouter } from "expo-router"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   Platform,
   ScrollView,
@@ -13,7 +13,8 @@ import {
 import { Dropdown } from "react-native-element-dropdown"
 import { useTheme } from "../../../context/ThemeContext"
 import { supabase } from "../../../lib/supabase"
-import { getTextColorForBackground } from "../../../lib/theme"
+import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
+import { Program } from "../../../types/program"
 
 type DestinationOption = {
   label: string
@@ -24,6 +25,10 @@ export default function RideRequest() {
   const { theme, isDarkMode } = useTheme()
   const router = useRouter()
   const [formSubmitted, setFormSubmitted] = useState(false)
+  const [program, setProgram] = useState<Program | null>(null)
+  const [description, setDescription] = useState<string>(
+    "Need a ride within 30 miles of the conference? Connect with local members offering rides."
+  )
 
   const destinationOptions: DestinationOption[] = [
     { label: "To Venue", value: "venue" },
@@ -42,6 +47,23 @@ export default function RideRequest() {
 
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showTimePicker, setShowTimePicker] = useState(false)
+
+  useEffect(() => {
+    const loadProgram = async () => {
+      const storedProgram = await getStoredProgram()
+      if (
+        storedProgram &&
+        storedProgram.content?.services?.rides?.internal_description
+      ) {
+        setProgram(storedProgram)
+        setDescription(
+          storedProgram.content.services.rides.internal_description
+        )
+      }
+    }
+
+    loadProgram()
+  }, [])
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || form.datetime
@@ -168,7 +190,7 @@ export default function RideRequest() {
       >
         <Stack.Screen
           options={{
-            title: "Request a Ride",
+            title: program?.content?.services?.rides?.title || "Request a Ride",
             headerStyle: {
               backgroundColor: theme.colors.background
             },
@@ -258,7 +280,7 @@ export default function RideRequest() {
     >
       <Stack.Screen
         options={{
-          title: "Request a Ride",
+          title: program?.content?.services?.rides?.title || "Request a Ride",
           headerStyle: {
             backgroundColor: theme.colors.background
           },
@@ -288,8 +310,7 @@ export default function RideRequest() {
           marginBottom: theme.spacing.xl
         }}
       >
-        Request a ride within 30 miles of the conference venue. Local members
-        will be notified and can offer assistance.
+        {description}
       </Text>
 
       <View style={{ gap: theme.spacing.lg }}>

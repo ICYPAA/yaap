@@ -20,7 +20,7 @@ import { getTextColorForBackground } from "../../../lib/theme"
 interface Message {
   sender: string
   message: string
-  time_sent: string
+  timestamp: string
 }
 
 interface SupportChat {
@@ -30,6 +30,7 @@ interface SupportChat {
   device_id: string
   name: string
   created_at: string
+  status?: string
 }
 
 export default function SupportRequest() {
@@ -110,14 +111,21 @@ export default function SupportRequest() {
       const newMessage = {
         sender: deviceId,
         message: message.trim(),
-        time_sent: new Date().toISOString()
+        timestamp: new Date().toISOString()
       }
 
       const updatedMessages = [...selectedChat.messages, newMessage]
 
+      // Check if chat was previously resolved and update status to unread
+      const newStatus =
+        selectedChat.status === "resolved" ? "unread" : selectedChat.status
+
       const { error } = await supabase
         .from("support_chats")
-        .update({ messages: updatedMessages })
+        .update({
+          messages: updatedMessages,
+          status: newStatus
+        })
         .eq("id", selectedChat.id)
 
       if (error) throw error
@@ -125,14 +133,15 @@ export default function SupportRequest() {
       // Update local state
       setSelectedChat({
         ...selectedChat,
-        messages: updatedMessages
+        messages: updatedMessages,
+        status: newStatus
       })
 
       // Update the chat in the list
       setSupportChats((prevChats) =>
         prevChats.map((chat) =>
           chat.id === selectedChat.id
-            ? { ...chat, messages: updatedMessages }
+            ? { ...chat, messages: updatedMessages, status: newStatus }
             : chat
         )
       )
@@ -362,7 +371,7 @@ export default function SupportRequest() {
                       opacity: 0.8
                     }}
                   >
-                    {new Date(item.time_sent).toLocaleTimeString([], {
+                    {new Date(item.timestamp || "").toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit"
                     })}

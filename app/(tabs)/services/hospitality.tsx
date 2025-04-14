@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Stack, useRouter } from "expo-router"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   ScrollView,
   Text,
@@ -10,12 +10,17 @@ import {
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
 import { supabase } from "../../../lib/supabase"
-import { getTextColorForBackground } from "../../../lib/theme"
+import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
+import { Program } from "../../../types/program"
 
 export default function HospitalityUpdate() {
-  const { theme } = useTheme()
+  const { theme, isDarkMode } = useTheme()
   const router = useRouter()
   const [formSubmitted, setFormSubmitted] = useState(false)
+  const [program, setProgram] = useState<Program | null>(null)
+  const [description, setDescription] = useState<string>(
+    "Let everyone know when you're bringing food or supplies to the hospitality suite!"
+  )
 
   const [form, setForm] = useState({
     groupName: "",
@@ -23,6 +28,23 @@ export default function HospitalityUpdate() {
     allergies: "",
     notes: ""
   })
+
+  useEffect(() => {
+    const loadProgram = async () => {
+      const storedProgram = await getStoredProgram()
+      if (
+        storedProgram &&
+        storedProgram.content?.services?.hospitality?.internal_description
+      ) {
+        setProgram(storedProgram)
+        setDescription(
+          storedProgram.content.services.hospitality.internal_description
+        )
+      }
+    }
+
+    loadProgram()
+  }, [])
 
   const handleSubmit = async () => {
     try {
@@ -70,7 +92,9 @@ export default function HospitalityUpdate() {
       >
         <Stack.Screen
           options={{
-            title: "Hospitality Update",
+            title:
+              program?.content?.services?.hospitality?.title ||
+              "Hospitality Update",
             headerStyle: {
               backgroundColor: theme.colors.background
             },
@@ -160,7 +184,9 @@ export default function HospitalityUpdate() {
     >
       <Stack.Screen
         options={{
-          title: "Hospitality Update",
+          title:
+            program?.content?.services?.hospitality?.title ||
+            "Hospitality Update",
           headerStyle: {
             backgroundColor: theme.colors.background
           },
@@ -190,7 +216,7 @@ export default function HospitalityUpdate() {
           marginBottom: theme.spacing.xl
         }}
       >
-        Update items for the hospitality suite or notify organizers.
+        {description}
       </Text>
 
       <View style={{ gap: theme.spacing.lg }}>

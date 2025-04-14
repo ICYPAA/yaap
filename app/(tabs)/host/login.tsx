@@ -49,7 +49,7 @@ export default function HostLogin() {
 
   // Create a redirect URI
   const redirectUri = makeRedirectUri({
-    scheme: "icypaa",
+    scheme: "yaap",
     path: "auth/callback"
   })
 
