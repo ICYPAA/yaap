@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { useNavigation } from "@react-navigation/native"
 import * as Application from "expo-application"
+import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
 import React, { useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Linking,
@@ -412,13 +415,22 @@ const TimelineView = ({
   // Find events for this day and apply filters
   const dayEvents = allScheduleItems
     .filter((item) => {
-      const itemDate = new Date(item.date).toLocaleDateString("en-US", {
+      // The day parameter is a formatted date string (e.g. "Friday, August 25")
+      // We need to extract the date from the item.date (e.g. "2023-08-25") and format it the same way
+      const dateStr = item.date
+      const [year, month, dayNum] = dateStr
+        .split("-")
+        .map((num) => parseInt(num, 10))
+      const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+
+      const itemDate = dateObj.toLocaleDateString("en-US", {
         weekday: "long",
         month: "long",
-        day: "numeric"
+        day: "numeric",
+        timeZone: "UTC"
       })
 
-      // Check if date matches the current day
+      // Check if date matches the current day string
       const matchesDay = itemDate === day
 
       // Apply type filter if not "all"
@@ -1430,27 +1442,27 @@ const DayScheduleCard = ({
 export default function Program() {
   const { theme, isDarkMode } = useTheme()
   const shadowStyles = getShadowStyles(isDarkMode)
-  const screenWidth = Dimensions.get("window").width
-  const [savedItems, setSavedItems] = useState<number[]>([])
-  const [activeView, setActiveView] = useState("list") // 'list', 'timeline', 'my-schedule'
-  const [activeDay, setActiveDay] = useState(0) // 0, 1, 2 for the three days
-  const [activeFilter, setActiveFilter] = useState("all") // 'all', 'speaker', 'panel', 'entertainment'
-  // Add state for header height
-  const [headerHeight, setHeaderHeight] = useState(1) // 1 = full height, 0 = no height
-  // Add state for device ID
-  const [deviceId, setDeviceId] = useState<string>("")
+  const navigation = useNavigation()
 
-  // Reference to scroll view to track scrolling
-  const scrollViewRef = React.useRef<ScrollView>(null)
+  // State for tabs
+  const [activeTab, setActiveTab] = useState(0)
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState("all")
+  const [activeDay, setActiveDay] = useState(0)
+  const [headerHeight, setHeaderHeight] = useState(1) // Use 0-1 value for animation
 
-  // State for fetched data
+  // State for program data
   const [programDetails, setProgramDetails] = useState<ProgramType | null>(null)
+  const [deviceId, setDeviceId] = useState<string | null>(null)
+  const [savedItems, setSavedItems] = useState<number[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [categories, setCategories] = useState<EventCategory[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [foodItems, setFoodItems] = useState<Food[]>([]) // Use fetched food state
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+
+  // Reference to scroll view to track scrolling
+  const scrollViewRef = React.useRef<ScrollView>(null)
 
   // Function to get device identifier based on platform
   async function getIdentifier() {
@@ -1488,12 +1500,7 @@ export default function Program() {
         setDeviceId(storedDeviceId)
         console.log("Using device ID:", storedDeviceId)
 
-        // Load saved schedule from AsyncStorage
-        const savedScheduleJson = await AsyncStorage.getItem("user_schedule")
-        if (savedScheduleJson) {
-          const savedSchedule: Schedule = JSON.parse(savedScheduleJson)
-          setSavedItems(savedSchedule.saved_events || [])
-        }
+        // Load saved schedule from AsyncStorage (done in the checkUserProfile function now)
       } catch (error) {
         console.error("Error loading saved items:", error)
       }
@@ -1511,17 +1518,15 @@ export default function Program() {
   useEffect(() => {
     const checkUserProfile = async () => {
       if (!deviceId) return
-      console.log(deviceId)
+      console.log("Checking user profile for device ID:", deviceId)
 
       setCheckingProfile(true)
       try {
         const { data, error } = await supabase
           .from("users")
-          .select("id, first_name, last_initial")
+          .select("id, first_name, last_initial, schedule")
           .eq("device_id", deviceId)
           .single()
-
-        console.log(data)
 
         if (error && error.code !== "PGRST116") {
           console.error("Error checking user profile:", error)
@@ -1529,12 +1534,29 @@ export default function Program() {
 
         if (data) {
           // User profile exists
+          console.log("User profile found:", data.first_name)
           setHasProfile(true)
           setUserId(data.id)
+
+          // Set saved items from profile data if it exists
+          if (data.schedule && data.schedule.saved_events) {
+            setSavedItems(data.schedule.saved_events)
+          } else {
+            // Load from AsyncStorage as fallback
+            const savedScheduleJson = await AsyncStorage.getItem(
+              "user_schedule"
+            )
+            if (savedScheduleJson) {
+              const savedSchedule: Schedule = JSON.parse(savedScheduleJson)
+              setSavedItems(savedSchedule.saved_events || [])
+            }
+          }
         } else {
           // No profile
+          console.log("No user profile found")
           setHasProfile(false)
           setUserId(null)
+          setSavedItems([]) // Clear saved items if no profile
         }
       } catch (error) {
         console.error("Error checking user profile:", error)
@@ -1547,6 +1569,47 @@ export default function Program() {
       checkUserProfile()
     }
   }, [deviceId])
+
+  // Effect to recheck profile on focus (coming back from profile creation)
+  useEffect(() => {
+    // Function to check user profile
+    const checkUserProfileOnFocus = async () => {
+      if (!deviceId) return
+
+      console.log("Screen focused, rechecking user profile")
+
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, first_name, last_initial, schedule")
+          .eq("device_id", deviceId)
+          .single()
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Error checking user profile on focus:", error)
+          return
+        }
+
+        if (data) {
+          // User profile exists now
+          setHasProfile(true)
+          setUserId(data.id)
+
+          // Set saved items from profile
+          if (data.schedule && data.schedule.saved_events) {
+            setSavedItems(data.schedule.saved_events)
+          }
+        }
+      } catch (error) {
+        console.error("Error checking user profile on focus:", error)
+      }
+    }
+
+    // Register for focus events
+    const unsubscribe = navigation.addListener("focus", checkUserProfileOnFocus)
+
+    return unsubscribe
+  }, [deviceId, navigation])
 
   // Fetch data from Supabase
   useEffect(() => {
@@ -1723,6 +1786,22 @@ export default function Program() {
   // --- Event Handling ---
   const handleToggleSave = async (id: number) => {
     try {
+      // Check if user has a profile first
+      if (!hasProfile) {
+        // If no profile, redirect to the profile page
+        Alert.alert(
+          "Profile Required",
+          "You need to create a profile before saving events to your schedule.",
+          [
+            {
+              text: "Create Profile",
+              onPress: goToProfilePage
+            }
+          ]
+        )
+        return
+      }
+
       // Update local state first for immediate UI response
       const newSavedItems = savedItems.includes(id)
         ? savedItems.filter((itemId) => itemId !== id)
@@ -1730,14 +1809,42 @@ export default function Program() {
 
       setSavedItems(newSavedItems)
 
-      // Create schedule object matching the user.ts type
-      const schedule: Schedule = {
-        saved_events: newSavedItems,
-        banned: [],
-        shared_by: [],
-        shared_with: [],
-        pending_share: [],
-        requested_share: []
+      // Get existing schedule from AsyncStorage or create new
+      const savedScheduleJson = await AsyncStorage.getItem("user_schedule")
+      let schedule: Schedule
+
+      if (savedScheduleJson) {
+        try {
+          const parsedSchedule = JSON.parse(savedScheduleJson)
+          schedule = {
+            saved_events: newSavedItems,
+            banned: parsedSchedule.banned || [],
+            shared_by: parsedSchedule.shared_by || [],
+            shared_with: parsedSchedule.shared_with || [],
+            pending_share: parsedSchedule.pending_share || [],
+            requested_share: parsedSchedule.requested_share || []
+          }
+        } catch (e) {
+          // Handle parse error with defaults
+          schedule = {
+            saved_events: newSavedItems,
+            banned: [],
+            shared_by: [],
+            shared_with: [],
+            pending_share: [],
+            requested_share: []
+          }
+        }
+      } else {
+        // Create fresh schedule object
+        schedule = {
+          saved_events: newSavedItems,
+          banned: [],
+          shared_by: [],
+          shared_with: [],
+          pending_share: [],
+          requested_share: []
+        }
       }
 
       // Save to AsyncStorage
@@ -1746,28 +1853,19 @@ export default function Program() {
       // Skip Supabase update if no device ID
       if (!deviceId) return
 
-      // Update or insert user record in Supabase
-      const { error } = await supabase.from("users").upsert(
-        {
-          device_id: deviceId,
+      // Get push token and auth session
+      const pushToken = await registerForPushNotificationsAsync()
+      const { data: sessionData } = await supabase.auth.getSession()
+      const authUserId = sessionData?.session?.user?.id
+
+      // Update existing user record in Supabase - no more anonymous users
+      const { error } = await supabase
+        .from("users")
+        .update({
           schedule: schedule,
-          // Set minimal default values for required fields if this is a new user
-          first_name: "Anonymous",
-          last_initial: "U",
-          profile_image: "",
-          settings: {
-            notifications: true,
-            schedule_notifications: true,
-            event_notifications: true,
-            main_meeting_notifications: true,
-            game_notifications: true,
-            hospitality_notifications: true
-          }
-        },
-        {
-          onConflict: "device_id"
-        }
-      )
+          expo_push_token: pushToken // Keep push token updated
+        })
+        .eq("device_id", deviceId)
 
       if (error) {
         console.error("Error saving schedule to Supabase:", error)
@@ -2295,6 +2393,12 @@ export default function Program() {
       },
       foodListContainer: {
         paddingHorizontal: 16
+      },
+      scrollView: {
+        flex: 1
+      },
+      scrollViewContent: {
+        paddingBottom: 20
       }
       // Additional common styles for components
       // ... add any other styles needed
@@ -2427,15 +2531,15 @@ export default function Program() {
         <TouchableOpacity
           style={[
             programStyles(theme).viewButton,
-            activeView === "list" && programStyles(theme).activeViewButton
+            activeTab === 0 && programStyles(theme).activeViewButton
           ]}
-          onPress={() => setActiveView("list")}
+          onPress={() => setActiveTab(0)}
         >
           <Ionicons
             name="list-outline"
             size={18}
             color={
-              activeView === "list"
+              activeTab === 0
                 ? getProgramColorUtil(programDetails, "primary", theme)
                 : getProgramColorUtil(programDetails, "text.primary", theme)
             }
@@ -2444,7 +2548,7 @@ export default function Program() {
           <Text
             style={[
               programStyles(theme).viewButtonText,
-              activeView === "list" && programStyles(theme).activeViewButtonText
+              activeTab === 0 && programStyles(theme).activeViewButtonText
             ]}
           >
             List
@@ -2454,15 +2558,15 @@ export default function Program() {
         <TouchableOpacity
           style={[
             programStyles(theme).viewButton,
-            activeView === "timeline" && programStyles(theme).activeViewButton
+            activeTab === 1 && programStyles(theme).activeViewButton
           ]}
-          onPress={() => setActiveView("timeline")}
+          onPress={() => setActiveTab(1)}
         >
           <Ionicons
             name="calendar-outline"
             size={18}
             color={
-              activeView === "timeline"
+              activeTab === 1
                 ? getProgramColorUtil(programDetails, "primary", theme)
                 : getProgramColorUtil(programDetails, "text.primary", theme)
             }
@@ -2471,8 +2575,7 @@ export default function Program() {
           <Text
             style={[
               programStyles(theme).viewButtonText,
-              activeView === "timeline" &&
-                programStyles(theme).activeViewButtonText
+              activeTab === 1 && programStyles(theme).activeViewButtonText
             ]}
           >
             Timeline
@@ -2482,16 +2585,15 @@ export default function Program() {
         <TouchableOpacity
           style={[
             programStyles(theme).viewButton,
-            activeView === "my-schedule" &&
-              programStyles(theme).activeViewButton
+            activeTab === 2 && programStyles(theme).activeViewButton
           ]}
-          onPress={() => setActiveView("my-schedule")}
+          onPress={() => setActiveTab(2)}
         >
           <Ionicons
             name="star-outline"
             size={18}
             color={
-              activeView === "my-schedule"
+              activeTab === 2
                 ? getProgramColorUtil(programDetails, "primary", theme)
                 : getProgramColorUtil(programDetails, "text.primary", theme)
             }
@@ -2500,8 +2602,7 @@ export default function Program() {
           <Text
             style={[
               programStyles(theme).viewButtonText,
-              activeView === "my-schedule" &&
-                programStyles(theme).activeViewButtonText
+              activeTab === 2 && programStyles(theme).activeViewButtonText
             ]}
           >
             My Schedule
@@ -2521,15 +2622,15 @@ export default function Program() {
               key={filter.id}
               style={[
                 programStyles(theme).filterChip,
-                activeFilter === filter.id &&
+                activeCategoryFilter === filter.id &&
                   programStyles(theme).activeFilterChip
               ]}
-              onPress={() => setActiveFilter(filter.id)}
+              onPress={() => setActiveCategoryFilter(filter.id)}
             >
               <Text
                 style={[
                   programStyles(theme).filterChipText,
-                  activeFilter === filter.id &&
+                  activeCategoryFilter === filter.id &&
                     programStyles(theme).activeFilterChipText
                 ]}
               >
@@ -2543,17 +2644,19 @@ export default function Program() {
       {/* Content area with scroll event handler */}
       <ScrollView
         ref={scrollViewRef}
-        style={programStyles(theme).contentContainer}
+        style={programStyles(theme).scrollView}
+        contentContainerStyle={programStyles(theme).scrollViewContent}
+        showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16} // Ensures smooth updates
       >
-        {activeView === "timeline" && scheduleDays.length > 0 && (
+        {activeTab === 1 && scheduleDays.length > 0 && (
           <TimelineView
             day={currentDay}
             savedItems={savedItems}
             onToggleSave={handleToggleSave}
             allScheduleItems={allScheduleItems}
-            activeFilter={activeFilter}
+            activeFilter={activeCategoryFilter}
             promoteIds={programDetails?.promote}
             programDetails={programDetails}
             events={events}
@@ -2561,13 +2664,13 @@ export default function Program() {
           />
         )}
 
-        {activeView === "list" && scheduleDays.length > 0 && (
+        {activeTab === 0 && scheduleDays.length > 0 && (
           <DayScheduleCard
             day={currentDay}
             items={currentDayItems}
             savedItems={savedItems}
             onToggleSave={handleToggleSave}
-            activeFilter={activeFilter}
+            activeFilter={activeCategoryFilter}
             theme={theme}
             shadowStyles={shadowStyles}
             programDetails={programDetails}
@@ -2576,7 +2679,7 @@ export default function Program() {
           />
         )}
 
-        {activeView === "my-schedule" && (
+        {activeTab === 2 && (
           <View style={programStyles(theme).myScheduleContainer}>
             {currentDaySavedItems.length === 0 ? (
               <View style={programStyles(theme).emptyState}>
@@ -3112,4 +3215,26 @@ const HospitalitySection = ({
       )}
     </View>
   )
+}
+
+// Function to register for push notifications and get token
+async function registerForPushNotificationsAsync() {
+  let token
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF231F7C"
+    })
+  }
+
+  try {
+    token = (await Notifications.getExpoPushTokenAsync()).data
+    console.log("Expo push token:", token)
+    return token
+  } catch (error) {
+    console.error("Error getting push token:", error)
+    return null
+  }
 }

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
 import * as Application from "expo-application"
 import * as ImagePicker from "expo-image-picker"
+import * as Notifications from "expo-notifications"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
@@ -34,6 +35,28 @@ async function getIdentifier() {
     return androidId // Example: '9774d56d682e549c' or null
   }
   return null
+}
+
+// Function to register for push notifications and get token
+async function registerForPushNotificationsAsync() {
+  let token
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF231F7C"
+    })
+  }
+
+  try {
+    token = (await Notifications.getExpoPushTokenAsync()).data
+    console.log("Expo push token:", token)
+    return token
+  } catch (error) {
+    console.error("Error getting push token:", error)
+    return null
+  }
 }
 
 // Type for the data needed for display in lists (subset of User)
@@ -299,15 +322,25 @@ export default function Profile() {
       Alert.alert("Error", "Device ID not found. Cannot save profile.")
       return
     }
-    // TODO: Implement proper image upload and get URL before saving
-    const profileDataToSave = {
-      first_name: firstName,
-      last_initial: lastInitial,
-      profile_image: profileImage // This should be the URL after upload
-    }
-    console.log("Saving Profile Info:", profileDataToSave)
 
     try {
+      // Get the latest push token
+      const pushToken = await registerForPushNotificationsAsync()
+
+      // Get current auth session to get user ID
+      const { data: sessionData } = await supabase.auth.getSession()
+      const userId = sessionData?.session?.user?.id
+
+      // TODO: Implement proper image upload and get URL before saving
+      const profileDataToSave = {
+        first_name: firstName,
+        last_initial: lastInitial,
+        profile_image: profileImage, // This should be the URL after upload
+        expo_push_token: pushToken, // Update push token
+        user_id: userId || null // Link to auth user if available
+      }
+      console.log("Saving Profile Info:", profileDataToSave)
+
       const { error } = await supabase
         .from("users")
         .update(profileDataToSave)
@@ -738,10 +771,14 @@ export default function Profile() {
                 return
               }
               try {
+                // Get push token
+                const pushToken = await registerForPushNotificationsAsync()
+
                 console.log("Creating user:", {
                   device_id: deviceId,
                   first_name: firstName,
-                  last_initial: lastInitial
+                  last_initial: lastInitial,
+                  expo_push_token: pushToken
                 })
                 // Actual Supabase insert call
                 const { error: insertError } = await supabase
@@ -750,6 +787,7 @@ export default function Profile() {
                     device_id: deviceId,
                     first_name: firstName,
                     last_initial: lastInitial,
+                    expo_push_token: pushToken, // Add push token
                     // Initialize settings and schedule with defaults if needed by your schema
                     settings: {
                       notifications: true,
