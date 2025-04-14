@@ -13,7 +13,12 @@ const linking: LinkingOptions<{}> = {
       "(tabs)": {
         screens: {
           profile: "profile",
-          program: "program"
+          program: {
+            screens: {
+              index: "program",
+              schedule_share: "schedule_share=:id"
+            }
+          }
         }
       }
     }
@@ -30,7 +35,7 @@ const linking: LinkingOptions<{}> = {
     if (url.includes("schedule_share=")) {
       try {
         // Extract user ID from URL
-        const sharedUserId = url.split("schedule_share=")[1]
+        const sharedUserId = url.split("schedule_share=")[1].split("&")[0]
 
         if (!sharedUserId) return url
 
@@ -100,7 +105,7 @@ const linking: LinkingOptions<{}> = {
       // Handle schedule_share links
       if (url.includes("schedule_share=")) {
         // Extract user ID from URL
-        const sharedUserId = url.split("schedule_share=")[1]
+        const sharedUserId = url.split("schedule_share=")[1].split("&")[0]
 
         // Navigate to profile page if needed or process the share
         handleScheduleShare(sharedUserId).then(() => {
