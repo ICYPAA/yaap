@@ -2984,6 +2984,20 @@ const HospitalitySection = ({
 }) => {
   const { theme, isDarkMode } = useTheme()
 
+  // Extract just the day name from the formatted date (e.g., "Friday, August 12" -> "Friday")
+  const extractDayName = (fullDay: string) => {
+    // Handle the error case where day might be an error message
+    if (fullDay === "No events scheduled" || fullDay === "No Events") {
+      return ""
+    }
+
+    // Extract the day name from the formatted date (e.g., "Friday, August 12" -> "Friday")
+    const dayName = fullDay.split(",")[0]
+    return dayName
+  }
+
+  const dayName = extractDayName(day)
+
   // Create local styles for HospitalitySection with original format
   const hospitalityStyles = StyleSheet.create({
     hospitality: {
@@ -3038,7 +3052,7 @@ const HospitalitySection = ({
 
   // Filter hospitality times for the current day
   const dayTimes = hospitalityInfo.times.filter(
-    (timeSlot) => timeSlot.day.toLowerCase() === day.toLowerCase()
+    (timeSlot) => timeSlot.day.toLowerCase() === dayName.toLowerCase()
   )
 
   // Use the formatTime function from parent
@@ -3086,7 +3100,7 @@ const HospitalitySection = ({
       </Text>
       {dayTimes.length > 0 ? (
         dayTimes.map((time, index) => (
-          <Text style={hospitalityStyles.hospitalityTime}>
+          <Text key={index} style={hospitalityStyles.hospitalityTime}>
             {formatHospitalityTime(time.start_time)} -{" "}
             {formatHospitalityTime(time.end_time)}
           </Text>
