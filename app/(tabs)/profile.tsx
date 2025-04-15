@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Application from "expo-application"
 import * as ImagePicker from "expo-image-picker"
 import * as Notifications from "expo-notifications"
+import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
@@ -18,7 +20,8 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../context/ThemeContext"
-import { supabase } from "../../lib/supabase"
+import { sendNotification } from "../../lib/notificationHelper"
+import { supabase, withDeviceId } from "../../lib/supabase"
 import { getTextColorForBackground } from "../../lib/theme"
 import { Schedule, User } from "../../types/user"
 
@@ -67,6 +70,7 @@ type DisplayUser = Pick<
 
 export default function Profile() {
   const { theme, isDarkMode, toggleTheme } = useTheme()
+  const router = useRouter()
 
   // State for current user data
   const [currentUser, setCurrentUser] = useState<User | null>(null)
@@ -98,6 +102,9 @@ export default function Profile() {
   const [bannedUsers, setBannedUsers] = useState<DisplayUser[]>([])
   const [loadingSharing, setLoadingSharing] = useState(true)
 
+  // New state for program ID
+  const [programId, setProgramId] = useState<number | null>(null)
+
   // Get Device ID on mount
   useEffect(() => {
     async function fetchDeviceId() {
@@ -126,7 +133,8 @@ export default function Profile() {
       setLoadingSharing(true)
       console.log(`Fetching user data for device ID: ${deviceId}`)
       try {
-        const { data: userData, error: userError } = await supabase
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data: userData, error: userError } = await supabaseWithDeviceId
           .from("users")
           .select("*")
           .eq("device_id", deviceId)
@@ -211,9 +219,10 @@ export default function Profile() {
     const getDeviceIdsFromUserIds = async (
       userIds: number[]
     ): Promise<string[]> => {
+      const supabaseWithDeviceId = await withDeviceId()
       if (!userIds || userIds.length === 0) return []
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseWithDeviceId
           .from("users")
           .select("device_id")
           .in("id", userIds) // Filter by primary user ID
@@ -231,7 +240,8 @@ export default function Profile() {
     ): Promise<DisplayUser[]> => {
       if (!deviceIds || deviceIds.length === 0) return []
       try {
-        const { data, error } = await supabase
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data, error } = await supabaseWithDeviceId
           .from("users")
           .select("device_id, first_name, last_initial, profile_image")
           .in("device_id", deviceIds) // Filter by device_id
@@ -341,7 +351,8 @@ export default function Profile() {
       }
       console.log("Saving Profile Info:", profileDataToSave)
 
-      const { error } = await supabase
+      const supabaseWithDeviceId = await withDeviceId()
+      const { error } = await supabaseWithDeviceId
         .from("users")
         .update(profileDataToSave)
         .eq("device_id", deviceId)
@@ -414,7 +425,8 @@ export default function Profile() {
     const newSettings = { ...currentSettings, [settingKey]: value }
 
     try {
-      const { error } = await supabase
+      const supabaseWithDeviceId = await withDeviceId()
+      const { error } = await supabaseWithDeviceId
         .from("users")
         .update({ settings: newSettings })
         .eq("device_id", deviceId)
@@ -438,6 +450,28 @@ export default function Profile() {
       }
     }
   }
+
+  // Add function to get program ID
+  useEffect(() => {
+    const fetchProgramId = async () => {
+      try {
+        // Get the active program ID (assuming there's only one active program)
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data, error } = await supabaseWithDeviceId
+          .from("programs")
+          .select("id")
+          .limit(1)
+          .single()
+
+        if (error) throw error
+        if (data) setProgramId(data.id)
+      } catch (error) {
+        console.error("Error fetching program ID:", error)
+      }
+    }
+
+    fetchProgramId()
+  }, [])
 
   // --- Sharing Action Handlers (using DisplayUser type) ---
 
@@ -492,6 +526,41 @@ export default function Profile() {
         prev.filter((u) => u.device_id !== user.device_id)
       )
       setSharingWith((prev) => [...prev, user])
+
+      // Get the user ID of the requester to use in the notification
+      if (currentUser && programId) {
+        // Get the user ID of the requester
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data: requesterData, error: requesterError } =
+          await supabaseWithDeviceId
+            .from("users")
+            .select("id")
+            .eq("device_id", user.device_id)
+            .single()
+
+        if (requesterError) {
+          console.error("Error getting requester ID:", requesterError)
+          return
+        }
+
+        if (requesterData && requesterData.id) {
+          // Send schedule notification through the edge function
+          await sendNotification({
+            eventType: "schedule",
+            programId: programId,
+            userId: requesterData.id,
+            data: {
+              status: "accepted",
+              user: {
+                first_name: currentUser.first_name,
+                last_initial: currentUser.last_initial
+              }
+            }
+          })
+
+          console.log("Sent schedule acceptance notification")
+        }
+      }
     } catch (error) {
       console.error("Error accepting request:", error)
       Alert.alert("Error", "Failed to accept request.")
@@ -711,6 +780,86 @@ export default function Profile() {
     </View>
   )
 
+  // Function to handle profile deletion
+  const handleDeleteProfile = () => {
+    Alert.alert(
+      "Delete Profile",
+      "Are you sure you want to delete your profile? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!deviceId) {
+              Alert.alert("Error", "Cannot delete profile: Device ID not found")
+              return
+            }
+
+            try {
+              setLoadingProfile(true)
+
+              // First, update any support chats to mark the device_id as "deleted"
+              // This preserves chat history but disassociates it from the deleted user
+              const supabaseWithDeviceId = await withDeviceId()
+              const { error: supportChatsError } = await supabaseWithDeviceId
+                .from("support_chats")
+                .update({ device_id: "deleted" })
+                .eq("device_id", deviceId)
+
+              if (supportChatsError) {
+                console.error(
+                  "Error updating support chats:",
+                  supportChatsError
+                )
+                // Continue with deletion even if support chat update fails
+              } else {
+                console.log(
+                  "Support chats updated successfully for deleted profile"
+                )
+              }
+
+              // Delete the user from the database
+              const { error } = await supabaseWithDeviceId
+                .from("users")
+                .delete()
+                .eq("device_id", deviceId)
+
+              if (error) throw error
+
+              // Clear AsyncStorage
+              await AsyncStorage.clear()
+
+              // Sign out from Supabase auth if authenticated
+              await supabase.auth.signOut()
+
+              Alert.alert(
+                "Profile Deleted",
+                "Your profile has been deleted successfully",
+                [
+                  {
+                    text: "OK",
+                    onPress: () => {
+                      // Navigate to the main screen or restart the app
+                      router.replace("/")
+                    }
+                  }
+                ]
+              )
+            } catch (error) {
+              console.error("Error deleting profile:", error)
+              Alert.alert(
+                "Deletion Failed",
+                "There was an error deleting your profile. Please try again."
+              )
+              setLoadingProfile(false)
+            }
+          }
+        }
+      ]
+    )
+  }
+
   // Loading state for profile section
   if (loadingProfile) {
     return (
@@ -732,8 +881,12 @@ export default function Profile() {
           style={{ marginBottom: theme.spacing.lg }}
         />
         <Text style={styles.sectionTitle}>Create Profile</Text>
-        <Text>It looks like you don't have a profile yet.</Text>
-        <Text>Enter your name below to get started.</Text>
+        <Text style={styles.instructionText}>
+          It looks like you don't have a profile yet.
+        </Text>
+        <Text style={styles.instructionText}>
+          Enter your name below to get started.
+        </Text>
         {/* Simplified form to create initial profile */}
         <View style={styles.formContainerMinimal}>
           <View style={styles.inputGroup}>
@@ -781,7 +934,8 @@ export default function Profile() {
                   expo_push_token: pushToken
                 })
                 // Actual Supabase insert call
-                const { error: insertError } = await supabase
+                const supabaseWithDeviceId = await withDeviceId()
+                const { error: insertError } = await supabaseWithDeviceId
                   .from("users")
                   .insert({
                     device_id: deviceId,
@@ -1336,6 +1490,26 @@ export default function Profile() {
             </>
           )}
         </View>
+
+        {/* Danger Zone */}
+        <View style={styles.dangerZoneContainer}>
+          <Text style={styles.dangerZoneTitle}>Danger Zone</Text>
+          <Text style={styles.dangerZoneDescription}>
+            Once you delete your profile, there is no going back. Please be
+            certain.
+          </Text>
+          <TouchableOpacity
+            style={styles.deleteProfileButton}
+            onPress={handleDeleteProfile}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={20}
+              color={getTextColorForBackground(theme.colors.error)}
+            />
+            <Text style={styles.deleteProfileButtonText}>Delete Profile</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -1591,5 +1765,46 @@ const createStyles = (theme: any) =>
     formContainerMinimal: {
       width: "80%",
       marginTop: theme.spacing.lg
+    },
+    dangerZoneContainer: {
+      marginTop: theme.spacing.xl,
+      marginBottom: theme.spacing.xl,
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.error
+    },
+    dangerZoneTitle: {
+      ...theme.typography.h2,
+      fontSize: 18,
+      color: theme.colors.error,
+      marginBottom: theme.spacing.sm,
+      fontWeight: "bold"
+    },
+    dangerZoneDescription: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.lg
+    },
+    deleteProfileButton: {
+      backgroundColor: theme.colors.error,
+      borderRadius: theme.borderRadius.md,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: theme.spacing.sm
+    },
+    deleteProfileButtonText: {
+      color: getTextColorForBackground(theme.colors.error),
+      fontWeight: "bold",
+      ...theme.typography.button
+    },
+    instructionText: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.md
     }
   })

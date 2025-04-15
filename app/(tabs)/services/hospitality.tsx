@@ -1,3 +1,4 @@
+import { withDeviceId } from "@/lib/supabase"
 import { Ionicons } from "@expo/vector-icons"
 import { Stack, useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
@@ -9,7 +10,6 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
-import { supabase } from "../../../lib/supabase"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
@@ -49,14 +49,17 @@ export default function HospitalityUpdate() {
   const handleSubmit = async () => {
     try {
       // Submit form data to Supabase
-      const { error } = await supabase.from("hospitality_forms").insert({
-        program_id: 1, // Default to program ID 1
-        group_name: form.groupName,
-        item_description: form.itemDescription,
-        allergies: form.allergies,
-        notes: form.notes,
-        status: "pending" // Set initial status to pending
-      })
+      const supabaseWithDeviceId = await withDeviceId()
+      const { error } = await supabaseWithDeviceId
+        .from("hospitality_forms")
+        .insert({
+          program_id: 1, // Default to program ID 1
+          group_name: form.groupName,
+          item_description: form.itemDescription,
+          allergies: form.allergies,
+          notes: form.notes,
+          status: "pending" // Set initial status to pending
+        })
 
       if (error) {
         console.error("Error submitting hospitality update:", error)

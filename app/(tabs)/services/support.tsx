@@ -14,7 +14,7 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
-import { supabase } from "../../../lib/supabase"
+import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 interface Message {
@@ -85,7 +85,8 @@ export default function SupportRequest() {
 
   const fetchSupportChats = async (device_id: string) => {
     try {
-      const { data, error } = await supabase
+      const supabaseWithDeviceId = await withDeviceId()
+      const { data, error } = await supabaseWithDeviceId
         .from("support_chats")
         .select("*")
         .eq("device_id", device_id)
@@ -108,6 +109,7 @@ export default function SupportRequest() {
     if (!selectedChat || !message.trim() || !deviceId) return
 
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const newMessage = {
         sender: deviceId,
         message: message.trim(),
@@ -120,7 +122,7 @@ export default function SupportRequest() {
       const newStatus =
         selectedChat.status === "resolved" ? "unread" : selectedChat.status
 
-      const { error } = await supabase
+      const { error } = await supabaseWithDeviceId
         .from("support_chats")
         .update({
           messages: updatedMessages,
@@ -178,7 +180,8 @@ export default function SupportRequest() {
       }
 
       // Create the chat in Supabase
-      const { data, error } = await supabase
+      const supabaseWithDeviceId = await withDeviceId()
+      const { data, error } = await supabaseWithDeviceId
         .from("support_chats")
         .insert({
           program_id: 1, // Default to program ID 1

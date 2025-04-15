@@ -99,6 +99,9 @@ CREATE POLICY users_update ON users
     device_id = current_setting('request.headers')::json->>'x-device-id'
   );
 
+CREATE POLICY users_delete ON users
+  FOR DELETE USING (device_id = current_setting('request.headers')::json->>'x-device-id');
+
 -- venues: Anyone can read
 CREATE POLICY venues_select ON venues
   FOR SELECT USING (true);

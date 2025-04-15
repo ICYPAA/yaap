@@ -9,7 +9,7 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
-import { supabase } from "../../../lib/supabase"
+import { withDeviceId } from "../../../lib/supabase"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
@@ -52,17 +52,20 @@ export default function AccessibilityRequest() {
   const handleSubmit = async () => {
     try {
       // Submit form data to Supabase
-      const { error } = await supabase.from("accessibility_forms").insert({
-        program_id: 1, // Default to program ID 1
-        name: form.name,
-        phone: form.phone,
-        email: form.email,
-        need_type: form.needType,
-        details: form.details,
-        arrival_date: form.arrivalDate,
-        duration: form.duration,
-        status: "pending" // Set initial status to pending
-      })
+      const supabaseWithDeviceId = await withDeviceId()
+      const { error } = await supabaseWithDeviceId
+        .from("accessibility_forms")
+        .insert({
+          program_id: 1, // Default to program ID 1
+          name: form.name,
+          phone: form.phone,
+          email: form.email,
+          need_type: form.needType,
+          details: form.details,
+          arrival_date: form.arrivalDate,
+          duration: form.duration,
+          status: "pending" // Set initial status to pending
+        })
 
       if (error) {
         console.error("Error submitting accessibility request:", error)

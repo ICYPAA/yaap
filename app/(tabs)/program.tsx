@@ -18,9 +18,8 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
-import QRCode from "react-native-qrcode-svg"
 import { useTheme } from "../../context/ThemeContext"
-import { supabase } from "../../lib/supabase"
+import { supabase, withDeviceId } from "../../lib/supabase"
 import {
   getProgramColor as getProgramColorUtil,
   getTextColorForBackground as getTextColorForBgUtil
@@ -1522,7 +1521,8 @@ export default function Program() {
 
       setCheckingProfile(true)
       try {
-        const { data, error } = await supabase
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data, error } = await supabaseWithDeviceId
           .from("users")
           .select("id, first_name, last_initial, schedule")
           .eq("device_id", deviceId)
@@ -1579,7 +1579,8 @@ export default function Program() {
       console.log("Screen focused, rechecking user profile")
 
       try {
-        const { data, error } = await supabase
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data, error } = await supabaseWithDeviceId
           .from("users")
           .select("id, first_name, last_initial, schedule")
           .eq("device_id", deviceId)
@@ -1620,24 +1621,31 @@ export default function Program() {
         // Assume program ID 1 for now
         const programId = 1
 
+        const supabaseWithDeviceId = await withDeviceId()
         const [programRes, eventsRes, categoriesRes, activitiesRes, foodRes] =
           await Promise.all([
-            supabase
+            supabaseWithDeviceId
               .from("programs")
               .select("*")
               .eq("id", programId)
               .maybeSingle(),
             // Fetch events and their category details
-            supabase
+            supabaseWithDeviceId
               .from("events")
               .select("*, event_categories(title, color)")
               .eq("program_id", programId),
-            supabase
+            supabaseWithDeviceId
               .from("event_categories")
               .select("*")
               .eq("program_id", programId), // Keep fetching categories separately if needed elsewhere
-            supabase.from("activities").select("*").eq("program_id", programId),
-            supabase.from("food").select("*").eq("program_id", programId)
+            supabaseWithDeviceId
+              .from("activities")
+              .select("*")
+              .eq("program_id", programId),
+            supabaseWithDeviceId
+              .from("food")
+              .select("*")
+              .eq("program_id", programId)
           ])
 
         // Error handling
@@ -1859,7 +1867,8 @@ export default function Program() {
       const authUserId = sessionData?.session?.user?.id
 
       // Update existing user record in Supabase - no more anonymous users
-      const { error } = await supabase
+      const supabaseWithDeviceId = await withDeviceId()
+      const { error } = await supabaseWithDeviceId
         .from("users")
         .update({
           schedule: schedule,
@@ -3002,11 +3011,10 @@ export default function Program() {
                     Let friends scan to see your saved events
                   </Text>
                   <View style={programStyles(theme).qrContainer}>
-                    <QRCode
-                      value={qrData}
+                    <QRCodeImage
+                      data={qrData}
                       size={200}
-                      backgroundColor={isDarkMode ? "#333" : "#fff"}
-                      color={isDarkMode ? "#fff" : "#000"}
+                      isDarkMode={isDarkMode}
                     />
                   </View>
                 </>
@@ -3237,4 +3245,80 @@ async function registerForPushNotificationsAsync() {
     console.error("Error getting push token:", error)
     return null
   }
+}
+
+// Robust QR code image component with loading and error states
+const QRCodeImage = ({
+  data,
+  size,
+  isDarkMode
+}: {
+  data: string
+  size: number
+  isDarkMode: boolean
+}) => {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  // Use a more reliable QR code API (QR Server)
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(
+    data
+  )}&color=${isDarkMode ? "FFFFFF" : "000000"}&bgcolor=${
+    isDarkMode ? "333333" : "FFFFFF"
+  }`
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: isDarkMode ? "#333" : "#fff",
+        justifyContent: "center",
+        alignItems: "center",
+        borderRadius: 8
+      }}
+    >
+      {loading && (
+        <ActivityIndicator
+          size="large"
+          color={isDarkMode ? "#fff" : "#000"}
+          style={{ position: "absolute" }}
+        />
+      )}
+
+      {error ? (
+        <View style={{ padding: 10, alignItems: "center" }}>
+          <Text
+            style={{ color: isDarkMode ? "#fff" : "#000", marginBottom: 10 }}
+          >
+            Could not load QR code
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              setError(false)
+              setLoading(true)
+            }}
+            style={{
+              padding: 8,
+              backgroundColor: isDarkMode ? "#444" : "#eee",
+              borderRadius: 4
+            }}
+          >
+            <Text style={{ color: isDarkMode ? "#fff" : "#000" }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <Image
+          source={{ uri: qrCodeUrl }}
+          style={{ width: size, height: size }}
+          onLoadStart={() => setLoading(true)}
+          onLoad={() => setLoading(false)}
+          onError={() => {
+            setLoading(false)
+            setError(true)
+          }}
+        />
+      )}
+    </View>
+  )
 }

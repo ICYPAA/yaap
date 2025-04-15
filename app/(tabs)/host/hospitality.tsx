@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons"
-import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
@@ -12,8 +11,9 @@ import {
 } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
+import { sendNotification } from "../../../lib/notificationHelper"
 import { makeRequest } from "../../../lib/requestHelper"
-import { supabase } from "../../../lib/supabase"
+import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 interface HospitalityNotification {
@@ -129,11 +129,12 @@ export default function HospitalityNotifications() {
 
   const fetchNotifications = async () => {
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "hospitality_forms",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("hospitality_forms")
             .select("*")
             .eq("program_id", 1)
@@ -185,11 +186,15 @@ export default function HospitalityNotifications() {
         updateData.owner_id = currentUser
       }
 
+      const supabaseWithDeviceId = await withDeviceId()
       const { error } = await makeRequest({
         table: "hospitality_forms",
         isDebugMode,
         query: () =>
-          supabase.from("hospitality_forms").update(updateData).eq("id", id)
+          supabaseWithDeviceId
+            .from("hospitality_forms")
+            .update(updateData)
+            .eq("id", id)
       })
 
       if (error) throw error
@@ -211,44 +216,18 @@ export default function HospitalityNotifications() {
       const item = notifications.find((n) => n.id === hospitalityId)
       if (!item) return
 
-      // Get all users with hospitality notifications enabled
-      const { data: users, error } = await makeRequest({
-        table: "users",
-        isDebugMode,
-        query: () =>
-          supabase
-            .from("users")
-            .select("id, device_id, expo_push_token, settings")
-            .neq("device_id", null)
-      })
-
-      if (error) throw error
-
-      // Filter users who have notifications and hospitality notifications enabled
-      const eligibleUsers = users.filter((user: any) => {
-        const settings = user.settings || {}
-        return (
-          settings.notifications === true &&
-          settings.hospitality_notifications === true
-        )
-      })
-
-      // Send notifications to eligible users
-      for (const user of eligibleUsers) {
-        if (user.expo_push_token) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: "Hospitality Item Approved",
-              body: `${item.group_name}'s item "${item.item_description}" has been approved`,
-              data: { screen: "/hospitality" }
-            },
-            trigger: null // Send immediately
-          })
+      // Send hospitality notification through the edge function
+      await sendNotification({
+        eventType: "hospitality",
+        programId: item.program_id,
+        data: {
+          group_name: item.group_name,
+          item_description: item.item_description
         }
-      }
+      })
 
       console.log(
-        `Sent hospitality notifications to ${eligibleUsers.length} users`
+        `Sent hospitality notification for item "${item.item_description}"`
       )
     } catch (error) {
       console.error("Error sending hospitality notifications:", error)

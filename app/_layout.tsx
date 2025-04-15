@@ -1,4 +1,5 @@
 import { Session } from "@supabase/supabase-js"
+import * as Application from "expo-application"
 import { useFonts } from "expo-font"
 import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
@@ -11,7 +12,7 @@ import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { DebugProvider } from "../context/DebugContext"
 import { ThemeProvider, useTheme } from "../context/ThemeContext"
-import { supabase } from "../lib/supabase"
+import { supabase, withDeviceId } from "../lib/supabase"
 import { storeProgramDesign } from "../lib/theme"
 import { Program } from "../types/program"
 
@@ -38,16 +39,24 @@ function handleRegistrationError(errorMessage: string) {
 
 // Function to register for push notifications
 async function registerForPushNotificationsAsync() {
+  let token
   if (Platform.OS === "android") {
-    Notifications.setNotificationChannelAsync("default", {
+    await Notifications.setNotificationChannelAsync("default", {
       name: "default",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FF231F7C" // Consider using theme color
     })
   }
-  // Add permissions request logic if needed for iOS/web
-  return undefined
+
+  try {
+    token = (await Notifications.getExpoPushTokenAsync()).data
+    console.log("Expo push token:", token)
+    return token
+  } catch (error) {
+    console.error("Error getting push token:", error)
+    return null
+  }
 }
 
 function RootLayoutNav() {
@@ -149,7 +158,8 @@ export default function RootLayout() {
     const fetchProgramData = async () => {
       try {
         const programId = 1
-        const { data, error } = await supabase
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data, error } = await supabaseWithDeviceId
           .from("programs")
           .select("*")
           .eq("id", programId)
@@ -179,15 +189,73 @@ export default function RootLayout() {
     if (loaded && programLoaded && !authLoading) {
       SplashScreen.hideAsync()
 
-      registerForPushNotificationsAsync()
-        .then((token) => {
+      // Function to get device identifier based on platform
+      const getIdentifier = async () => {
+        if (Platform.OS === "ios") {
+          let idfv = await Application.getIosIdForVendorAsync()
+          console.log("iOS IDFV:", idfv)
+          return idfv
+        }
+        if (Platform.OS === "android") {
+          let androidId = Application.getAndroidId()
+          console.log("Android ID:", androidId)
+          return androidId
+        }
+        return null
+      }
+
+      // Get device ID and update push token in user profile
+      const updatePushToken = async () => {
+        try {
+          const deviceId = await getIdentifier()
+          if (!deviceId) {
+            console.error("Could not get a device identifier")
+            return
+          }
+
+          const token = await registerForPushNotificationsAsync()
           if (token) {
             console.log("Push token obtained:", token)
+
+            // Check if a user profile exists for this device
+            const supabaseWithDeviceId = await withDeviceId()
+            const { data: userData, error: userError } =
+              await supabaseWithDeviceId
+                .from("users")
+                .select("id")
+                .eq("device_id", deviceId)
+                .maybeSingle()
+
+            if (userError && userError.code !== "PGRST116") {
+              console.error("Error checking for user profile:", userError)
+              return
+            }
+
+            // If user exists, update their push token
+            if (userData) {
+              const supabaseWithDeviceId = await withDeviceId()
+              const { error: updateError } = await supabaseWithDeviceId
+                .from("users")
+                .update({ expo_push_token: token })
+                .eq("device_id", deviceId)
+
+              if (updateError) {
+                console.error("Error updating push token:", updateError)
+              } else {
+                console.log("Push token updated in user profile")
+              }
+            } else {
+              console.log(
+                "No user profile found for this device. Token will be saved when profile is created."
+              )
+            }
           }
-        })
-        .catch((error) =>
-          console.error("Error during push notification registration:", error)
-        )
+        } catch (error) {
+          console.error("Error updating push token:", error)
+        }
+      }
+
+      updatePushToken()
 
       notificationListener.current =
         Notifications.addNotificationReceivedListener((notification) => {

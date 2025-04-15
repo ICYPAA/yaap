@@ -12,7 +12,7 @@ import {
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
-import { supabase } from "../../../lib/supabase"
+import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 // Define interface for the requests
@@ -93,11 +93,12 @@ export default function AccessibilityRequests() {
 
   const fetchRequests = async () => {
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "accessibility_forms",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("accessibility_forms")
             .select("*")
             .eq("program_id", 1)
@@ -143,11 +144,15 @@ export default function AccessibilityRequests() {
         updateData.owner_id = currentUser
       }
 
+      const supabaseWithDeviceId = await withDeviceId()
       const { error } = await makeRequest({
         table: "accessibility_forms",
         isDebugMode,
         query: () =>
-          supabase.from("accessibility_forms").update(updateData).eq("id", id)
+          supabaseWithDeviceId
+            .from("accessibility_forms")
+            .update(updateData)
+            .eq("id", id)
       })
 
       if (error) throw error

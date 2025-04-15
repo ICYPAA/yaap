@@ -9,7 +9,7 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
-import { supabase } from "../../../lib/supabase"
+import { withDeviceId } from "../../../lib/supabase"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
@@ -134,38 +134,41 @@ export default function VolunteerSignup() {
   const handleSubmit = async () => {
     try {
       // Submit form data to Supabase
-      const { error } = await supabase.from("volunteering_interest").insert({
-        name: formData.name,
-        last_initial: formData.lastInitial,
-        phone: formData.phone,
-        email: formData.email,
-        type: "general",
-        program_id: 1, // Default to program ID 1
-        data: {
-          interests: {
-            greeter: formData.interests.greeter,
-            security: formData.interests.security,
-            cleanup: formData.interests.cleanup,
-            setup: formData.interests.setup,
-            host_committee: formData.interests.hostCommittee,
-            wherever_needed: formData.interests.wherever
-          },
-          time_slots: {
-            thursday_pm: formData.timeSlots.thursdayPM,
-            friday_am: formData.timeSlots.fridayAM,
-            friday_midday: formData.timeSlots.fridayMidday,
-            friday_pm: formData.timeSlots.fridayPM,
-            saturday_am: formData.timeSlots.saturdayAM,
-            saturday_midday: formData.timeSlots.saturdayMidday,
-            saturday_pm: formData.timeSlots.saturdayPM,
-            sunday_am: formData.timeSlots.sundayAM,
-            sunday_midday: formData.timeSlots.sundayMidday,
-            sunday_pm: formData.timeSlots.sundayPM,
-            other: formData.timeSlots.other
-          },
-          comments: formData.comments
-        }
-      })
+      const supabaseWithDeviceId = await withDeviceId()
+      const { error } = await supabaseWithDeviceId
+        .from("volunteering_interest")
+        .insert({
+          name: formData.name,
+          last_initial: formData.lastInitial,
+          phone: formData.phone,
+          email: formData.email,
+          type: "general",
+          program_id: 1, // Default to program ID 1
+          data: {
+            interests: {
+              greeter: formData.interests.greeter,
+              security: formData.interests.security,
+              cleanup: formData.interests.cleanup,
+              setup: formData.interests.setup,
+              host_committee: formData.interests.hostCommittee,
+              wherever_needed: formData.interests.wherever
+            },
+            time_slots: {
+              thursday_pm: formData.timeSlots.thursdayPM,
+              friday_am: formData.timeSlots.fridayAM,
+              friday_midday: formData.timeSlots.fridayMidday,
+              friday_pm: formData.timeSlots.fridayPM,
+              saturday_am: formData.timeSlots.saturdayAM,
+              saturday_midday: formData.timeSlots.saturdayMidday,
+              saturday_pm: formData.timeSlots.saturdayPM,
+              sunday_am: formData.timeSlots.sundayAM,
+              sunday_midday: formData.timeSlots.sundayMidday,
+              sunday_pm: formData.timeSlots.sundayPM,
+              other: formData.timeSlots.other
+            },
+            comments: formData.comments
+          }
+        })
 
       if (error) {
         console.error("Error submitting volunteer signup:", error)

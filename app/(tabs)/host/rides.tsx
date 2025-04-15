@@ -12,7 +12,7 @@ import {
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
-import { supabase } from "../../../lib/supabase"
+import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 interface RideRequest {
@@ -123,11 +123,12 @@ export default function RideRequests() {
 
   const fetchRequests = async () => {
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "ride_forms",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("ride_forms")
             .select("*")
             .eq("program_id", 1)
@@ -173,10 +174,15 @@ export default function RideRequests() {
         updateData.owner_id = currentUser
       }
 
+      const supabaseWithDeviceId = await withDeviceId()
       const { error } = await makeRequest({
         table: "ride_forms",
         isDebugMode,
-        query: () => supabase.from("ride_forms").update(updateData).eq("id", id)
+        query: () =>
+          supabaseWithDeviceId
+            .from("ride_forms")
+            .update(updateData)
+            .eq("id", id)
       })
 
       if (error) throw error

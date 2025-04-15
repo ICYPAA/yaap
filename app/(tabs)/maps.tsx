@@ -16,7 +16,7 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../context/ThemeContext"
-import { supabase } from "../../lib/supabase"
+import { withDeviceId } from "../../lib/supabase"
 import { Activity } from "../../types/activities"
 import { Transportation } from "../../types/transportation"
 import { Venue } from "../../types/venue"
@@ -398,22 +398,25 @@ export default function Maps() {
       setError(null)
       try {
         // Fetch Venue data
-        const { data: venueResult, error: venueError } = await supabase
-          .from("venues")
-          .select("*")
-          .eq("program_id", programId)
-          .maybeSingle()
+        const supabaseWithDeviceId = await withDeviceId()
+        const { data: venueResult, error: venueError } =
+          await supabaseWithDeviceId
+            .from("venues")
+            .select("*")
+            .eq("program_id", programId)
+            .maybeSingle()
 
         if (venueError)
           throw new Error(`Venue fetch error: ${venueError.message}`)
         setVenueData(venueResult)
 
         // Fetch Transportation data
-        const { data: transportResult, error: transportError } = await supabase
-          .from("transportation")
-          .select("*")
-          .eq("program_id", programId)
-          .maybeSingle()
+        const { data: transportResult, error: transportError } =
+          await supabaseWithDeviceId
+            .from("transportation")
+            .select("*")
+            .eq("program_id", programId)
+            .maybeSingle()
 
         if (transportError)
           throw new Error(
@@ -423,7 +426,7 @@ export default function Maps() {
 
         // Fetch Activities data
         const { data: activitiesResult, error: activitiesError } =
-          await supabase
+          await supabaseWithDeviceId
             .from("activities")
             .select("*")
             .eq("program_id", programId)

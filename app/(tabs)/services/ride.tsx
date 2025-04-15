@@ -12,7 +12,7 @@ import {
 } from "react-native"
 import { Dropdown } from "react-native-element-dropdown"
 import { useTheme } from "../../../context/ThemeContext"
-import { supabase } from "../../../lib/supabase"
+import { withDeviceId } from "../../../lib/supabase"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
@@ -141,7 +141,8 @@ export default function RideRequest() {
       const passengersInt = parseInt(form.passengers) || 1
 
       // Submit form data to Supabase
-      const { error } = await supabase.from("ride_forms").insert({
+      const supabaseWithDeviceId = await withDeviceId()
+      const { error } = await supabaseWithDeviceId.from("ride_forms").insert({
         program_id: 1, // Default to program ID 1
         name: form.name,
         phone: form.phone,

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeCountRequest, makeRequest } from "../../../lib/requestHelper"
-import { supabase } from "../../../lib/supabase"
+import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 type ServiceSection = {
@@ -70,11 +71,16 @@ export default function HostDashboard() {
       } = await supabase.auth.getUser()
 
       if (user) {
+        const supabaseWithDeviceId = await withDeviceId()
         const { data: profile } = await makeRequest({
           table: "profiles",
           isDebugMode,
           query: () =>
-            supabase.from("profiles").select("*").eq("id", user.id).single()
+            supabaseWithDeviceId
+              .from("profiles")
+              .select("*")
+              .eq("id", user.id)
+              .single()
         })
 
         setUser({ ...user, profile })
@@ -89,6 +95,7 @@ export default function HostDashboard() {
   const fetchPendingCounts = async () => {
     try {
       // Fetch counts for each service type using makeCountRequest
+      const supabaseWithDeviceId = await withDeviceId()
       const [
         { count: accessibilityCount },
         { count: ridesCount },
@@ -100,7 +107,7 @@ export default function HostDashboard() {
           table: "accessibility_forms",
           isDebugMode,
           query: () =>
-            supabase
+            supabaseWithDeviceId
               .from("accessibility_forms")
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
@@ -110,7 +117,7 @@ export default function HostDashboard() {
           table: "ride_forms",
           isDebugMode,
           query: () =>
-            supabase
+            supabaseWithDeviceId
               .from("ride_forms")
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
@@ -120,7 +127,7 @@ export default function HostDashboard() {
           table: "volunteering_interest",
           isDebugMode,
           query: () =>
-            supabase
+            supabaseWithDeviceId
               .from("volunteering_interest")
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
@@ -130,7 +137,7 @@ export default function HostDashboard() {
           table: "hospitality_forms",
           isDebugMode,
           query: () =>
-            supabase
+            supabaseWithDeviceId
               .from("hospitality_forms")
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
@@ -140,7 +147,7 @@ export default function HostDashboard() {
           table: "support_chats",
           isDebugMode,
           query: () =>
-            supabase
+            supabaseWithDeviceId
               .from("support_chats")
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
@@ -179,6 +186,70 @@ export default function HostDashboard() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.replace("/host/login" as any)
+  }
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true)
+
+              // Call the admin_delete_user function
+              const { data, error } = await supabase.functions.invoke(
+                "admin_delete_user",
+                {
+                  method: "POST"
+                  // No body needed - the function gets user from JWT
+                }
+              )
+
+              if (error) {
+                console.error("Error calling admin delete function:", error)
+                Alert.alert(
+                  "Deletion Failed",
+                  "There was an error deleting your account. Please try again later."
+                )
+              } else if (data.partial) {
+                // Handle partial success
+                Alert.alert(
+                  "Account Marked for Deletion",
+                  "Your account has been marked for deletion, but some parts of the process require administrator assistance."
+                )
+
+                // Sign out the user anyway
+                await supabase.auth.signOut()
+                router.replace("/host/login" as any)
+              } else {
+                // Full success
+                Alert.alert(
+                  "Account Deleted",
+                  "Your account has been successfully deleted."
+                )
+
+                // Sign out and redirect
+                await supabase.auth.signOut()
+                router.replace("/host/login" as any)
+              }
+            } catch (error) {
+              console.error("Error in deletion process:", error)
+              Alert.alert(
+                "Error",
+                "Failed to delete account. Please try again later."
+              )
+            } finally {
+              setLoading(false)
+            }
+          }
+        }
+      ]
+    )
   }
 
   const navigateToService = (route: string) => {
@@ -260,6 +331,20 @@ export default function HostDashboard() {
           <Text style={styles(theme).logoutButtonText}>Logout</Text>
           <Ionicons
             name="log-out-outline"
+            size={20}
+            color={getTextColorForBackground(theme.colors.error)}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles(theme).deleteAccountButton}
+          onPress={handleDeleteAccount}
+        >
+          <Text style={styles(theme).deleteAccountButtonText}>
+            Delete Account
+          </Text>
+          <Ionicons
+            name="trash-outline"
             size={20}
             color={getTextColorForBackground(theme.colors.error)}
           />
@@ -382,6 +467,22 @@ const styles = (theme: any) =>
       alignItems: "center"
     },
     logoutButtonText: {
+      color: getTextColorForBackground(theme.colors.error),
+      fontSize: 16,
+      fontWeight: "600",
+      marginRight: theme.spacing.sm
+    },
+    deleteAccountButton: {
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.xl,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.error,
+      borderRadius: theme.borderRadius.md,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center"
+    },
+    deleteAccountButtonText: {
       color: getTextColorForBackground(theme.colors.error),
       fontSize: 16,
       fontWeight: "600",

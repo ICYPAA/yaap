@@ -11,7 +11,7 @@ import {
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
-import { supabase } from "../../../lib/supabase"
+import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 interface VolunteerSignup {
@@ -64,11 +64,12 @@ export default function VolunteerSignups() {
 
   const fetchVolunteers = async () => {
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "volunteering_interest",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("volunteering_interest")
             .select("*")
             .eq("program_id", 1)
@@ -86,11 +87,12 @@ export default function VolunteerSignups() {
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const { error } = await makeRequest({
         table: "volunteering_interest",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("volunteering_interest")
             .update({ status: newStatus })
             .eq("id", id)

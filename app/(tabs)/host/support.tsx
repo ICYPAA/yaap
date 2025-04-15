@@ -16,7 +16,7 @@ import {
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
-import { supabase } from "../../../lib/supabase"
+import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 interface ChatMessage {
@@ -67,11 +67,12 @@ export default function SupportChats() {
 
   const fetchChats = async () => {
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "support_chats",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("support_chats")
             .select("*")
             .eq("program_id", 1)
@@ -99,11 +100,12 @@ export default function SupportChats() {
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
+      const supabaseWithDeviceId = await withDeviceId()
       const { error } = await makeRequest({
         table: "support_chats",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("support_chats")
             .update({ status: newStatus })
             .eq("id", id)
@@ -136,11 +138,12 @@ export default function SupportChats() {
         }
       ]
 
+      const supabaseWithDeviceId = await withDeviceId()
       const { error } = await makeRequest({
         table: "support_chats",
         isDebugMode,
         query: () =>
-          supabase
+          supabaseWithDeviceId
             .from("support_chats")
             .update({
               messages: updatedMessages,
