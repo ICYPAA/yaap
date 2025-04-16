@@ -4,10 +4,11 @@ import { useNavigation } from "@react-navigation/native"
 import * as Application from "expo-application"
 import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Dimensions,
   Image,
   Linking,
@@ -60,6 +61,18 @@ type DisplayScheduleItem = {
   can_save?: boolean
 }
 
+// Define shared events data structure
+type SharedEventsUser = {
+  profile_image: string
+  first_name: string
+  last_initial: string
+  saved_events: number[]
+}
+
+type SharedEventsData = {
+  [userId: string]: SharedEventsUser
+}
+
 type HospitalityInfo = ProgramType["hospitality"] // Use type from ProgramType
 
 // Structure to hold mapped data
@@ -110,6 +123,90 @@ const mockFriends = [
     savedEvents: [22, 23] // Going to Service Work and Comedy Show
   }
 ]
+
+// Component to display users who have saved an event
+const SharedEventUsers = ({
+  eventId,
+  sharedEvents,
+  theme
+}: {
+  eventId: number
+  sharedEvents: SharedEventsData
+  theme: any
+}) => {
+  // Find users who have saved this event
+  const usersWithEvent = Object.entries(sharedEvents).filter(([_, userData]) =>
+    userData.saved_events.includes(eventId)
+  )
+
+  if (usersWithEvent.length === 0) {
+    return null
+  }
+
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Text
+        style={{
+          fontSize: 14,
+          color: theme.colors.text.secondary,
+          marginBottom: 4
+        }}
+      >
+        Friends interested:
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {usersWithEvent.map(([userId, userData]) => (
+          <View
+            key={userId}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.colors.surface,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 12,
+              marginRight: 8,
+              marginBottom: 4,
+              borderWidth: 1,
+              borderColor: theme.colors.border
+            }}
+          >
+            {userData.profile_image ? (
+              <Image
+                source={{ uri: userData.profile_image }}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  marginRight: 4
+                }}
+              />
+            ) : (
+              <View
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: theme.colors.primary,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 4
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 10 }}>
+                  {userData.first_name.charAt(0)}
+                </Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 12, color: theme.colors.text.primary }}>
+              {userData.first_name} {userData.last_initial}.
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  )
+}
 
 // Helper function to check for time conflicts
 const hasTimeConflict = (
@@ -225,7 +322,8 @@ const TimelineView = ({
   promoteIds,
   programDetails,
   events,
-  formatTimeFunction
+  formatTimeFunction,
+  sharedEvents
 }: {
   day: string
   savedItems: number[]
@@ -236,6 +334,7 @@ const TimelineView = ({
   programDetails: ProgramType | null
   events: Event[]
   formatTimeFunction: (timeStr: string | null | undefined) => string
+  sharedEvents: SharedEventsData
 }) => {
   // Add refs to synchronize scrolling
   const roomHeadersScrollRef = React.useRef<ScrollView>(null)
@@ -766,6 +865,26 @@ const TimelineView = ({
                                           {event.speakers.join(", ")}
                                         </Text>
                                       )}
+
+                                    {/* Add shared event users (wrapped in View for presentation) */}
+                                    <View
+                                      style={{
+                                        marginTop: 4,
+                                        backgroundColor:
+                                          "rgba(255,255,255,0.9)",
+                                        borderRadius: 4,
+                                        padding: 2
+                                      }}
+                                    >
+                                      <SharedEventUsers
+                                        eventId={event.id}
+                                        sharedEvents={sharedEvents}
+                                        theme={theme}
+                                        key={`shared-users-${event.id}-${
+                                          Object.keys(sharedEvents).length
+                                        }`}
+                                      />
+                                    </View>
                                   </View>
                                 )}
 
@@ -898,6 +1017,7 @@ type DayScheduleCardProps = {
   programDetails: ProgramType | null
   events: Event[]
   promoteIds?: number[]
+  sharedEvents: SharedEventsData
 }
 
 // Create a DayScheduleCard component that uses the original styles
@@ -911,7 +1031,8 @@ const DayScheduleCard = ({
   shadowStyles,
   programDetails,
   events,
-  promoteIds
+  promoteIds,
+  sharedEvents
 }: DayScheduleCardProps) => {
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>(
     {}
@@ -1425,6 +1546,16 @@ const DayScheduleCard = ({
                               {item.description}
                             </Text>
                           )}
+
+                          {/* Show shared event users */}
+                          <SharedEventUsers
+                            eventId={item.id}
+                            sharedEvents={sharedEvents}
+                            theme={theme}
+                            key={`shared-users-${item.id}-${
+                              Object.keys(sharedEvents).length
+                            }`}
+                          />
                         </View>
                       )}
                     </TouchableOpacity>
@@ -1453,6 +1584,7 @@ export default function Program() {
   const [programDetails, setProgramDetails] = useState<ProgramType | null>(null)
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [savedItems, setSavedItems] = useState<number[]>([])
+  const [sharedEvents, setSharedEvents] = useState<SharedEventsData>({})
   const [events, setEvents] = useState<Event[]>([])
   const [categories, setCategories] = useState<EventCategory[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -1462,6 +1594,10 @@ export default function Program() {
 
   // Reference to scroll view to track scrolling
   const scrollViewRef = React.useRef<ScrollView>(null)
+  // Reference to store the shared events polling interval
+  const sharedEventsPollingInterval = useRef<NodeJS.Timeout | null>(null)
+  // Store the last known shared events data to compare for changes
+  const lastSharedEventsRef = useRef<string>("")
 
   // Function to get device identifier based on platform
   async function getIdentifier() {
@@ -1499,6 +1635,21 @@ export default function Program() {
         setDeviceId(storedDeviceId)
         console.log("Using device ID:", storedDeviceId)
 
+        // Load shared events from AsyncStorage
+        const sharedEventsJson = await AsyncStorage.getItem("sharedEvents")
+        if (sharedEventsJson) {
+          try {
+            const parsedSharedEvents: SharedEventsData =
+              JSON.parse(sharedEventsJson)
+            console.log("Loaded shared events:", parsedSharedEvents)
+            setSharedEvents(parsedSharedEvents)
+            // Initialize the last known shared events for comparison
+            lastSharedEventsRef.current = sharedEventsJson
+          } catch (error) {
+            console.error("Error parsing shared events:", error)
+          }
+        }
+
         // Load saved schedule from AsyncStorage (done in the checkUserProfile function now)
       } catch (error) {
         console.error("Error loading saved items:", error)
@@ -1506,6 +1657,66 @@ export default function Program() {
     }
 
     loadSavedItems()
+  }, [])
+
+  // Function to check for shared events updates
+  const checkForSharedEventsUpdates = async () => {
+    try {
+      const sharedEventsJson = await AsyncStorage.getItem("sharedEvents")
+
+      // If there's no data or it's the same as before, do nothing
+      if (
+        !sharedEventsJson ||
+        sharedEventsJson === lastSharedEventsRef.current
+      ) {
+        return
+      }
+
+      // Data has changed, update the state
+      console.log("Shared events updated, refreshing UI")
+      const parsedSharedEvents: SharedEventsData = JSON.parse(sharedEventsJson)
+      setSharedEvents(parsedSharedEvents)
+
+      // Update the last known value
+      lastSharedEventsRef.current = sharedEventsJson
+    } catch (error) {
+      console.error("Error checking for shared events updates:", error)
+    }
+  }
+
+  // Set up polling for shared events updates
+  useEffect(() => {
+    // Start polling when component mounts
+    if (sharedEventsPollingInterval.current === null) {
+      sharedEventsPollingInterval.current = setInterval(() => {
+        console.log("Polling for shared events updates")
+        checkForSharedEventsUpdates()
+      }, 3000) // Check every 3 seconds
+    }
+
+    // Setup AppState listener to handle app going to background/foreground
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextAppState) => {
+        const currentState = AppState.currentState
+        if (
+          currentState.match(/inactive|background/) &&
+          nextAppState === "active"
+        ) {
+          console.log("App has come to the foreground, checking shared events")
+          checkForSharedEventsUpdates()
+        }
+      }
+    )
+
+    // Cleanup function
+    return () => {
+      if (sharedEventsPollingInterval.current) {
+        clearInterval(sharedEventsPollingInterval.current)
+        sharedEventsPollingInterval.current = null
+      }
+      appStateSubscription.remove()
+    }
   }, [])
 
   // Add state to track if user has a profile
@@ -1600,6 +1811,9 @@ export default function Program() {
           if (data.schedule && data.schedule.saved_events) {
             setSavedItems(data.schedule.saved_events)
           }
+
+          // Also check for updated shared events
+          await checkForSharedEventsUpdates()
         }
       } catch (error) {
         console.error("Error checking user profile on focus:", error)
@@ -1823,14 +2037,11 @@ export default function Program() {
 
       if (savedScheduleJson) {
         try {
+          // Parse the existing schedule and only update the saved_events property
           const parsedSchedule = JSON.parse(savedScheduleJson)
           schedule = {
-            saved_events: newSavedItems,
-            banned: parsedSchedule.banned || [],
-            shared_by: parsedSchedule.shared_by || [],
-            shared_with: parsedSchedule.shared_with || [],
-            pending_share: parsedSchedule.pending_share || [],
-            requested_share: parsedSchedule.requested_share || []
+            ...parsedSchedule, // Keep all existing properties
+            saved_events: newSavedItems // Only update saved_events
           }
         } catch (e) {
           // Handle parse error with defaults
@@ -1866,12 +2077,34 @@ export default function Program() {
       const { data: sessionData } = await supabase.auth.getSession()
       const authUserId = sessionData?.session?.user?.id
 
-      // Update existing user record in Supabase - no more anonymous users
+      // Update existing user record in Supabase - only update the saved_events field
       const supabaseWithDeviceId = await withDeviceId()
+
+      // First get the current user data to ensure we have the complete schedule
+      const { data: userData, error: fetchError } = await supabaseWithDeviceId
+        .from("users")
+        .select("schedule")
+        .eq("device_id", deviceId)
+        .maybeSingle()
+
+      if (fetchError) {
+        console.error("Error fetching user data:", fetchError)
+        return
+      }
+
+      // Create an updated schedule object that preserves all existing properties
+      const updatedSchedule = userData?.schedule
+        ? {
+            ...userData.schedule,
+            saved_events: newSavedItems
+          }
+        : schedule
+
+      // Update only the schedule in the database
       const { error } = await supabaseWithDeviceId
         .from("users")
         .update({
-          schedule: schedule,
+          schedule: updatedSchedule,
           expo_push_token: pushToken // Keep push token updated
         })
         .eq("device_id", deviceId)
@@ -2670,6 +2903,7 @@ export default function Program() {
             programDetails={programDetails}
             events={events}
             formatTimeFunction={formatTime}
+            sharedEvents={sharedEvents}
           />
         )}
 
@@ -2685,6 +2919,7 @@ export default function Program() {
             programDetails={programDetails}
             events={events}
             promoteIds={programDetails?.promote}
+            sharedEvents={sharedEvents}
           />
         )}
 
@@ -2944,6 +3179,16 @@ export default function Program() {
                                 ))}
                               </View>
                             )}
+
+                            {/* Show users sharing their schedules */}
+                            <SharedEventUsers
+                              eventId={item.id}
+                              sharedEvents={sharedEvents}
+                              theme={theme}
+                              key={`shared-users-${item.id}-${
+                                Object.keys(sharedEvents).length
+                              }`}
+                            />
                           </View>
                         )}
 
@@ -3238,7 +3483,11 @@ async function registerForPushNotificationsAsync() {
   }
 
   try {
-    token = (await Notifications.getExpoPushTokenAsync()).data
+    token = (
+      await Notifications.getExpoPushTokenAsync({
+        projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
+      })
+    ).data
     console.log("Expo push token:", token)
     return token
   } catch (error) {

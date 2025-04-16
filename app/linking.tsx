@@ -1,36 +1,34 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { LinkingOptions } from "@react-navigation/native"
+import {
+  LinkingOptions,
+  getStateFromPath as navGetStateFromPath
+} from "@react-navigation/native"
 import * as Linking from "expo-linking"
 import { router } from "expo-router"
 import { sendNotification } from "../lib/notificationHelper"
 import { supabase, withDeviceId } from "../lib/supabase"
 
-// Immediately set up direct URL handler to ensure events are caught
+// Listen for URL events but don't try to navigate (navigation handled by deep linking)
 Linking.addEventListener("url", ({ url }) => {
   console.log("Global URL event listener received:", url)
   if (url.includes("schedule_share=")) {
     console.log("Global handler detected schedule_share URL:", url)
-    // Extract ID and immediately navigate to avoid page not found
+    // Extract ID and process the share in background
     try {
-      const sharedUserId = url.split("schedule_share=")[1].split("&")[0]
+      const matches = url.match(/schedule_share=(\d+)/)
+      const sharedUserId = matches ? matches[1] : null
       console.log("Extracted ID in global handler:", sharedUserId)
 
-      // Force redirect to program index page with absolute path
-      setTimeout(() => {
-        router.navigate("/(tabs)/program")
-      }, 100)
-
-      // Process the share in background
-      AsyncStorage.getItem("device_id").then((deviceId) => {
-        if (deviceId) {
-          processScheduleShare(deviceId, sharedUserId)
-        }
-      })
+      if (sharedUserId) {
+        // Only process the share request in background
+        AsyncStorage.getItem("device_id").then((deviceId) => {
+          if (deviceId) {
+            processScheduleShare(deviceId, sharedUserId)
+          }
+        })
+      }
     } catch (error) {
       console.error("Error in global URL handler:", error)
-      setTimeout(() => {
-        router.navigate("/(tabs)/program")
-      }, 100)
     }
   }
 })
@@ -44,28 +42,59 @@ const linking: LinkingOptions<{}> = {
     screens: {
       "(tabs)": {
         screens: {
-          profile: "profile",
-          program: {
-            initialRouteName: "index",
-            screens: {
-              index: "program",
-              schedule_share: "schedule_share=:id"
+          profile: {
+            path: "profile",
+            screens: {},
+            parse: {
+              // Extract schedule_share from query params with correct typing
+              schedule_share: (schedule_share: string | undefined) =>
+                schedule_share
             }
           },
-          // Add route for the root path to capture the yaap:// schema
-          index: {
-            initialRouteName: "program",
-            screens: {
-              schedule_share: "schedule_share=:id"
-            }
-          }
+          program: "program"
         }
       },
-      // Add a direct path for schedule_share at the root level too
-      schedule_share: "schedule_share=:id",
-      // Add fallback for path mapping
-      program: "program"
+      // Handle old format for backward compatibility
+      "schedule_share=:id": "(tabs)/profile"
     }
+  },
+
+  // Custom URL parsing to extract query parameters
+  getStateFromPath: (path, config) => {
+    console.log("getStateFromPath called with:", path)
+
+    // Extract schedule_share parameter if present
+    const matches = path.match(/schedule_share=(\d+)/)
+    if (matches) {
+      const sharedUserId = matches[1]
+      console.log("Extracted schedule_share parameter:", sharedUserId)
+
+      // Process the share in background (without navigating)
+      AsyncStorage.getItem("device_id").then((deviceId) => {
+        if (deviceId) {
+          processScheduleShare(deviceId, sharedUserId)
+        }
+      })
+
+      // Direct to profile tab through deep linking system
+      return {
+        routes: [
+          {
+            name: "(tabs)",
+            state: {
+              routes: [
+                {
+                  name: "profile"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+
+    // Default handling by React Navigation
+    return navGetStateFromPath(path, config)
   },
 
   // Handle custom URL schemes for QR code scanning
@@ -76,45 +105,7 @@ const linking: LinkingOptions<{}> = {
 
     if (!url) return null
 
-    // Check if this is a schedule share URL
-    if (url.includes("schedule_share=")) {
-      console.log("Detected schedule_share URL in getInitialURL:", url)
-      try {
-        // Extract user ID from URL
-        const sharedUserId = url.split("schedule_share=")[1].split("&")[0]
-        console.log("Extracted sharedUserId:", sharedUserId)
-
-        if (!sharedUserId) return url
-
-        // Check if the current user has a profile
-        const deviceId = await AsyncStorage.getItem("device_id")
-        console.log("Device ID from AsyncStorage:", deviceId)
-        if (!deviceId) {
-          // No device ID, redirect to profile creation
-          console.log("No device ID found, redirecting to profile creation")
-          router.navigate("/(tabs)/profile")
-          return null
-        }
-
-        // Process the share in background
-        processScheduleShare(deviceId, sharedUserId)
-
-        // Navigate to program screen directly, don't wait for processing
-        console.log("Redirecting to program screen from getInitialURL")
-        setTimeout(() => {
-          router.navigate("/(tabs)/program")
-        }, 0)
-        return null
-      } catch (error) {
-        console.error("Error handling schedule share URL:", error)
-        // Still try to navigate to program on error
-        setTimeout(() => {
-          router.navigate("/(tabs)/program")
-        }, 0)
-        return null
-      }
-    }
-
+    // Pass the URL through - let getStateFromPath handle it
     return url
   },
 
@@ -123,44 +114,7 @@ const linking: LinkingOptions<{}> = {
     // Listen for incoming links
     const subscription = Linking.addEventListener("url", ({ url }) => {
       console.log("URL event received in subscribe:", url)
-      // Handle schedule_share links
-      if (url.includes("schedule_share=")) {
-        console.log("Detected schedule_share URL in subscribe handler:", url)
-        try {
-          // Extract user ID from URL
-          const sharedUserId = url.split("schedule_share=")[1].split("&")[0]
-          console.log("Extracted sharedUserId in subscribe:", sharedUserId)
-
-          // Always navigate to program page first to avoid not-found
-          setTimeout(() => {
-            router.navigate("/(tabs)/program")
-          }, 0)
-
-          // Process the share in background
-          AsyncStorage.getItem("device_id").then((deviceId) => {
-            if (deviceId) {
-              processScheduleShare(deviceId, sharedUserId)
-            } else {
-              router.navigate("/(tabs)/profile")
-            }
-          })
-
-          return
-        } catch (error) {
-          console.error(
-            "Error processing schedule_share URL in subscribe:",
-            error
-          )
-          // Still try to navigate to the program page on error
-          setTimeout(() => {
-            router.navigate("/(tabs)/program")
-          }, 0)
-        }
-        return
-      }
-
-      // For other links, let the default handler work
-      console.log("Calling default listener for URL:", url)
+      // Always pass URL to listener for normal processing
       listener(url)
     })
 

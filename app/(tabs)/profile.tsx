@@ -54,7 +54,11 @@ async function registerForPushNotificationsAsync() {
   }
 
   try {
-    token = (await Notifications.getExpoPushTokenAsync()).data
+    token = (
+      await Notifications.getExpoPushTokenAsync({
+        projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
+      })
+    ).data
     console.log("Expo push token:", token)
     return token
   } catch (error) {
@@ -66,7 +70,7 @@ async function registerForPushNotificationsAsync() {
 // Type for the data needed for display in lists (subset of User)
 type DisplayUser = Pick<
   User,
-  "device_id" | "first_name" | "last_initial" | "profile_image"
+  "id" | "device_id" | "first_name" | "last_initial" | "profile_image"
 >
 
 export default function Profile() {
@@ -277,8 +281,8 @@ export default function Profile() {
 
   // Function to fetch user details for sharing lists
   const fetchSharingListsDetails = async (schedule: Schedule) => {
-    // Original helper to get display details from device_ids
-    const fetchUserDetailsByDeviceIds = async (
+    // Helper to get display details from user IDs
+    const fetchUserDetailsByUserIds = async (
       userIds: number[]
     ): Promise<DisplayUser[]> => {
       if (!userIds || userIds.length === 0) return []
@@ -289,20 +293,19 @@ export default function Profile() {
         if (error) throw error
         return data || []
       } catch (error) {
-        console.error("Error fetching user details by device IDs:", error)
+        console.error("Error fetching user details by user IDs:", error)
         return [] // Return empty on error
       }
     }
 
-    // Fetch device IDs first, then fetch details
+    // Fetch details using the user IDs
     try {
-      // Now fetch display details using the obtained device IDs
       const [incoming, sharing, pending, viewing, banned] = await Promise.all([
-        fetchUserDetailsByDeviceIds(schedule.requested_share || []),
-        fetchUserDetailsByDeviceIds(schedule.shared_with || []),
-        fetchUserDetailsByDeviceIds(schedule.pending_share || []),
-        fetchUserDetailsByDeviceIds(schedule.shared_by || []),
-        fetchUserDetailsByDeviceIds(schedule.banned || [])
+        fetchUserDetailsByUserIds(schedule.requested_share || []),
+        fetchUserDetailsByUserIds(schedule.shared_with || []),
+        fetchUserDetailsByUserIds(schedule.pending_share || []),
+        fetchUserDetailsByUserIds(schedule.shared_by || []),
+        fetchUserDetailsByUserIds(schedule.banned || [])
       ])
 
       setIncomingRequests(incoming)
@@ -348,8 +351,31 @@ export default function Profile() {
     })
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setProfileImage(result.assets[0].uri)
-      // TODO: Add logic to upload image URI to Supabase storage and get URL
+      try {
+        // Check file size - 2MB limit
+        const fileInfo = await fetch(result.assets[0].uri).then((response) => {
+          const contentLength = response.headers.get("Content-Length")
+          return {
+            size: contentLength ? parseInt(contentLength, 10) : 0
+          }
+        })
+
+        const MAX_SIZE = 2 * 1024 * 1024 // 2MB in bytes
+
+        if (fileInfo.size > MAX_SIZE) {
+          Alert.alert(
+            "File Too Large",
+            "Profile image must be less than 2MB. Please choose a smaller image."
+          )
+          return
+        }
+
+        setProfileImage(result.assets[0].uri)
+        // Uploading is done in saveUserProfileInfo to prevent redundant uploads
+      } catch (error) {
+        console.error("Error handling selected image:", error)
+        Alert.alert("Error", "Failed to process the selected image.")
+      }
     }
   }
 
@@ -368,13 +394,70 @@ export default function Profile() {
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData?.session?.user?.id
 
-      // TODO: Implement proper image upload and get URL before saving
+      // Image upload to Supabase storage
+      let profileImageUrl = profileImage
+      if (profileImage && profileImage.startsWith("file://")) {
+        // Only upload if it's a local file URI
+
+        // Use consistent file name based on device ID
+        const fileName = `profile-${deviceId}`
+        const fileExt = profileImage.split(".").pop() || "jpg"
+        const filePath = `${fileName}.${fileExt}`
+
+        const supabaseWithDeviceId = await withDeviceId()
+
+        // Check if an image already exists and delete it
+        const { data: existingFiles } = await supabaseWithDeviceId.storage
+          .from("profile-images")
+          .list("", {
+            search: fileName
+          })
+
+        // Delete any existing profile images for this device
+        if (existingFiles && existingFiles.length > 0) {
+          for (const file of existingFiles) {
+            await supabaseWithDeviceId.storage
+              .from("profile-images")
+              .remove([file.name])
+          }
+        }
+
+        // Convert image URI to blob
+        const response = await fetch(profileImage)
+        const blob = await response.blob()
+
+        // Check file size again (redundant but safe)
+        if (blob.size > 2 * 1024 * 1024) {
+          throw new Error("File size exceeds 2MB limit")
+        }
+
+        // Upload to Supabase storage
+        const { data: uploadData, error: uploadError } =
+          await supabaseWithDeviceId.storage
+            .from("profile-images")
+            .upload(filePath, blob, {
+              upsert: true // Overwrite if exists
+            })
+
+        if (uploadError) {
+          console.error("Error uploading image:", uploadError)
+          throw new Error(`Failed to upload image: ${uploadError.message}`)
+        }
+
+        // Get public URL
+        const { data: publicUrlData } = supabaseWithDeviceId.storage
+          .from("profile-images")
+          .getPublicUrl(filePath)
+
+        profileImageUrl = publicUrlData.publicUrl
+      }
+
       const profileDataToSave = {
         first_name: firstName,
         last_initial: lastInitial,
-        profile_image: profileImage, // This should be the URL after upload
-        expo_push_token: pushToken, // Update push token
-        user_id: userId || null // Link to auth user if available
+        profile_image: profileImageUrl || "", // Ensure it's never null
+        expo_push_token: pushToken,
+        user_id: userId // This will be string | undefined, not string | null
       }
       console.log("Saving Profile Info:", profileDataToSave)
 
@@ -390,9 +473,18 @@ export default function Profile() {
         "Profile Updated",
         "Your profile information has been updated."
       )
-      // Re-fetch user data to ensure UI consistency if needed, or update currentUser state directly
-      // Example direct update:
-      // setCurrentUser(prev => prev ? { ...prev, ...profileDataToSave } : null);
+
+      // Update the current user state with new data
+      if (currentUser) {
+        const updatedUser: User = {
+          ...currentUser,
+          first_name: firstName,
+          last_initial: lastInitial,
+          profile_image: profileImageUrl || "",
+          user_id: userId || undefined
+        }
+        setCurrentUser(updatedUser)
+      }
     } catch (error: any) {
       console.error("Error saving profile info:", error)
       Alert.alert(
@@ -502,6 +594,13 @@ export default function Profile() {
 
   // --- Sharing Action Handlers (using DisplayUser type) ---
 
+  // Helper function to safely convert device_id
+  const safeNumberConversion = (id: any): number => {
+    if (typeof id === "number") return id
+    const num = Number(id)
+    return isNaN(num) ? -1 : num // Return -1 as fallback to prevent unintended matches
+  }
+
   const executeBan = (user: DisplayUser, sourceListUpdateFn?: () => void) => {
     Alert.alert(
       "Confirm Ban",
@@ -512,19 +611,50 @@ export default function Profile() {
           text: "Ban User",
           style: "destructive",
           onPress: async () => {
-            if (!deviceId) return
-            console.log("Banning user:", user.device_id)
-            // TODO: Implement API call to add user.device_id to current user's schedule.banned list
-            // AND potentially remove from other lists atomically (e.g., via RPC)
+            if (!deviceId || !currentUser) return
+            console.log("Banning user:", user.id)
             try {
-              // Example RPC: await supabase.rpc('ban_user', { current_user_device_id: deviceId, target_user_device_id: user.device_id });
-              await new Promise((resolve) => setTimeout(resolve, 300)) // Simulate API
-              sourceListUpdateFn?.() // Update source list UI
-              if (
-                !bannedUsers.some(
-                  (banned) => banned.device_id === user.device_id
+              const supabaseWithDeviceId = await withDeviceId()
+              const { data, error } = await supabaseWithDeviceId.rpc(
+                "ban_user",
+                {
+                  current_user_id: currentUser.id,
+                  target_user_id: user.id
+                }
+              )
+
+              if (error) throw error
+
+              // Update local AsyncStorage to match DB changes
+              const scheduleJson = await AsyncStorage.getItem("userSchedule")
+              if (scheduleJson) {
+                const schedule = JSON.parse(scheduleJson) as Schedule
+
+                // Add to banned list using user.id (int4)
+                if (!schedule.banned.includes(user.id)) {
+                  schedule.banned.push(user.id)
+                }
+
+                // Remove from other lists if present
+                schedule.shared_with = schedule.shared_with.filter(
+                  (id) => id !== user.id
                 )
-              ) {
+                schedule.requested_share = schedule.requested_share.filter(
+                  (id) => id !== user.id
+                )
+                schedule.pending_share = schedule.pending_share.filter(
+                  (id) => id !== user.id
+                )
+
+                // Save updated schedule
+                await AsyncStorage.setItem(
+                  "userSchedule",
+                  JSON.stringify(schedule)
+                )
+              }
+
+              sourceListUpdateFn?.() // Update source list UI
+              if (!bannedUsers.some((banned) => banned.id === user.id)) {
                 setBannedUsers((prev) => [...prev, user]) // Add to banned list UI
               }
             } catch (error) {
@@ -538,55 +668,61 @@ export default function Profile() {
   }
 
   const handleAcceptRequest = async (user: DisplayUser) => {
-    if (!deviceId) return
-    console.log("Accepting request from:", user.device_id)
-    // TODO: Implement API call to:
-    // 1. Remove user.device_id from current user's schedule.requested_share
-    // 2. Add user.device_id to current user's schedule.shared_with
-    // 3. Add deviceId to target user's schedule.shared_by
-    // 4. Remove deviceId from target user's schedule.pending_share
-    // (Consider doing this atomically with an RPC)
+    if (!deviceId || !currentUser) return
+    console.log("Accepting request from:", user.id)
     try {
-      // Example RPC: await supabase.rpc('accept_share_request', { requester_device_id: user.device_id, acceptor_device_id: deviceId });
-      await new Promise((resolve) => setTimeout(resolve, 300)) // Simulate API
-      setIncomingRequests((prev) =>
-        prev.filter((u) => u.device_id !== user.device_id)
+      const supabaseWithDeviceId = await withDeviceId()
+      const { data, error } = await supabaseWithDeviceId.rpc(
+        "accept_share_request",
+        {
+          requester_id: user.id,
+          acceptor_id: currentUser.id
+        }
       )
+
+      console.log("Accept share request data:", data)
+      console.log("Accept share request error:", error)
+
+      if (error) throw error
+
+      // Update local AsyncStorage to match DB changes
+      const scheduleJson = await AsyncStorage.getItem("userSchedule")
+      if (scheduleJson) {
+        const schedule = JSON.parse(scheduleJson) as Schedule
+
+        // Move from requested_share to shared_with using user.id directly
+        schedule.requested_share = schedule.requested_share.filter(
+          (id) => id !== user.id
+        )
+        if (!schedule.shared_with.includes(user.id)) {
+          schedule.shared_with.push(user.id)
+        }
+
+        // Save updated schedule
+        await AsyncStorage.setItem("userSchedule", JSON.stringify(schedule))
+      }
+
+      // Update UI state
+      setIncomingRequests((prev) => prev.filter((u) => u.id !== user.id))
       setSharingWith((prev) => [...prev, user])
 
-      // Get the user ID of the requester to use in the notification
+      // Send notification with correct user ID
       if (currentUser && programId) {
-        // Get the user ID of the requester
-        const supabaseWithDeviceId = await withDeviceId()
-        const { data: requesterData, error: requesterError } =
-          await supabaseWithDeviceId
-            .from("users")
-            .select("id")
-            .eq("device_id", user.device_id)
-            .single()
-
-        if (requesterError) {
-          console.error("Error getting requester ID:", requesterError)
-          return
-        }
-
-        if (requesterData && requesterData.id) {
-          // Send schedule notification through the edge function
-          await sendNotification({
-            eventType: "schedule",
-            programId: programId,
-            userId: requesterData.id,
-            data: {
-              status: "accepted",
-              user: {
-                first_name: currentUser.first_name,
-                last_initial: currentUser.last_initial
-              }
+        // Send schedule notification through the edge function
+        await sendNotification({
+          eventType: "schedule",
+          programId: programId,
+          userId: user.id,
+          data: {
+            status: "accepted",
+            user: {
+              first_name: currentUser.first_name,
+              last_initial: currentUser.last_initial
             }
-          })
+          }
+        })
 
-          console.log("Sent schedule acceptance notification")
-        }
+        console.log("Sent schedule acceptance notification")
       }
     } catch (error) {
       console.error("Error accepting request:", error)
@@ -604,14 +740,39 @@ export default function Profile() {
           text: "Deny Request",
           style: "default",
           onPress: async () => {
-            if (!deviceId) return
-            console.log("Denying request from:", user.device_id)
-            // TODO: Implement API call to remove user.device_id from current user's schedule.requested_share
+            if (!deviceId || !currentUser) return
+            console.log("Denying request from:", user.id)
             try {
-              // Example: await supabase.rpc('deny_share_request', { requester_device_id: user.device_id, current_user_device_id: deviceId });
-              await new Promise((resolve) => setTimeout(resolve, 300)) // Simulate API
+              const supabaseWithDeviceId = await withDeviceId()
+              const { data, error } = await supabaseWithDeviceId.rpc(
+                "deny_share_request",
+                {
+                  requester_id: user.id,
+                  current_user_id: currentUser.id
+                }
+              )
+
+              if (error) throw error
+
+              // Update local AsyncStorage to match DB changes
+              const scheduleJson = await AsyncStorage.getItem("userSchedule")
+              if (scheduleJson) {
+                const schedule = JSON.parse(scheduleJson) as Schedule
+
+                // Remove from requested_share
+                schedule.requested_share = schedule.requested_share.filter(
+                  (id) => id !== user.id
+                )
+
+                // Save updated schedule
+                await AsyncStorage.setItem(
+                  "userSchedule",
+                  JSON.stringify(schedule)
+                )
+              }
+
               setIncomingRequests((prev) =>
-                prev.filter((u) => u.device_id !== user.device_id)
+                prev.filter((u) => u.id !== user.id)
               )
             } catch (error) {
               console.error("Error denying request:", error)
@@ -626,7 +787,7 @@ export default function Profile() {
             // Ban flow handles API call and UI update internally
             executeBan(user, () => {
               setIncomingRequests((prev) =>
-                prev.filter((u) => u.device_id !== user.device_id)
+                prev.filter((u) => u.id !== user.id)
               )
             })
           }
@@ -645,18 +806,38 @@ export default function Profile() {
           text: "Stop Sharing",
           style: "default",
           onPress: async () => {
-            if (!deviceId) return
-            console.log("Removing sharing with:", user.device_id)
-            // TODO: Implement API call to:
-            // 1. Remove user.device_id from current user's schedule.shared_with
-            // 2. Remove deviceId from target user's schedule.shared_by
-            // (Consider RPC)
+            if (!deviceId || !currentUser) return
+            console.log("Removing sharing with:", user.id)
             try {
-              // Example: await supabase.rpc('remove_sharing', { current_user_device_id: deviceId, target_user_device_id: user.device_id });
-              await new Promise((resolve) => setTimeout(resolve, 300)) // Simulate API
-              setSharingWith((prev) =>
-                prev.filter((u) => u.device_id !== user.device_id)
+              const supabaseWithDeviceId = await withDeviceId()
+              const { data, error } = await supabaseWithDeviceId.rpc(
+                "remove_sharing",
+                {
+                  current_user_id: currentUser.id,
+                  target_user_id: user.id
+                }
               )
+
+              if (error) throw error
+
+              // Update local AsyncStorage to match DB changes
+              const scheduleJson = await AsyncStorage.getItem("userSchedule")
+              if (scheduleJson) {
+                const schedule = JSON.parse(scheduleJson) as Schedule
+
+                // Remove from shared_with
+                schedule.shared_with = schedule.shared_with.filter(
+                  (id) => id !== user.id
+                )
+
+                // Save updated schedule
+                await AsyncStorage.setItem(
+                  "userSchedule",
+                  JSON.stringify(schedule)
+                )
+              }
+
+              setSharingWith((prev) => prev.filter((u) => u.id !== user.id))
             } catch (error) {
               console.error("Error removing sharing:", error)
               Alert.alert("Error", "Failed to remove sharing.")
@@ -668,9 +849,7 @@ export default function Profile() {
           style: "destructive",
           onPress: () => {
             executeBan(user, () => {
-              setSharingWith((prev) =>
-                prev.filter((u) => u.device_id !== user.device_id)
-              )
+              setSharingWith((prev) => prev.filter((u) => u.id !== user.id))
             })
           }
         }
@@ -688,18 +867,38 @@ export default function Profile() {
           text: "Cancel Request",
           style: "destructive",
           onPress: async () => {
-            if (!deviceId) return
-            console.log("Cancelling pending request for:", user.device_id)
-            // TODO: Implement API call to:
-            // 1. Remove user.device_id from current user's schedule.pending_share
-            // 2. Remove deviceId from target user's schedule.requested_share
-            // (Consider RPC)
+            if (!deviceId || !currentUser) return
+            console.log("Cancelling pending request for:", user.id)
             try {
-              // Example: await supabase.rpc('cancel_share_request', { current_user_device_id: deviceId, target_user_device_id: user.device_id });
-              await new Promise((resolve) => setTimeout(resolve, 300)) // Simulate API
-              setPendingRequests((prev) =>
-                prev.filter((u) => u.device_id !== user.device_id)
+              const supabaseWithDeviceId = await withDeviceId()
+              const { data, error } = await supabaseWithDeviceId.rpc(
+                "cancel_share_request",
+                {
+                  current_user_id: currentUser.id,
+                  target_user_id: user.id
+                }
               )
+
+              if (error) throw error
+
+              // Update local AsyncStorage to match DB changes
+              const scheduleJson = await AsyncStorage.getItem("userSchedule")
+              if (scheduleJson) {
+                const schedule = JSON.parse(scheduleJson) as Schedule
+
+                // Remove from pending_share
+                schedule.pending_share = schedule.pending_share.filter(
+                  (id) => id !== user.id
+                )
+
+                // Save updated schedule
+                await AsyncStorage.setItem(
+                  "userSchedule",
+                  JSON.stringify(schedule)
+                )
+              }
+
+              setPendingRequests((prev) => prev.filter((u) => u.id !== user.id))
             } catch (error) {
               console.error("Error cancelling request:", error)
               Alert.alert("Error", "Failed to cancel request.")
@@ -720,18 +919,38 @@ export default function Profile() {
           text: "Stop Viewing",
           style: "destructive",
           onPress: async () => {
-            if (!deviceId) return
-            console.log("Stopping viewing schedule from:", user.device_id)
-            // TODO: Implement API call to:
-            // 1. Remove user.device_id from current user's schedule.shared_by
-            // 2. Remove deviceId from target user's schedule.shared_with
-            // (Consider RPC)
+            if (!deviceId || !currentUser) return
+            console.log("Stopping viewing schedule from:", user.id)
             try {
-              // Example: await supabase.rpc('stop_viewing_schedule', { current_user_device_id: deviceId, target_user_device_id: user.device_id });
-              await new Promise((resolve) => setTimeout(resolve, 300)) // Simulate API
-              setViewingFrom((prev) =>
-                prev.filter((u) => u.device_id !== user.device_id)
+              const supabaseWithDeviceId = await withDeviceId()
+              const { data, error } = await supabaseWithDeviceId.rpc(
+                "stop_viewing_schedule",
+                {
+                  current_user_id: currentUser.id,
+                  target_user_id: user.id
+                }
               )
+
+              if (error) throw error
+
+              // Update local AsyncStorage to match DB changes
+              const scheduleJson = await AsyncStorage.getItem("userSchedule")
+              if (scheduleJson) {
+                const schedule = JSON.parse(scheduleJson) as Schedule
+
+                // Remove from shared_by
+                schedule.shared_by = schedule.shared_by.filter(
+                  (id) => id !== user.id
+                )
+
+                // Save updated schedule
+                await AsyncStorage.setItem(
+                  "userSchedule",
+                  JSON.stringify(schedule)
+                )
+              }
+
+              setViewingFrom((prev) => prev.filter((u) => u.id !== user.id))
             } catch (error) {
               console.error("Error stopping viewing:", error)
               Alert.alert("Error", "Failed to stop viewing schedule.")
@@ -752,15 +971,36 @@ export default function Profile() {
           text: "Unban User",
           style: "default",
           onPress: async () => {
-            if (!deviceId) return
-            console.log("Unbanning user:", user.device_id)
-            // TODO: Implement API call to remove user.device_id from current user's schedule.banned list
+            if (!deviceId || !currentUser) return
+            console.log("Unbanning user:", user.id)
             try {
-              // Example: await supabase.rpc('unban_user', { current_user_device_id: deviceId, target_user_device_id: user.device_id });
-              await new Promise((resolve) => setTimeout(resolve, 300)) // Simulate API
-              setBannedUsers((prev) =>
-                prev.filter((u) => u.device_id !== user.device_id)
+              const supabaseWithDeviceId = await withDeviceId()
+              const { data, error } = await supabaseWithDeviceId.rpc(
+                "unban_user",
+                {
+                  current_user_id: currentUser.id,
+                  target_user_id: user.id
+                }
               )
+
+              if (error) throw error
+
+              // Update local AsyncStorage to match DB changes
+              const scheduleJson = await AsyncStorage.getItem("userSchedule")
+              if (scheduleJson) {
+                const schedule = JSON.parse(scheduleJson) as Schedule
+
+                // Remove from banned
+                schedule.banned = schedule.banned.filter((id) => id !== user.id)
+
+                // Save updated schedule
+                await AsyncStorage.setItem(
+                  "userSchedule",
+                  JSON.stringify(schedule)
+                )
+              }
+
+              setBannedUsers((prev) => prev.filter((u) => u.id !== user.id))
             } catch (error) {
               console.error("Error unbanning user:", error)
               Alert.alert("Error", "Failed to unban user.")
@@ -1373,7 +1613,7 @@ export default function Profile() {
               {incomingRequests.length > 0 ? (
                 incomingRequests.map((user) => (
                   <UserRow
-                    key={`incoming-${user.device_id}`}
+                    key={`incoming-${user.id}`}
                     user={user}
                     actions={
                       <>
@@ -1414,7 +1654,7 @@ export default function Profile() {
               {sharingWith.length > 0 ? (
                 sharingWith.map((user) => (
                   <UserRow
-                    key={`sharing-${user.device_id}`}
+                    key={`sharing-${user.id}`}
                     user={user}
                     actions={
                       <>
@@ -1443,7 +1683,7 @@ export default function Profile() {
               {pendingRequests.length > 0 ? (
                 pendingRequests.map((user) => (
                   <UserRow
-                    key={`pending-${user.device_id}`}
+                    key={`pending-${user.id}`}
                     user={user}
                     actions={
                       <TouchableOpacity
@@ -1470,7 +1710,7 @@ export default function Profile() {
               {viewingFrom.length > 0 ? (
                 viewingFrom.map((user) => (
                   <UserRow
-                    key={`viewing-${user.device_id}`}
+                    key={`viewing-${user.id}`}
                     user={user}
                     actions={
                       <TouchableOpacity
@@ -1497,7 +1737,7 @@ export default function Profile() {
               {bannedUsers.length > 0 ? (
                 bannedUsers.map((user) => (
                   <UserRow
-                    key={`banned-${user.device_id}`}
+                    key={`banned-${user.id}`}
                     user={user}
                     actions={
                       <TouchableOpacity

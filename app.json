@@ -25,7 +25,12 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.themindfulpug.icypaa"
+      "package": "com.themindfulpug.icypaa",
+      "useNextNotificationsApi": true,
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE"
+      ]
     },
     "web": {
       "bundler": "metro",
