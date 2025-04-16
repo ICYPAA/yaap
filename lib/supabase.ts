@@ -60,7 +60,7 @@ export async function withDeviceId(supabaseClient = supabase) {
   let deviceId: string | null = null
   try {
     deviceId = await AsyncStorage.getItem("device_id")
-    console.log("withDeviceId: Got device ID:", deviceId)
+    // console.log("withDeviceId: Got device ID:", deviceId)
   } catch (error) {
     console.error("Error retrieving device ID:", error)
   }
@@ -71,10 +71,10 @@ export async function withDeviceId(supabaseClient = supabase) {
   }
 
   // Create a new client with the device ID header for this request
-  console.log(
-    "withDeviceId: Creating new Supabase client with device ID header:",
-    deviceId
-  )
+  // console.log(
+  //   "withDeviceId: Creating new Supabase client with device ID header:",
+  //   deviceId
+  // )
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       storage: AsyncStorage,

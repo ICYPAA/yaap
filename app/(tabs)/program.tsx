@@ -1603,12 +1603,12 @@ export default function Program() {
   async function getIdentifier() {
     if (Platform.OS === "ios") {
       let idfv = await Application.getIosIdForVendorAsync()
-      console.log("iOS IDFV:", idfv)
+      // console.log("iOS IDFV:", idfv)
       return idfv // Example: T563P9YS-856G-473X-H1J2-FC94L0T37IC6 or null
     }
     if (Platform.OS === "android") {
       let androidId = Application.getAndroidId()
-      console.log("Android ID:", androidId)
+      // console.log("Android ID:", androidId)
       return androidId // Example: '9774d56d682e549c' or null
     }
     return null
@@ -1689,7 +1689,7 @@ export default function Program() {
     // Start polling when component mounts
     if (sharedEventsPollingInterval.current === null) {
       sharedEventsPollingInterval.current = setInterval(() => {
-        console.log("Polling for shared events updates")
+        // console.log("Polling for shared events updates")
         checkForSharedEventsUpdates()
       }, 3000) // Check every 3 seconds
     }

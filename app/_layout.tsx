@@ -115,12 +115,12 @@ export default function RootLayout() {
   const getIdentifier = async () => {
     if (Platform.OS === "ios") {
       let idfv = await Application.getIosIdForVendorAsync()
-      console.log("iOS IDFV:", idfv)
+      //console.log("iOS IDFV:", idfv)
       return idfv
     }
     if (Platform.OS === "android") {
       let androidId = Application.getAndroidId()
-      console.log("Android ID:", androidId)
+      // console.log("Android ID:", androidId)
       return androidId
     }
     return null
@@ -343,13 +343,13 @@ export default function RootLayout() {
         await supabaseWithDeviceId.rpc("get_shared_saved_events", {
           p_device_id: deviceId
         })
-      console.log("Shared events data:", sharedEventsData)
+      // console.log("Shared events data:", sharedEventsData)
 
       if (sharedEventsError) {
         console.error("Error fetching shared events:", sharedEventsError)
       } else if (sharedEventsData) {
         // Store shared events separately
-        console.log("Storing shared events in AsyncStorage")
+        // console.log("Storing shared events in AsyncStorage")
         await AsyncStorage.setItem(
           "sharedEvents",
           JSON.stringify(sharedEventsData)
@@ -358,7 +358,7 @@ export default function RootLayout() {
 
       if (data && data.schedule) {
         // Store user's own schedule
-        console.log("Storing user schedule in AsyncStorage")
+        // console.log("Storing user schedule in AsyncStorage")
         await AsyncStorage.setItem(
           "userSchedule",
           JSON.stringify(data.schedule)
@@ -391,12 +391,12 @@ export default function RootLayout() {
 
     // Start polling when component mounts
     if (loaded && programLoaded && !authLoading) {
-      // schedulePollingInterval.current = setInterval(() => {
-      //   if (appState.current === "active") {
-      //     console.log("Polling user schedule")
-      //     fetchAndStoreUserSchedule()
-      //   }
-      // }, 5000) // Poll every 5 seconds
+      schedulePollingInterval.current = setInterval(() => {
+        if (appState.current === "active") {
+          // console.log("Polling user schedule")
+          fetchAndStoreUserSchedule()
+        }
+      }, 5000) // Poll every 5 seconds
     }
 
     // Cleanup function

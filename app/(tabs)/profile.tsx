@@ -22,6 +22,7 @@ import {
 } from "react-native"
 import { useTheme } from "../../context/ThemeContext"
 import { sendNotification } from "../../lib/notificationHelper"
+import { clearImageCache, uploadProfilePicture } from "../../lib/profilePicture"
 import { supabase, withDeviceId } from "../../lib/supabase"
 import { getTextColorForBackground } from "../../lib/theme"
 import { Schedule, User } from "../../types/user"
@@ -135,7 +136,7 @@ export default function Profile() {
       const scheduleJson = await AsyncStorage.getItem("userSchedule")
       if (scheduleJson) {
         const schedule = JSON.parse(scheduleJson) as Schedule
-        console.log("Loaded schedule from AsyncStorage")
+        // console.log("Loaded schedule from AsyncStorage")
 
         // Update the sharing lists based on the schedule from AsyncStorage
         await fetchSharingListsDetails(schedule)
@@ -155,7 +156,7 @@ export default function Profile() {
 
     // Create a setInterval to check AsyncStorage periodically
     const checkStorageInterval = setInterval(() => {
-      console.log("Checking AsyncStorage for schedule updates")
+      // console.log("Checking AsyncStorage for schedule updates")
       loadScheduleFromStorage()
     }, 3000) // Check every 3 seconds
 
@@ -313,7 +314,7 @@ export default function Profile() {
       setPendingRequests(pending)
       setViewingFrom(viewing)
       setBannedUsers(banned)
-      console.log("Fetched sharing list details.")
+      // console.log("Fetched sharing list details.")
     } catch (error) {
       console.error(
         "Error fetching details for one or more sharing lists:",
@@ -343,39 +344,49 @@ export default function Profile() {
 
   // Handle image selection
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8
-    })
+    try {
+      // If there's a current profile image, clear its cache
+      if (profileImage) {
+        clearImageCache(profileImage)
+      }
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      try {
-        // Check file size - 2MB limit
-        const fileInfo = await fetch(result.assets[0].uri).then((response) => {
-          const contentLength = response.headers.get("Content-Length")
+      console.log("Starting profile picture upload process")
+      const result = await uploadProfilePicture()
+
+      console.log("Profile picture upload result:", result)
+
+      if (result.success && result.imageUrl) {
+        // Add a cache-busting parameter to the URL
+        const cacheBustUrl = `${result.imageUrl}?t=${new Date().getTime()}`
+        console.log("Setting profile image URL to:", cacheBustUrl)
+
+        // Clear the cache for the new image URL as well
+        clearImageCache(result.imageUrl)
+
+        // Update the image in state
+        setProfileImage(cacheBustUrl)
+
+        // Save the profile information immediately to ensure database is updated
+        await saveUserProfileInfo()
+
+        // Force a UI refresh by updating the current user state
+        setCurrentUser((prev) => {
+          if (!prev) return null
           return {
-            size: contentLength ? parseInt(contentLength, 10) : 0
+            ...prev,
+            profile_image: cacheBustUrl
           }
         })
-
-        const MAX_SIZE = 2 * 1024 * 1024 // 2MB in bytes
-
-        if (fileInfo.size > MAX_SIZE) {
-          Alert.alert(
-            "File Too Large",
-            "Profile image must be less than 2MB. Please choose a smaller image."
-          )
-          return
-        }
-
-        setProfileImage(result.assets[0].uri)
-        // Uploading is done in saveUserProfileInfo to prevent redundant uploads
-      } catch (error) {
-        console.error("Error handling selected image:", error)
-        Alert.alert("Error", "Failed to process the selected image.")
+      } else if (result.error) {
+        console.error("Error in upload:", result.error)
+        Alert.alert("Error", result.error)
       }
+    } catch (error) {
+      console.error("Unexpected error in pickImage:", error)
+      Alert.alert(
+        "Error",
+        "An unexpected error occurred while processing your image"
+      )
     }
   }
 
@@ -394,68 +405,13 @@ export default function Profile() {
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData?.session?.user?.id
 
-      // Image upload to Supabase storage
-      let profileImageUrl = profileImage
-      if (profileImage && profileImage.startsWith("file://")) {
-        // Only upload if it's a local file URI
-
-        // Use consistent file name based on device ID
-        const fileName = `profile-${deviceId}`
-        const fileExt = profileImage.split(".").pop() || "jpg"
-        const filePath = `${fileName}.${fileExt}`
-
-        const supabaseWithDeviceId = await withDeviceId()
-
-        // Check if an image already exists and delete it
-        const { data: existingFiles } = await supabaseWithDeviceId.storage
-          .from("profile-images")
-          .list("", {
-            search: fileName
-          })
-
-        // Delete any existing profile images for this device
-        if (existingFiles && existingFiles.length > 0) {
-          for (const file of existingFiles) {
-            await supabaseWithDeviceId.storage
-              .from("profile-images")
-              .remove([file.name])
-          }
-        }
-
-        // Convert image URI to blob
-        const response = await fetch(profileImage)
-        const blob = await response.blob()
-
-        // Check file size again (redundant but safe)
-        if (blob.size > 2 * 1024 * 1024) {
-          throw new Error("File size exceeds 2MB limit")
-        }
-
-        // Upload to Supabase storage
-        const { data: uploadData, error: uploadError } =
-          await supabaseWithDeviceId.storage
-            .from("profile-images")
-            .upload(filePath, blob, {
-              upsert: true // Overwrite if exists
-            })
-
-        if (uploadError) {
-          console.error("Error uploading image:", uploadError)
-          throw new Error(`Failed to upload image: ${uploadError.message}`)
-        }
-
-        // Get public URL
-        const { data: publicUrlData } = supabaseWithDeviceId.storage
-          .from("profile-images")
-          .getPublicUrl(filePath)
-
-        profileImageUrl = publicUrlData.publicUrl
-      }
+      // No need to upload image here anymore as it's handled by the uploadProfilePicture function
+      // Just use the current profileImage value which is already the URL from Supabase
 
       const profileDataToSave = {
         first_name: firstName,
         last_initial: lastInitial,
-        profile_image: profileImageUrl || "", // Ensure it's never null
+        profile_image: profileImage || "", // Ensure it's never null
         expo_push_token: pushToken,
         user_id: userId // This will be string | undefined, not string | null
       }
@@ -480,7 +436,7 @@ export default function Profile() {
           ...currentUser,
           first_name: firstName,
           last_initial: lastInitial,
-          profile_image: profileImageUrl || "",
+          profile_image: profileImage || "",
           user_id: userId || undefined
         }
         setCurrentUser(updatedUser)
@@ -1290,6 +1246,7 @@ export default function Profile() {
               <Image
                 source={{ uri: profileImage }}
                 style={styles.profileImage}
+                key={profileImage}
               />
             ) : (
               <View style={styles.placeholderImage}>

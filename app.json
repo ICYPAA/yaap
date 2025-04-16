@@ -16,7 +16,12 @@
         "NSPhotoLibraryUsageDescription": "YAAP! needs access to your photo library for you to choose a profile picture.",
         "CFBundleDisplayName": "YAAP!",
         "NSCameraUsageDescription": "YAAP! needs access to your camera to scan QR codes.",
-        "UIBackgroundModes": ["fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification",
+          "fetch",
+          "remote-notification"
+        ]
       },
       "usesAppleSignIn": true
     },
@@ -28,6 +33,8 @@
       "package": "com.themindfulpug.icypaa",
       "useNextNotificationsApi": true,
       "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE"
       ]
@@ -60,6 +67,12 @@
         "projectId": "15c03e66-5f31-409b-b31a-b53b92e00fb1"
       }
     },
-    "owner": "the-mindful-pug"
+    "owner": "the-mindful-pug",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/15c03e66-5f31-409b-b31a-b53b92e00fb1"
+    }
   }
 }
