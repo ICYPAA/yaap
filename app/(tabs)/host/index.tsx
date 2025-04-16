@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import {
   Alert,
   SafeAreaView,
@@ -16,11 +16,29 @@ import { makeCountRequest, makeRequest } from "../../../lib/requestHelper"
 import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
+// Define table names to make code more maintainable
+const TABLES = {
+  ACCESSIBILITY: "accessibility_forms",
+  RIDES: "ride_forms",
+  VOLUNTEERS: "volunteering_interest",
+  HOSPITALITY: "hospitality_forms",
+  SUPPORT: "support_chats"
+}
+
+// Type for form record payloads in realtime subscriptions
+interface FormRecord {
+  id: string
+  program_id?: number
+  status?: string | null
+  [key: string]: any
+}
+
 type ServiceSection = {
   title: string
   route: string
   count: number
   icon: React.ComponentProps<typeof Ionicons>["name"]
+  table: string
 }
 
 interface UserProfile {
@@ -39,29 +57,273 @@ export default function HostDashboard() {
       title: "Accessibility Requests",
       route: "accessibility",
       count: 0,
-      icon: "accessibility"
+      icon: "accessibility",
+      table: TABLES.ACCESSIBILITY
     },
-    { title: "Ride Requests", route: "rides", count: 0, icon: "car" },
+    {
+      title: "Ride Requests",
+      route: "rides",
+      count: 0,
+      icon: "car",
+      table: TABLES.RIDES
+    },
     {
       title: "Volunteer Sign-ups",
       route: "volunteers",
       count: 0,
-      icon: "people"
+      icon: "people",
+      table: TABLES.VOLUNTEERS
     },
     {
       title: "Hospitality Notifications",
       route: "hospitality",
       count: 0,
-      icon: "restaurant"
+      icon: "restaurant",
+      table: TABLES.HOSPITALITY
     },
-    { title: "Support Chats", route: "support", count: 0, icon: "chatbubbles" }
+    {
+      title: "Support Chats",
+      route: "support",
+      count: 0,
+      icon: "chatbubbles",
+      table: TABLES.SUPPORT
+    }
   ])
   const [loading, setLoading] = useState(true)
+  const subscriptionsRef = useRef<{ [key: string]: any }>({})
 
   useEffect(() => {
     fetchUserProfile()
     fetchPendingCounts()
+    setupRealtimeSubscriptions()
+
+    // Cleanup subscriptions when component unmounts
+    return () => {
+      Object.values(subscriptionsRef.current).forEach((subscription: any) => {
+        if (subscription && subscription.unsubscribe) {
+          subscription.unsubscribe()
+        }
+      })
+    }
   }, [])
+
+  const setupRealtimeSubscriptions = async () => {
+    try {
+      const supabaseWithDeviceId = await withDeviceId()
+
+      // Set up subscriptions for each table
+      serviceSections.forEach((section) => {
+        // Skip if support chats, as they need different handling
+        if (section.table === TABLES.SUPPORT) {
+          const supportSubscription = supabaseWithDeviceId
+            .channel(`${section.table}_changes`)
+            .on(
+              "postgres_changes",
+              {
+                event: "*", // Listen for all events (insert, update, delete)
+                schema: "public",
+                table: section.table,
+                filter: `program_id=eq.1`
+              },
+              (payload: any) => {
+                const { eventType } = payload
+                const newRecord = payload.new as FormRecord | null
+                const oldRecord = payload.old as FormRecord | null
+
+                // For inserts, count if not resolved
+                if (
+                  eventType === "INSERT" &&
+                  newRecord &&
+                  newRecord.status !== "resolved"
+                ) {
+                  updateServiceSectionCount(section.table, 1)
+                }
+                // For updates, check if status changed to/from resolved
+                else if (eventType === "UPDATE" && oldRecord && newRecord) {
+                  // Changed from resolved to something else (increment)
+                  if (
+                    oldRecord.status === "resolved" &&
+                    newRecord.status !== "resolved"
+                  ) {
+                    updateServiceSectionCount(section.table, 1)
+                  }
+                  // Changed from something else to resolved (decrement)
+                  else if (
+                    oldRecord.status !== "resolved" &&
+                    newRecord.status === "resolved"
+                  ) {
+                    updateServiceSectionCount(section.table, -1)
+                  }
+                }
+                // For deletes, decrement if it wasn't resolved
+                else if (
+                  eventType === "DELETE" &&
+                  oldRecord &&
+                  oldRecord.status !== "resolved"
+                ) {
+                  updateServiceSectionCount(section.table, -1)
+                }
+              }
+            )
+            .subscribe()
+
+          subscriptionsRef.current[section.table] = supportSubscription
+          return
+        }
+
+        // For other forms, we need to check the status
+        const subscription = supabaseWithDeviceId
+          .channel(`${section.table}_changes`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*", // Listen for all events (insert, update, delete)
+              schema: "public",
+              table: section.table,
+              filter: `program_id=eq.1`
+            },
+            (payload: any) => {
+              const { eventType } = payload
+              const newRecord = payload.new as FormRecord | null
+              const oldRecord = payload.old as FormRecord | null
+
+              // For inserts
+              if (eventType === "INSERT" && newRecord) {
+                // If new record has null, pending or in_progress status, we increase the count
+                if (
+                  !newRecord.status ||
+                  ["pending", "in_progress"].includes(newRecord.status)
+                ) {
+                  updateServiceSectionCount(section.table, 1)
+                }
+              }
+              // For updates
+              else if (eventType === "UPDATE" && oldRecord && newRecord) {
+                const oldStatus = oldRecord.status
+                const newStatus = newRecord.status
+
+                // If status changed from completed/closed to pending/in_progress/null
+                if (
+                  oldStatus &&
+                  ["completed", "closed"].includes(oldStatus) &&
+                  (!newStatus || ["pending", "in_progress"].includes(newStatus))
+                ) {
+                  updateServiceSectionCount(section.table, 1)
+                }
+                // If status changed from pending/in_progress/null to completed/closed
+                else if (
+                  (!oldStatus ||
+                    ["pending", "in_progress"].includes(oldStatus)) &&
+                  newStatus &&
+                  ["completed", "closed"].includes(newStatus)
+                ) {
+                  updateServiceSectionCount(section.table, -1)
+                }
+              }
+              // For deletes - if the record had a pending status, decrease count
+              else if (eventType === "DELETE") {
+                updateServiceSectionCount(section.table, -1)
+              }
+            }
+          )
+          .subscribe()
+
+        subscriptionsRef.current[section.table] = subscription
+      })
+    } catch (error) {
+      console.error("Error setting up realtime subscriptions:", error)
+    }
+  }
+
+  const updateServiceSectionCount = (table: string, delta: number) => {
+    setServiceSections((prev) =>
+      prev.map((section) => {
+        if (section.table === table) {
+          return {
+            ...section,
+            count: Math.max(0, section.count + delta) // Ensure count doesn't go below 0
+          }
+        }
+        return section
+      })
+    )
+  }
+
+  const fetchCountForTable = async (table: string) => {
+    try {
+      const supabaseWithDeviceId = await withDeviceId()
+
+      // Handle support chats differently - no status filtering
+      if (table === TABLES.SUPPORT) {
+        const { count } = await makeCountRequest({
+          table: table,
+          isDebugMode,
+          query: () =>
+            supabaseWithDeviceId
+              .from(table)
+              .select("*", { count: "exact", head: true })
+              .eq("program_id", 1)
+              .not("status", "eq", "resolved")
+        })
+
+        updateServiceSectionFromFetchedCount(
+          table,
+          count || (isDebugMode ? 4 : 0)
+        )
+        return
+      }
+
+      // For other form tables, filter by status
+      const { count } = await makeCountRequest({
+        table: table,
+        isDebugMode,
+        query: () =>
+          supabaseWithDeviceId
+            .from(table)
+            .select("*", { count: "exact", head: true })
+            .eq("program_id", 1)
+            .or("status.is.null,status.eq.pending,status.eq.in_progress")
+      })
+
+      // Get debug default count
+      let debugDefault = 0
+      switch (table) {
+        case TABLES.ACCESSIBILITY:
+          debugDefault = 2
+          break
+        case TABLES.RIDES:
+          debugDefault = 3
+          break
+        case TABLES.VOLUNTEERS:
+          debugDefault = 5
+          break
+        case TABLES.HOSPITALITY:
+          debugDefault = 1
+          break
+      }
+
+      updateServiceSectionFromFetchedCount(
+        table,
+        count || (isDebugMode ? debugDefault : 0)
+      )
+    } catch (error) {
+      console.error(`Error fetching count for ${table}:`, error)
+    }
+  }
+
+  const updateServiceSectionFromFetchedCount = (
+    table: string,
+    count: number
+  ) => {
+    setServiceSections((prev) =>
+      prev.map((section) => {
+        if (section.table === table) {
+          return { ...section, count }
+        }
+        return section
+      })
+    )
+  }
 
   const fetchUserProfile = async () => {
     try {
@@ -104,53 +366,54 @@ export default function HostDashboard() {
         { count: supportCount }
       ] = await Promise.all([
         makeCountRequest({
-          table: "accessibility_forms",
+          table: TABLES.ACCESSIBILITY,
           isDebugMode,
           query: () =>
             supabaseWithDeviceId
-              .from("accessibility_forms")
+              .from(TABLES.ACCESSIBILITY)
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
               .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
-          table: "ride_forms",
+          table: TABLES.RIDES,
           isDebugMode,
           query: () =>
             supabaseWithDeviceId
-              .from("ride_forms")
+              .from(TABLES.RIDES)
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
               .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
-          table: "volunteering_interest",
+          table: TABLES.VOLUNTEERS,
           isDebugMode,
           query: () =>
             supabaseWithDeviceId
-              .from("volunteering_interest")
+              .from(TABLES.VOLUNTEERS)
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
               .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
-          table: "hospitality_forms",
+          table: TABLES.HOSPITALITY,
           isDebugMode,
           query: () =>
             supabaseWithDeviceId
-              .from("hospitality_forms")
+              .from(TABLES.HOSPITALITY)
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
               .or("status.is.null,status.eq.pending,status.eq.in_progress")
         }),
         makeCountRequest({
-          table: "support_chats",
+          table: TABLES.SUPPORT,
           isDebugMode,
           query: () =>
             supabaseWithDeviceId
-              .from("support_chats")
+              .from(TABLES.SUPPORT)
               .select("*", { count: "exact", head: true })
               .eq("program_id", 1)
+              .not("status", "eq", "resolved")
         })
       ])
 
@@ -191,7 +454,7 @@ export default function HostDashboard() {
   const handleDeleteAccount = async () => {
     Alert.alert(
       "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone.",
+      "Are you sure you want to delete your account? This action cannot be undone. We will delete all data stored on our systems, but you will have to uninstall the app to delete all data on your device.",
       [
         { text: "Cancel", style: "cancel" },
         {

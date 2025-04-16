@@ -91,6 +91,39 @@ CREATE POLICY users_select ON users
     device_id = current_setting('request.headers')::json->>'x-device-id'
   );
 
+-- Allow anyone to read a user's first name and last initial if they have the user's ID
+CREATE POLICY users_select_public_info ON users
+  FOR SELECT TO public
+  USING (true);
+
+-- Create security definer function to only expose first name and last initial
+CREATE OR REPLACE FUNCTION public.get_public_user_info(user_id int4)
+RETURNS TABLE (id int4, first_name TEXT, last_initial TEXT)
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT u.id, u.first_name, u.last_initial
+  FROM users u
+  WHERE u.id = user_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get public info for multiple users by IDs
+CREATE OR REPLACE FUNCTION public.get_public_users_info(user_ids int4[])
+RETURNS TABLE (id int4, first_name TEXT, last_initial TEXT)
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT u.id, u.first_name, u.last_initial
+  FROM users u
+  WHERE u.id = ANY(user_ids);
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE POLICY users_insert ON users
   FOR INSERT WITH CHECK (true);
 

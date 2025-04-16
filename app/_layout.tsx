@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Session } from "@supabase/supabase-js"
 import * as Application from "expo-application"
 import { useFonts } from "expo-font"
@@ -7,7 +8,7 @@ import { Href, Stack, useRouter, useSegments } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { StatusBar } from "expo-status-bar"
 import React, { useEffect, useRef, useState } from "react"
-import { Platform } from "react-native"
+import { AppState, Platform } from "react-native"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { DebugProvider } from "../context/DebugContext"
@@ -98,10 +99,27 @@ export default function RootLayout() {
   const [authLoading, setAuthLoading] = useState(true)
   const router = useRouter()
   const segments = useSegments()
+  const appState = useRef(AppState.currentState)
+  const schedulePollingInterval = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (error) throw error
   }, [error])
+
+  // Function to get device identifier based on platform
+  const getIdentifier = async () => {
+    if (Platform.OS === "ios") {
+      let idfv = await Application.getIosIdForVendorAsync()
+      console.log("iOS IDFV:", idfv)
+      return idfv
+    }
+    if (Platform.OS === "android") {
+      let androidId = Application.getAndroidId()
+      console.log("Android ID:", androidId)
+      return androidId
+    }
+    return null
+  }
 
   useEffect(() => {
     supabase.auth
@@ -188,21 +206,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded && programLoaded && !authLoading) {
       SplashScreen.hideAsync()
-
-      // Function to get device identifier based on platform
-      const getIdentifier = async () => {
-        if (Platform.OS === "ios") {
-          let idfv = await Application.getIosIdForVendorAsync()
-          console.log("iOS IDFV:", idfv)
-          return idfv
-        }
-        if (Platform.OS === "android") {
-          let androidId = Application.getAndroidId()
-          console.log("Android ID:", androidId)
-          return androidId
-        }
-        return null
-      }
 
       // Get device ID and update push token in user profile
       const updatePushToken = async () => {
@@ -306,6 +309,79 @@ export default function RootLayout() {
 
     initializeUrlHandler()
   }, [])
+
+  // Function to fetch user schedule and store it in AsyncStorage
+  const fetchAndStoreUserSchedule = async () => {
+    try {
+      const deviceId = await getIdentifier()
+      if (!deviceId) {
+        console.error("Could not get a device identifier")
+        return
+      }
+
+      const supabaseWithDeviceId = await withDeviceId()
+      const { data, error } = await supabaseWithDeviceId
+        .from("users")
+        .select("schedule")
+        .eq("device_id", deviceId)
+        .maybeSingle()
+
+      if (error) {
+        console.error("Error fetching user schedule:", error)
+        return
+      }
+
+      if (data && data.schedule) {
+        console.log("Schedule fetched, storing in AsyncStorage")
+        await AsyncStorage.setItem(
+          "userSchedule",
+          JSON.stringify(data.schedule)
+        )
+      }
+    } catch (error) {
+      console.error("Error in fetchAndStoreUserSchedule:", error)
+    }
+  }
+
+  // Setup schedule polling
+  useEffect(() => {
+    // Initial fetch
+    if (loaded && programLoaded && !authLoading) {
+      fetchAndStoreUserSchedule()
+    }
+
+    // Setup AppState listener to handle app going to background/foreground
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        console.log("App has come to the foreground, fetching schedule")
+        fetchAndStoreUserSchedule()
+      }
+
+      appState.current = nextAppState
+    })
+
+    // Start polling when component mounts
+    if (loaded && programLoaded && !authLoading) {
+      schedulePollingInterval.current = setInterval(() => {
+        if (appState.current === "active") {
+          console.log("Polling user schedule")
+          fetchAndStoreUserSchedule()
+        }
+      }, 5000) // Poll every 5 seconds
+    }
+
+    // Cleanup function
+    return () => {
+      subscription.remove()
+      if (schedulePollingInterval.current) {
+        clearInterval(schedulePollingInterval.current)
+        schedulePollingInterval.current = null
+      }
+    }
+  }, [loaded, programLoaded, authLoading])
 
   if (!loaded || !programLoaded || authLoading) {
     return null

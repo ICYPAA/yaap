@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -124,7 +125,52 @@ export default function Profile() {
     fetchDeviceId()
   }, [])
 
-  // Fetch current user profile and schedule data based on deviceId
+  // Function to load schedule from AsyncStorage and update UI
+  const loadScheduleFromStorage = async () => {
+    try {
+      const scheduleJson = await AsyncStorage.getItem("userSchedule")
+      if (scheduleJson) {
+        const schedule = JSON.parse(scheduleJson) as Schedule
+        console.log("Loaded schedule from AsyncStorage")
+
+        // Update the sharing lists based on the schedule from AsyncStorage
+        await fetchSharingListsDetails(schedule)
+
+        // If we have currentUser, update its schedule
+        setCurrentUser((prev) => (prev ? { ...prev, schedule } : null))
+      }
+    } catch (error) {
+      console.error("Error loading schedule from AsyncStorage:", error)
+    }
+  }
+
+  // Listen for changes to userSchedule in AsyncStorage
+  useEffect(() => {
+    // Initial load from AsyncStorage
+    loadScheduleFromStorage()
+
+    // Create a setInterval to check AsyncStorage periodically
+    const checkStorageInterval = setInterval(() => {
+      console.log("Checking AsyncStorage for schedule updates")
+      loadScheduleFromStorage()
+    }, 3000) // Check every 3 seconds
+
+    // Also check when app comes to foreground
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        console.log("App state changed to active, reloading schedule")
+        // When app comes to foreground, check if schedule has been updated
+        loadScheduleFromStorage()
+      }
+    })
+
+    return () => {
+      clearInterval(checkStorageInterval)
+      subscription.remove()
+    }
+  }, [deviceId]) // Add deviceId as dependency to ensure this effect runs after deviceId is set
+
+  // Fetch current user profile data based on deviceId
   useEffect(() => {
     if (!deviceId) return // Don't fetch until deviceId is available
 
@@ -136,7 +182,7 @@ export default function Profile() {
         const supabaseWithDeviceId = await withDeviceId()
         const { data: userData, error: userError } = await supabaseWithDeviceId
           .from("users")
-          .select("*")
+          .select("*, settings")
           .eq("device_id", deviceId)
           .single()
 
@@ -148,7 +194,30 @@ export default function Profile() {
 
         if (userData) {
           console.log("User data found:", userData.first_name)
-          setCurrentUser(userData as User)
+
+          // Get schedule from AsyncStorage instead of directly from database
+          const scheduleJson = await AsyncStorage.getItem("userSchedule")
+          let schedule: Schedule
+
+          if (scheduleJson) {
+            schedule = JSON.parse(scheduleJson)
+            console.log("Using schedule from AsyncStorage")
+          } else {
+            // Fallback to database schedule if not in AsyncStorage
+            schedule = userData.schedule || {
+              requested_share: [],
+              shared_with: [],
+              pending_share: [],
+              shared_by: [],
+              banned: []
+            }
+            console.log("Using fallback schedule from database")
+          }
+
+          // Update userData with the schedule we got
+          const userWithSchedule = { ...userData, schedule }
+
+          setCurrentUser(userWithSchedule as User)
           // Populate profile state
           setFirstName(userData.first_name || "")
           setLastInitial(userData.last_initial || "")
@@ -169,13 +238,6 @@ export default function Profile() {
           )
 
           // Fetch details for sharing lists based on schedule
-          const schedule = userData.schedule || {
-            requested_share: [],
-            shared_with: [],
-            pending_share: [],
-            shared_by: [],
-            banned: []
-          } // Use fetched or default empty schedule
           await fetchSharingListsDetails(schedule)
         } else {
           console.log("No user found for this device ID. Need to create one?")
@@ -215,36 +277,15 @@ export default function Profile() {
 
   // Function to fetch user details for sharing lists
   const fetchSharingListsDetails = async (schedule: Schedule) => {
-    // Helper to get device_ids from user IDs
-    const getDeviceIdsFromUserIds = async (
-      userIds: number[]
-    ): Promise<string[]> => {
-      const supabaseWithDeviceId = await withDeviceId()
-      if (!userIds || userIds.length === 0) return []
-      try {
-        const { data, error } = await supabaseWithDeviceId
-          .from("users")
-          .select("device_id")
-          .in("id", userIds) // Filter by primary user ID
-        if (error) throw error
-        return data ? data.map((u) => u.device_id) : []
-      } catch (error) {
-        console.error("Error fetching device IDs from user IDs:", error)
-        return []
-      }
-    }
-
     // Original helper to get display details from device_ids
     const fetchUserDetailsByDeviceIds = async (
-      deviceIds: string[]
+      userIds: number[]
     ): Promise<DisplayUser[]> => {
-      if (!deviceIds || deviceIds.length === 0) return []
+      if (!userIds || userIds.length === 0) return []
       try {
-        const supabaseWithDeviceId = await withDeviceId()
-        const { data, error } = await supabaseWithDeviceId
-          .from("users")
-          .select("device_id, first_name, last_initial, profile_image")
-          .in("device_id", deviceIds) // Filter by device_id
+        const { data, error } = await supabase.rpc("get_public_users_info", {
+          user_ids: userIds
+        })
         if (error) throw error
         return data || []
       } catch (error) {
@@ -255,27 +296,13 @@ export default function Profile() {
 
     // Fetch device IDs first, then fetch details
     try {
-      const [
-        incomingDeviceIds,
-        sharingDeviceIds,
-        pendingDeviceIds,
-        viewingDeviceIds,
-        bannedDeviceIds
-      ] = await Promise.all([
-        getDeviceIdsFromUserIds(schedule.requested_share || []),
-        getDeviceIdsFromUserIds(schedule.shared_with || []),
-        getDeviceIdsFromUserIds(schedule.pending_share || []),
-        getDeviceIdsFromUserIds(schedule.shared_by || []),
-        getDeviceIdsFromUserIds(schedule.banned || [])
-      ])
-
       // Now fetch display details using the obtained device IDs
       const [incoming, sharing, pending, viewing, banned] = await Promise.all([
-        fetchUserDetailsByDeviceIds(incomingDeviceIds),
-        fetchUserDetailsByDeviceIds(sharingDeviceIds),
-        fetchUserDetailsByDeviceIds(pendingDeviceIds),
-        fetchUserDetailsByDeviceIds(viewingDeviceIds),
-        fetchUserDetailsByDeviceIds(bannedDeviceIds)
+        fetchUserDetailsByDeviceIds(schedule.requested_share || []),
+        fetchUserDetailsByDeviceIds(schedule.shared_with || []),
+        fetchUserDetailsByDeviceIds(schedule.pending_share || []),
+        fetchUserDetailsByDeviceIds(schedule.shared_by || []),
+        fetchUserDetailsByDeviceIds(schedule.banned || [])
       ])
 
       setIncomingRequests(incoming)
@@ -784,7 +811,7 @@ export default function Profile() {
   const handleDeleteProfile = () => {
     Alert.alert(
       "Delete Profile",
-      "Are you sure you want to delete your profile? This action cannot be undone.",
+      "Are you sure you want to delete your profile? This action cannot be undone. We will delete all data stored on our systems, but you will have to uninstall the app to delete all data on your device.",
       [
         { text: "Cancel", style: "cancel" },
         {

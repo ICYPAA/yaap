@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
+import { useFocusEffect } from "@react-navigation/native"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   FlatList,
   SafeAreaView,
@@ -45,18 +46,114 @@ export default function AccessibilityRequests() {
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<FilterType>("all")
+  const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
+  const currentUserEmailRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getSession()
       if (data.session?.user) {
         setCurrentUser(data.session.user.id)
+        currentUserEmailRef.current = data.session.user.email
       }
     }
 
     getUser()
     fetchRequests()
+    setupRealtimeSubscription()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
+    }
   }, [])
+
+  const setupRealtimeSubscription = async () => {
+    try {
+      const supabaseWithDeviceId = await withDeviceId()
+
+      const subscription = supabaseWithDeviceId
+        .channel("accessibility_forms_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "accessibility_forms",
+            filter: "program_id=eq.1"
+          },
+          (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload
+
+            // Handle different event types
+            if (eventType === "INSERT") {
+              // Add the new request to the list
+              handleNewRequest(newRecord)
+            } else if (eventType === "UPDATE") {
+              // Update the changed request in the list
+              handleUpdatedRequest(newRecord)
+            } else if (eventType === "DELETE") {
+              // Remove the deleted request from the list
+              handleDeletedRequest(oldRecord?.id)
+            }
+          }
+        )
+        .subscribe()
+
+      subscriptionRef.current = subscription
+    } catch (error) {
+      console.error("Error setting up realtime subscription:", error)
+    }
+  }
+
+  const handleNewRequest = (newRecord: any) => {
+    if (!newRecord) return
+
+    // Format the new request with current user info if needed
+    const formattedRequest: AccessibilityRequest = {
+      ...newRecord,
+      owner_email:
+        newRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : newRecord.owner_id
+          ? "User " + newRecord.owner_id.substring(0, 6)
+          : undefined
+    }
+
+    // Add to requests list
+    setRequests((prev) => [formattedRequest, ...prev])
+  }
+
+  const handleUpdatedRequest = (updatedRecord: any) => {
+    if (!updatedRecord) return
+
+    // Format the updated request with current user info
+    const formattedRequest: AccessibilityRequest = {
+      ...updatedRecord,
+      owner_email:
+        updatedRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : updatedRecord.owner_id
+          ? "User " + updatedRecord.owner_id.substring(0, 6)
+          : undefined
+    }
+
+    // Update in the list
+    setRequests((prev) =>
+      prev.map((request) =>
+        request.id === updatedRecord.id ? formattedRequest : request
+      )
+    )
+  }
+
+  const handleDeletedRequest = (id?: string) => {
+    if (!id) return
+
+    // Remove from the list
+    setRequests((prev) => prev.filter((request) => request.id !== id))
+  }
 
   useEffect(() => {
     if (requests.length > 0) {
@@ -279,6 +376,18 @@ export default function AccessibilityRequests() {
         )}
       </View>
     </View>
+  )
+
+  // Refetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Screen focused, fetching accessibility requests")
+      fetchRequests()
+      return () => {
+        // This runs when the screen is unfocused
+        console.log("Screen unfocused")
+      }
+    }, [])
   )
 
   return (

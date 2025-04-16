@@ -1,6 +1,6 @@
 /**
  * Send a notification using the Edge Function notification service
- * @param eventType The type of notification ('hospitality' or 'schedule')
+ * @param eventType The type of notification ('hospitality', 'schedule', or 'host')
  * @param programId The program ID
  * @param data Additional data to send with the notification
  * @param userId Optional user ID (required for schedule notifications)
@@ -11,7 +11,7 @@ export async function sendNotification({
   data,
   userId
 }: {
-  eventType: "hospitality" | "schedule"
+  eventType: "hospitality" | "schedule" | "host"
   programId: number
   data: any
   userId?: number

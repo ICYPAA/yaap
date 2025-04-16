@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
+import { useFocusEffect } from "@react-navigation/native"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   FlatList,
   SafeAreaView,
@@ -77,18 +78,41 @@ export default function HospitalityNotifications() {
   const [activeFilter, setActiveFilter] = useState<
     "all" | "active" | "completed" | "closed"
   >("all")
+  const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
+  const currentUserEmailRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getSession()
       if (data.session?.user) {
         setCurrentUser(data.session.user.id)
+        currentUserEmailRef.current = data.session.user.email
       }
     }
 
     getUser()
     fetchNotifications()
+    setupRealtimeSubscription()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
+    }
   }, [])
+
+  // Refetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Hospitality screen focused, fetching notifications")
+      fetchNotifications()
+      return () => {
+        // This runs when the screen is unfocused
+        console.log("Hospitality screen unfocused")
+      }
+    }, [])
+  )
 
   useEffect(() => {
     if (notifications.length > 0) {
@@ -232,6 +256,95 @@ export default function HospitalityNotifications() {
     } catch (error) {
       console.error("Error sending hospitality notifications:", error)
     }
+  }
+
+  const setupRealtimeSubscription = async () => {
+    try {
+      const supabaseWithDeviceId = await withDeviceId()
+
+      const subscription = supabaseWithDeviceId
+        .channel("hospitality_forms_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "hospitality_forms",
+            filter: "program_id=eq.1"
+          },
+          (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload
+
+            // Handle different event types
+            if (eventType === "INSERT") {
+              // Add the new notification to the list
+              handleNewNotification(newRecord)
+            } else if (eventType === "UPDATE") {
+              // Update the changed notification in the list
+              handleUpdatedNotification(newRecord)
+            } else if (eventType === "DELETE") {
+              // Remove the deleted notification from the list
+              handleDeletedNotification(oldRecord?.id)
+            }
+          }
+        )
+        .subscribe()
+
+      subscriptionRef.current = subscription
+    } catch (error) {
+      console.error("Error setting up realtime subscription:", error)
+    }
+  }
+
+  const handleNewNotification = (newRecord: any) => {
+    if (!newRecord) return
+
+    // Format the new notification with current user info if needed
+    const formattedNotification: HospitalityNotification = {
+      ...newRecord,
+      owner_email:
+        newRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : newRecord.owner_id
+          ? "User " + newRecord.owner_id.substring(0, 6)
+          : undefined
+    }
+
+    // Add to notifications list
+    setNotifications((prev) => [formattedNotification, ...prev])
+  }
+
+  const handleUpdatedNotification = (updatedRecord: any) => {
+    if (!updatedRecord) return
+
+    // Format the updated notification with current user info
+    const formattedNotification: HospitalityNotification = {
+      ...updatedRecord,
+      owner_email:
+        updatedRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : updatedRecord.owner_id
+          ? "User " + updatedRecord.owner_id.substring(0, 6)
+          : undefined
+    }
+
+    // Update in the list
+    setNotifications((prev) =>
+      prev.map((notification) =>
+        notification.id === updatedRecord.id
+          ? formattedNotification
+          : notification
+      )
+    )
+  }
+
+  const handleDeletedNotification = (id?: string) => {
+    if (!id) return
+
+    // Remove from the list
+    setNotifications((prev) =>
+      prev.filter((notification) => notification.id !== id)
+    )
   }
 
   const renderItem = ({ item }: { item: HospitalityNotification }) => (

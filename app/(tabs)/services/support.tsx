@@ -14,6 +14,7 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
+import { sendNotification } from "../../../lib/notificationHelper"
 import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
@@ -49,6 +50,7 @@ export default function SupportRequest() {
   const [isCreating, setIsCreating] = useState(false)
 
   const drawerAnimation = useRef(new Animated.Value(-300)).current
+  const flatListRef = useRef<FlatList>(null)
 
   // Get device ID on mount
   useEffect(() => {
@@ -201,6 +203,22 @@ export default function SupportRequest() {
       const newChat = data[0]
       setSupportChats((prevChats) => [newChat, ...prevChats])
 
+      // Send notification to host
+      try {
+        await sendNotification({
+          eventType: "host",
+          programId: 1,
+          data: {
+            type: "support",
+            name: userName || "Anonymous",
+            title: newChatTitle
+          }
+        })
+        console.log("Sent host notification for new support chat")
+      } catch (notifyError) {
+        console.error("Error sending host notification:", notifyError)
+      }
+
       // Set as active chat and close modal
       setSelectedChat(newChat)
       setNewChatModalVisible(false)
@@ -241,6 +259,7 @@ export default function SupportRequest() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 130 : 0}
     >
       <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Stack.Screen
@@ -381,8 +400,22 @@ export default function SupportRequest() {
                   </Text>
                 </View>
               )}
-              contentContainerStyle={{ paddingVertical: 10 }}
-              inverted={false}
+              ref={flatListRef}
+              contentContainerStyle={[
+                { paddingVertical: 10 },
+                { flexGrow: 1, paddingBottom: 10 }
+              ]}
+              onLayout={() => {
+                if (selectedChat.messages.length > 0) {
+                  flatListRef.current?.scrollToEnd({ animated: false })
+                }
+              }}
+              onContentSizeChange={() => {
+                if (selectedChat.messages.length > 0) {
+                  flatListRef.current?.scrollToEnd({ animated: true })
+                }
+              }}
+              keyboardShouldPersistTaps="handled"
             />
             <View
               style={{
@@ -400,7 +433,8 @@ export default function SupportRequest() {
                   padding: 12,
                   borderRadius: 20,
                   marginRight: 10,
-                  color: theme.colors.text.primary
+                  color: theme.colors.text.primary,
+                  marginBottom: 10
                 }}
                 value={message}
                 onChangeText={setMessage}
@@ -414,7 +448,8 @@ export default function SupportRequest() {
                   height: 44,
                   borderRadius: 22,
                   justifyContent: "center",
-                  alignItems: "center"
+                  alignItems: "center",
+                  opacity: !message.trim() ? 0.5 : 1
                 }}
                 onPress={handleSendMessage}
                 disabled={!message.trim()}

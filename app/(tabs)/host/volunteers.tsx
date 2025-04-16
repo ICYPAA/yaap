@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
+import { useFocusEffect } from "@react-navigation/native"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   FlatList,
   StyleSheet,
@@ -57,10 +58,94 @@ export default function VolunteerSignups() {
   const [volunteers, setVolunteers] = useState<VolunteerSignup[]>([])
   const [loading, setLoading] = useState(true)
   const styles = createStyles(theme)
+  const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
 
   useEffect(() => {
     fetchVolunteers()
+    setupRealtimeSubscription()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
+    }
   }, [])
+
+  // Refetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Volunteers screen focused, fetching volunteer sign-ups")
+      fetchVolunteers()
+      return () => {
+        // This runs when the screen is unfocused
+        console.log("Volunteers screen unfocused")
+      }
+    }, [])
+  )
+
+  const setupRealtimeSubscription = async () => {
+    try {
+      const supabaseWithDeviceId = await withDeviceId()
+
+      const subscription = supabaseWithDeviceId
+        .channel("volunteer_signups_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "volunteering_interest",
+            filter: "program_id=eq.1"
+          },
+          (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload
+
+            // Handle different event types
+            if (eventType === "INSERT") {
+              // Add the new volunteer to the list
+              handleNewVolunteer(newRecord)
+            } else if (eventType === "UPDATE") {
+              // Update the changed volunteer in the list
+              handleUpdatedVolunteer(newRecord)
+            } else if (eventType === "DELETE") {
+              // Remove the deleted volunteer from the list
+              handleDeletedVolunteer(oldRecord?.id)
+            }
+          }
+        )
+        .subscribe()
+
+      subscriptionRef.current = subscription
+    } catch (error) {
+      console.error("Error setting up realtime subscription:", error)
+    }
+  }
+
+  const handleNewVolunteer = (newRecord: any) => {
+    if (!newRecord) return
+
+    // Add to volunteers list
+    setVolunteers((prev) => [newRecord, ...prev])
+  }
+
+  const handleUpdatedVolunteer = (updatedRecord: any) => {
+    if (!updatedRecord) return
+
+    // Update in the list
+    setVolunteers((prev) =>
+      prev.map((volunteer) =>
+        volunteer.id === updatedRecord.id ? updatedRecord : volunteer
+      )
+    )
+  }
+
+  const handleDeletedVolunteer = (id?: string) => {
+    if (!id) return
+
+    // Remove from the list
+    setVolunteers((prev) => prev.filter((volunteer) => volunteer.id !== id))
+  }
 
   const fetchVolunteers = async () => {
     try {

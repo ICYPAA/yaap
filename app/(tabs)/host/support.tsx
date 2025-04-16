@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
+import { useFocusEffect } from "@react-navigation/native"
 import { useRouter } from "expo-router"
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Animated,
   FlatList,
@@ -47,13 +48,35 @@ export default function SupportChats() {
   const [selectedChat, setSelectedChat] = useState<SupportChat | null>(null)
   const [replyText, setReplyText] = useState("")
   const [drawerVisible, setDrawerVisible] = useState(true)
+  const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
+  const flatListRef = useRef<FlatList>(null)
 
   const drawerAnimation = useRef(new Animated.Value(0)).current
   const styles = React.useMemo(() => createStyles(theme), [theme])
 
   useEffect(() => {
     fetchChats()
+    setupRealtimeSubscription()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
+    }
   }, [])
+
+  // Refetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Support chats screen focused, fetching chats")
+      fetchChats()
+      return () => {
+        // This runs when the screen is unfocused
+        console.log("Support chats screen unfocused")
+      }
+    }, [])
+  )
 
   useEffect(() => {
     // Filter out resolved chats
@@ -64,6 +87,82 @@ export default function SupportChats() {
       setFilteredChats(filteredResult)
     }
   }, [chats])
+
+  const setupRealtimeSubscription = async () => {
+    try {
+      const supabaseWithDeviceId = await withDeviceId()
+
+      const subscription = supabaseWithDeviceId
+        .channel("support_chats_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "support_chats",
+            filter: "program_id=eq.1"
+          },
+          (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload
+
+            // Handle different event types
+            if (eventType === "INSERT") {
+              // Add the new chat to the list
+              handleNewChat(newRecord)
+            } else if (eventType === "UPDATE") {
+              // Update the changed chat in the list
+              handleUpdatedChat(newRecord)
+            } else if (eventType === "DELETE") {
+              // Remove the deleted chat from the list
+              handleDeletedChat(oldRecord?.id)
+            }
+          }
+        )
+        .subscribe()
+
+      subscriptionRef.current = subscription
+    } catch (error) {
+      console.error("Error setting up realtime subscription:", error)
+    }
+  }
+
+  const handleNewChat = (newRecord: any) => {
+    if (!newRecord) return
+
+    // Add to chats list
+    setChats((prev) => [newRecord, ...prev])
+
+    // If this is an unread chat and no chat is selected, automatically select it
+    if (newRecord.status === "unread" && !selectedChat) {
+      setSelectedChat(newRecord)
+    }
+  }
+
+  const handleUpdatedChat = (updatedRecord: any) => {
+    if (!updatedRecord) return
+
+    // Update in the list
+    setChats((prev) =>
+      prev.map((chat) => (chat.id === updatedRecord.id ? updatedRecord : chat))
+    )
+
+    // If this is the currently selected chat, update it
+    if (selectedChat && selectedChat.id === updatedRecord.id) {
+      setSelectedChat(updatedRecord)
+    }
+  }
+
+  const handleDeletedChat = (id?: string) => {
+    if (!id) return
+
+    // Remove from the list
+    setChats((prev) => prev.filter((chat) => chat.id !== id))
+
+    // If this is the currently selected chat, clear selection
+    if (selectedChat && selectedChat.id === id) {
+      setSelectedChat(null)
+    }
+  }
 
   const fetchChats = async () => {
     try {
@@ -268,6 +367,7 @@ export default function SupportChats() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -357,7 +457,22 @@ export default function SupportChats() {
                 </View>
               )}
               keyExtractor={(item, index) => item.id || `msg-${index}`}
-              contentContainerStyle={styles.chatMessagesContainer}
+              contentContainerStyle={[
+                styles.chatMessagesContainer,
+                { flexGrow: 1, paddingBottom: 40 }
+              ]}
+              ref={flatListRef}
+              onLayout={() => {
+                if (selectedChat.messages?.length > 0) {
+                  flatListRef.current?.scrollToEnd({ animated: false })
+                }
+              }}
+              onContentSizeChange={() => {
+                if (selectedChat.messages?.length > 0) {
+                  flatListRef.current?.scrollToEnd({ animated: true })
+                }
+              }}
+              keyboardShouldPersistTaps="handled"
             />
 
             <View
