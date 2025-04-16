@@ -8,6 +8,16 @@ import { router } from "expo-router"
 import { sendNotification } from "../lib/notificationHelper"
 import { supabase, withDeviceId } from "../lib/supabase"
 
+// Debug initial URL
+console.log("LINKING DEBUG: Initializing linking module")
+Linking.getInitialURL()
+  .then((url) => {
+    console.log("LINKING DEBUG: Initial URL:", url)
+  })
+  .catch((err) => {
+    console.error("LINKING DEBUG: Error getting initial URL:", err)
+  })
+
 // Listen for URL events but don't try to navigate (navigation handled by deep linking)
 Linking.addEventListener("url", ({ url }) => {
   console.log("Global URL event listener received:", url)
@@ -62,17 +72,28 @@ const linking: LinkingOptions<{}> = {
   // Custom URL parsing to extract query parameters
   getStateFromPath: (path, config) => {
     console.log("getStateFromPath called with:", path)
+    console.log("LINKING DEBUG: Trying to parse path:", path)
 
     // Extract schedule_share parameter if present
     const matches = path.match(/schedule_share=(\d+)/)
     if (matches) {
       const sharedUserId = matches[1]
       console.log("Extracted schedule_share parameter:", sharedUserId)
+      console.log(
+        "LINKING DEBUG: Found schedule_share in URL, id:",
+        sharedUserId
+      )
 
       // Process the share in background (without navigating)
       AsyncStorage.getItem("device_id").then((deviceId) => {
         if (deviceId) {
+          console.log(
+            "LINKING DEBUG: Processing share with deviceId:",
+            deviceId
+          )
           processScheduleShare(deviceId, sharedUserId)
+        } else {
+          console.log("LINKING DEBUG: No device ID found")
         }
       })
 
@@ -93,18 +114,27 @@ const linking: LinkingOptions<{}> = {
       }
     }
 
+    console.log(
+      "LINKING DEBUG: No schedule_share found in URL, using default handling"
+    )
     // Default handling by React Navigation
     return navGetStateFromPath(path, config)
   },
 
   // Handle custom URL schemes for QR code scanning
   async getInitialURL() {
+    console.log("LINKING DEBUG: getInitialURL called in linking config")
     // Get the URL from Expo Linking
     const url = await Linking.getInitialURL()
     console.log("Linking.getInitialURL returned:", url)
+    console.log("LINKING DEBUG: Initial URL in config:", url)
 
-    if (!url) return null
+    if (!url) {
+      console.log("LINKING DEBUG: No initial URL found")
+      return null
+    }
 
+    console.log("LINKING DEBUG: Returning URL for processing:", url)
     // Pass the URL through - let getStateFromPath handle it
     return url
   },
@@ -144,6 +174,10 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
     deviceId,
     sharedUserId
   })
+  console.log(
+    "LINKING DEBUG: Processing schedule share for user ID:",
+    sharedUserId
+  )
   try {
     // Get current user from Supabase
     const supabaseWithDeviceId = await withDeviceId(supabase)
@@ -162,6 +196,10 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
 
     if (userError || !userData) {
       console.log("No user profile found in processScheduleShare")
+      console.log(
+        "LINKING DEBUG: No user profile found for device ID:",
+        deviceId
+      )
       return
     }
 
@@ -170,6 +208,7 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
       requester: userData.id,
       receiver: parseInt(sharedUserId)
     })
+    console.log("LINKING DEBUG: Calling edge function to update sharing")
 
     const response = await fetch(
       "https://oolqeopfhhiuvsmamxln.supabase.co/functions/v1/schedule_manager",
@@ -190,9 +229,11 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
     if (!response.ok) {
       const errorText = await response.text()
       console.error("Error calling schedule_manager function:", errorText)
+      console.log("LINKING DEBUG: Edge function error:", errorText)
     } else {
       // Show success message or notification
       console.log("Sharing request sent successfully")
+      console.log("LINKING DEBUG: Sharing request sent successfully")
 
       // Send notification through the edge function
       console.log("Sending schedule notification")
@@ -210,12 +251,15 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
           }
         })
         console.log("Sent schedule request notification successfully")
+        console.log("LINKING DEBUG: Sent schedule notification successfully")
       } catch (error) {
         console.error("Error sending notification:", error)
+        console.log("LINKING DEBUG: Error sending notification:", error)
       }
     }
   } catch (error) {
     console.error("Error processing schedule share:", error)
+    console.log("LINKING DEBUG: Error in processScheduleShare:", error)
   }
 }
 

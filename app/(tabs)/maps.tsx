@@ -5,7 +5,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  ImageSourcePropType,
   Linking,
   Modal,
   Platform,
@@ -21,27 +20,30 @@ import { Activity } from "../../types/activities"
 import { Transportation } from "../../types/transportation"
 import { Venue } from "../../types/venue"
 
-// Restore local asset images
-interface LocalAssets {
-  [key: string]: ImageSourcePropType
-  hotelPlan: ImageSourcePropType
-  secondFloor: ImageSourcePropType
-  thirdFloor: ImageSourcePropType
-  airportToHotel: ImageSourcePropType
-  airportToHotelPublic: ImageSourcePropType
-  walkingMap: ImageSourcePropType
+// Remote asset URLs from Supabase
+interface RemoteAssets {
+  [key: string]: string
+  hotelPlan: string
+  secondFloor: string
+  thirdFloor: string
+  airportToHotel: string
+  airportToHotelPublic: string
+  walkingMap: string
 }
 
-const localAssets: LocalAssets = {
-  hotelPlan: require("../../assets/images/hotel.png"),
-  secondFloor: require("../../assets/images/hotel.png"), // Assuming same image for now
-  thirdFloor: require("../../assets/images/hotel.png"), // Assuming same image for now
-  airportToHotel: require("../../assets/images/airport-to-hotel.png"),
-  airportToHotelPublic: require("../../assets/images/airport-to-hotel-public.png"),
-  walkingMap: require("../../assets/images/walking-map.png")
+const SUPABASE_URL =
+  "https://oolqeopfhhiuvsmamxln.supabase.co/storage/v1/object/public/assets//"
+
+const remoteAssets: RemoteAssets = {
+  hotelPlan: `${SUPABASE_URL}hotel.png`,
+  secondFloor: `${SUPABASE_URL}hotel.png`, // Assuming same image for now
+  thirdFloor: `${SUPABASE_URL}hotel.png`, // Assuming same image for now
+  airportToHotel: `${SUPABASE_URL}airport-to-hotel.png`,
+  airportToHotelPublic: `${SUPABASE_URL}airport-to-hotel-public.png`,
+  walkingMap: `${SUPABASE_URL}walking-map.png`
 }
 
-// Mapping functions to get local asset key from DB map name
+// Mapping functions to get asset key from DB map name
 const getVenueMapKey = (name: string): string | null => {
   const lowerName = name.toLowerCase()
   if (lowerName.includes("main floor")) return "hotelPlan"
@@ -95,30 +97,35 @@ const MapItem = ({
 }) => {
   const [imageError, setImageError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
-  // Updated getImageSource to prioritize localAssets
+  // Updated getImageSource to use remoteAssets
   const getImageSource = () => {
     try {
       if (imageError) {
         return { uri: FALLBACK_IMAGE }
       }
-      // If it's a key in localAssets, use the local image
-      if (item.image && localAssets[item.image as keyof LocalAssets]) {
-        const source = localAssets[item.image as keyof LocalAssets]
-        console.log(`Using local asset for: ${item.image}`, source)
+
+      // If it's a key in remoteAssets, use the remote URL
+      if (item.image && remoteAssets[item.image as keyof RemoteAssets]) {
+        const source = { uri: remoteAssets[item.image as keyof RemoteAssets] }
+        console.log(`Using remote asset for: ${item.image}`, source)
         return source
       }
+
       // Otherwise, if it looks like a URL, treat it as one
       if (
         item.image &&
+        typeof item.image === "string" &&
         (item.image.startsWith("http") || item.image.startsWith("https"))
       ) {
         console.log(`Using remote URL for: ${item.image}`)
         return { uri: item.image }
       }
+
       // If it's neither a valid key nor a URL, trigger error state
       console.warn(
-        `Invalid image source: ${item.image}. Not found in localAssets and not a valid URL.`
+        `Invalid image source: ${item.image}. Not found in remoteAssets and not a valid URL.`
       )
       setImageError(true) // Set error state immediately
       return { uri: FALLBACK_IMAGE } // Return fallback
@@ -134,6 +141,28 @@ const MapItem = ({
     typeof source === "object" &&
     "uri" in source &&
     source.uri === FALLBACK_IMAGE
+
+  // Check if image is cached/already loaded
+  useEffect(() => {
+    if (
+      !isFallback &&
+      source &&
+      "uri" in source &&
+      typeof Image.queryCache === "function"
+    ) {
+      Image.queryCache([source.uri])
+        .then((cached) => {
+          const isImageCached = Object.keys(cached).length > 0
+          if (isImageCached) {
+            setIsLoading(false)
+            setImageLoaded(true)
+          }
+        })
+        .catch(() => {
+          // Continue with normal loading if queryCache fails
+        })
+    }
+  }, [source])
 
   return (
     <TouchableOpacity
@@ -157,7 +186,7 @@ const MapItem = ({
         </View>
       ) : (
         <View style={styles(theme).imageContainer}>
-          {isLoading && (
+          {isLoading && !imageLoaded && (
             <View style={styles(theme).loadingContainer}>
               <ActivityIndicator size="small" color={theme.colors.primary} />
             </View>
@@ -177,8 +206,13 @@ const MapItem = ({
             onLoad={() => {
               console.log("Image loaded successfully:", item.image)
               setIsLoading(false)
+              setImageLoaded(true)
             }}
-            onLoadStart={() => setIsLoading(true)}
+            onLoadStart={() => {
+              if (!imageLoaded) {
+                setIsLoading(true)
+              }
+            }}
           />
         </View>
       )}
@@ -202,24 +236,48 @@ const ImageViewer = ({
 }) => {
   const [imageError, setImageError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
   React.useEffect(() => {
     if (visible && image) {
       setImageError(false)
       setIsLoading(true)
+      setImageLoaded(false)
+
+      // Check if image is cached
+      if (
+        image &&
+        typeof image === "string" &&
+        (image.startsWith("http") ||
+          remoteAssets[image as keyof RemoteAssets] !== undefined) &&
+        typeof Image.queryCache === "function"
+      ) {
+        const uri = remoteAssets[image as keyof RemoteAssets] || image
+        Image.queryCache([uri])
+          .then((cached) => {
+            const isImageCached = Object.keys(cached).length > 0
+            if (isImageCached) {
+              setIsLoading(false)
+              setImageLoaded(true)
+            }
+          })
+          .catch(() => {
+            // Continue with normal loading if queryCache fails
+          })
+      }
     }
   }, [visible, image])
 
-  // Updated getImageSource for local assets and URLs
+  // Updated getImageSource for remote assets and URLs
   const getImageSource = () => {
     try {
       if (imageError || !image) {
         return { uri: FALLBACK_IMAGE }
       }
-      // Check if it's a local asset key first
-      if (localAssets[image as keyof LocalAssets]) {
-        const source = localAssets[image as keyof LocalAssets]
-        console.log(`Modal: Using local asset for: ${image}`, source)
+      // Check if it's a remote asset key first
+      if (remoteAssets[image as keyof RemoteAssets]) {
+        const source = { uri: remoteAssets[image as keyof RemoteAssets] }
+        console.log(`Modal: Using remote asset for: ${image}`, source)
         return source
       }
       // Otherwise, assume it's a URL
@@ -261,9 +319,9 @@ const ImageViewer = ({
         </TouchableOpacity>
 
         <View style={styles(theme).fullImageContainer}>
-          {(isLoading || isFallbackOrError) && ( // Show overlay for loading or error/fallback
+          {((isLoading && !imageLoaded) || isFallbackOrError) && ( // Only show loading if not already loaded
             <View style={styles(theme).modalOverlayContainer}>
-              {isLoading && !isFallbackOrError && (
+              {isLoading && !imageLoaded && !isFallbackOrError && (
                 <ActivityIndicator size="large" color="#ffffff" />
               )}
               {isFallbackOrError && (
@@ -301,8 +359,13 @@ const ImageViewer = ({
               onLoad={() => {
                 console.log("Modal image loaded successfully:", image)
                 setIsLoading(false)
+                setImageLoaded(true)
               }}
-              onLoadStart={() => setIsLoading(true)}
+              onLoadStart={() => {
+                if (!imageLoaded) {
+                  setIsLoading(true)
+                }
+              }}
             />
           )}
         </View>
@@ -495,11 +558,11 @@ export default function Maps() {
                 } else if (item.url) {
                   imageSource = item.url
                   console.warn(
-                    `No local asset key found for venue map: ${item.name}. Falling back to URL: ${item.url}`
+                    `No asset key found for venue map: ${item.name}. Falling back to URL: ${item.url}`
                   )
                 } else {
                   console.warn(
-                    `No local asset key or URL found for venue map: ${item.name}. Using fallback.`
+                    `No asset key or URL found for venue map: ${item.name}. Using fallback.`
                   )
                 }
 
@@ -549,11 +612,11 @@ export default function Maps() {
                 } else if (item.url) {
                   imageSource = item.url
                   console.warn(
-                    `No local asset key found for transportation map: ${item.name}. Falling back to URL: ${item.url}`
+                    `No asset key found for transportation map: ${item.name}. Falling back to URL: ${item.url}`
                   )
                 } else {
                   console.warn(
-                    `No local asset key or URL found for transportation map: ${item.name}. Using fallback.`
+                    `No asset key or URL found for transportation map: ${item.name}. Using fallback.`
                   )
                 }
 

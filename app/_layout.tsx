@@ -177,6 +177,8 @@ export default function RootLayout() {
     }
   }, [router, segments])
 
+  Notifications.requestPermissionsAsync()
+
   useEffect(() => {
     const fetchProgramData = async () => {
       try {

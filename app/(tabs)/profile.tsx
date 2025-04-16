@@ -1140,7 +1140,10 @@ export default function Profile() {
   // Handle case where user profile doesn't exist yet after loading
   if (!currentUser && !loadingProfile) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
+      <KeyboardAvoidingView
+        style={[styles.container, styles.centerContent]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <Ionicons
           name="person-add-outline"
           size={60}
@@ -1266,7 +1269,7 @@ export default function Profile() {
             <Text style={styles.saveButtonText}>Create Profile</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     )
   }
 

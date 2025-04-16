@@ -2245,7 +2245,7 @@ export default function Program() {
 
   // Generate QR code data - now with user ID for schedule sharing
   const qrData = userId
-    ? `yaap://schedule_share=${userId}`
+    ? `yaap://profile?schedule_share=${userId}`
     : JSON.stringify({ type: "schedule_share", userId: null })
 
   // Generate dynamic filter options from categories
