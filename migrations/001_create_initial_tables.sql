@@ -82,6 +82,7 @@ CREATE TABLE food (
     image TEXT, -- Optional
     location TEXT NOT NULL,
     distance NUMERIC -- Distance from venue
+    menu TEXT
 );
 CREATE INDEX idx_food_program_id ON food(program_id);
 

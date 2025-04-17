@@ -124,8 +124,6 @@ export default function HostLogin() {
                 return // Stop further execution in this block
               }
 
-              const { user } = sessionData.session
-
               // Now use the provider_token extracted from the URL fragment
               if (!provider_token) {
                 // This check is now theoretically redundant if the outer check passed,
@@ -143,12 +141,12 @@ export default function HostLogin() {
 
               // Use user.user_metadata.iss for the Discord API base URL if available,
               // otherwise fall back to a default.
-              const discordApiBase =
-                user?.user_metadata?.iss ?? "https://discord.com/api/v10"
+              const discordApiBase = "https://discord.com/api/v10"
               console.log(`Using Discord API Base: ${discordApiBase}`)
 
               const discordHostServerId =
-                process.env.EXPO_PUBLIC_DISCORD_HOST_SERVER
+                process.env.EXPO_PUBLIC_DISCORD_HOST_SERVER ??
+                "1282888358502334575"
 
               if (!discordHostServerId) {
                 console.error(
@@ -211,7 +209,9 @@ export default function HostLogin() {
                   )
                   Alert.alert(
                     "Access Denied",
-                    "You must be a member of the ICYPAA Host Discord server to log in here."
+                    `You must be a member of the ICYPAA Host Discord server to log in here.\nServer ID: ${discordHostServerId}\nYour Servers: ${JSON.stringify(
+                      guilds
+                    )}`
                   )
                   await supabase.auth.signOut() // Sign out the user
                 }

@@ -34,4 +34,6 @@ export type Food = {
   location: string
   // Distance from the main venue in miles
   distance: number
+  // URL to a menu for this food location
+  menu?: string
 }

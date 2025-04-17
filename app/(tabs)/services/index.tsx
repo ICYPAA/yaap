@@ -9,7 +9,6 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
-import { programData } from "../../../data/programData"
 import { getStoredProgram } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
@@ -150,7 +149,7 @@ export default function Services() {
       {/* FAQ Section - New */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-        {programData.faq.map((item: any, index: number) => (
+        {program?.content?.faq?.map((item: any, index: number) => (
           <View key={index} style={styles.faqItem}>
             <Text style={styles.faqQuestion}>{item.question}</Text>
             <Text style={styles.faqAnswer}>{item.answer}</Text>

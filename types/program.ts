@@ -149,4 +149,8 @@ export type ProgramContent = {
       description: string
     }
   }
+  faq?: {
+    question: string
+    answer: string
+  }[]
 }

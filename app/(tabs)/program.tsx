@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useNavigation } from "@react-navigation/native"
 import * as Application from "expo-application"
+import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
 import React, { useEffect, useMemo, useRef, useState } from "react"
@@ -11,7 +12,7 @@ import {
   AppState,
   Dimensions,
   Image,
-  Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -303,8 +304,13 @@ const getEventPosition = (startTime: string, endTime?: string) => {
 
   if (endTime) {
     const endMinutes = parseTimeToMinutes(endTime)
-    if (endMinutes > startMinutes) {
-      // 1 hour = 60px height, minimum 50px
+
+    // Check if end time is at midnight (12 AM) or appears to be before start time
+    if (endMinutes === 0 || endMinutes < startMinutes) {
+      // For midnight or next-day times, extend to the end of the day (24 hours * 60 minutes)
+      height = Math.max(((24 * 60 - startMinutes) / 60) * 60, height)
+    } else {
+      // Normal case - end time is after start time on the same day
       height = Math.max(((endMinutes - startMinutes) / 60) * 60, height)
     }
   }
@@ -340,10 +346,16 @@ const TimelineView = ({
   const roomHeadersScrollRef = React.useRef<ScrollView>(null)
   const roomColumnsScrollRef = React.useRef<ScrollView>(null)
   const { theme, isDarkMode } = useTheme()
-  // Add state to track expanded events
+
+  // State for modal instead of expanded events
+  const [selectedEvent, setSelectedEvent] =
+    useState<DisplayScheduleItem | null>(null)
+  const [modalVisible, setModalVisible] = useState(false)
   const [expandedEvents, setExpandedEvents] = useState<Record<number, boolean>>(
     {}
   )
+
+  const HEADER_HEIGHT = 37 // Define a constant for the header height
 
   // Define local styles for the component with original table styles
   const timelineStyles = StyleSheet.create({
@@ -374,12 +386,32 @@ const TimelineView = ({
       borderRadius: 8,
       overflow: "hidden",
       height: 800,
-      marginHorizontal: 16
+      marginHorizontal: 16,
+      position: "relative" // Ensure relative positioning for absolute children
     },
     stickyHeaderRow: {
       flexDirection: "row",
       backgroundColor: theme.colors.surface,
-      zIndex: 1
+      zIndex: 10,
+      elevation: 5,
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+      height: HEADER_HEIGHT, // Use the constant
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.2,
+          shadowRadius: 2
+        },
+        android: {
+          elevation: 4
+        }
+      })
     },
     timeColumnHeader: {
       width: 60,
@@ -409,7 +441,11 @@ const TimelineView = ({
       color: isDarkMode ? "#fff" : theme.colors.text.primary
     },
     timelineScrollView: { flex: 1 },
-    timelineContentWrapper: { flexDirection: "row", flex: 1 },
+    timelineContentWrapper: {
+      flexDirection: "row",
+      flex: 1,
+      paddingTop: HEADER_HEIGHT // Use the constant
+    },
     timeColumn: {
       width: 60,
       backgroundColor: theme.colors.surface
@@ -479,6 +515,93 @@ const TimelineView = ({
       fontSize: 10,
       fontStyle: "italic",
       marginTop: 2
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center"
+    },
+    modalContent: {
+      width: "90%",
+      maxWidth: 500,
+      padding: 20,
+      borderRadius: 10,
+      maxHeight: "90%",
+      overflow: "hidden"
+    },
+    modalScrollView: {
+      width: "100%"
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      width: "100%",
+      marginBottom: 15
+    },
+    modalTypeTag: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 5,
+      marginRight: 10
+    },
+    modalTypeText: {
+      fontSize: 14,
+      fontWeight: "bold",
+      color: "#FFFFFF"
+    },
+    modalCloseButton: {
+      padding: 5
+    },
+    modalBody: {
+      width: "100%",
+      paddingBottom: 20
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      marginBottom: 15,
+      textAlign: "left",
+      width: "100%"
+    },
+    modalTimeLocation: {
+      width: "100%",
+      marginBottom: 15
+    },
+    modalDetailText: {
+      fontSize: 14
+    },
+    modalSection: {
+      marginBottom: 15,
+      width: "100%"
+    },
+    modalSectionTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      marginBottom: 5,
+      textAlign: "left",
+      width: "100%"
+    },
+    modalDescription: {
+      fontSize: 14,
+      lineHeight: 20,
+      width: "100%"
+    },
+    modalSaveButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 10,
+      paddingHorizontal: 15,
+      borderRadius: 5,
+      marginTop: 10,
+      width: "100%"
+    },
+    modalSaveButtonText: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: "#FFFFFF"
     }
   })
 
@@ -493,12 +616,17 @@ const TimelineView = ({
     }
   }
 
-  // Add function to toggle event expansion
+  // Replace toggle event expansion with show modal
   const toggleEventExpanded = (eventId: number) => {
-    setExpandedEvents((prev) => ({
-      ...prev,
-      [eventId]: !prev[eventId]
-    }))
+    // Find the event details from all schedule items, not just filtered day events
+    const event = allScheduleItems.find((item) => item.id === eventId)
+    if (event) {
+      console.log("Selected event for modal:", event.title)
+      setSelectedEvent(event)
+      setModalVisible(true)
+    } else {
+      console.warn("Event not found:", eventId)
+    }
   }
 
   // Use the passed formatTime function
@@ -665,7 +793,7 @@ const TimelineView = ({
 
       {/* Timeline with sticky headers and columns */}
       <View style={timelineStyles.timelineWrapper}>
-        {/* Sticky header row with room names */}
+        {/* Sticky header row with room names - positioned absolutely */}
         <View style={timelineStyles.stickyHeaderRow}>
           {/* Empty cell for time column */}
           <View style={timelineStyles.timeColumnHeader}>
@@ -687,6 +815,9 @@ const TimelineView = ({
             style={timelineStyles.roomHeadersScroll}
             onScroll={(e) => handleHorizontalScroll(e, true)}
             scrollEventThrottle={16}
+            bounces={false}
+            decelerationRate="fast"
+            overScrollMode="never"
           >
             {roomColumns.map((room) => (
               <View key={room} style={timelineStyles.roomHeader}>
@@ -704,7 +835,11 @@ const TimelineView = ({
         </View>
 
         {/* Main content area with sticky time column */}
-        <ScrollView style={timelineStyles.timelineScrollView}>
+        <ScrollView
+          style={timelineStyles.timelineScrollView}
+          showsVerticalScrollIndicator={true}
+          bounces={false}
+        >
           <View style={timelineStyles.timelineContentWrapper}>
             {/* Sticky time column - full 24 hours */}
             <View style={timelineStyles.timeColumn}>
@@ -736,6 +871,9 @@ const TimelineView = ({
               style={timelineStyles.roomColumnsScroll}
               onScroll={(e) => handleHorizontalScroll(e, false)}
               scrollEventThrottle={16}
+              bounces={false}
+              decelerationRate="fast"
+              overScrollMode="never"
             >
               <View style={timelineStyles.roomColumnsContainer}>
                 {/* Room columns */}
@@ -757,14 +895,9 @@ const TimelineView = ({
                         )
 
                         // Determine if this is a short event (less than 1 hour)
-                        const isShortEvent =
-                          height < 60 && !expandedEvents[event.id]
-                        // Determine if event is expanded
-                        const isExpanded = expandedEvents[event.id]
-                        // Use min height of 60 (1 hour) if expanded
-                        const adjustedHeight = isExpanded
-                          ? Math.max(height, 60)
-                          : height
+                        const isShortEvent = height < 60
+                        // Use default height (no expansion for clicking)
+                        const adjustedHeight = height
 
                         const eventColor = getProgramEventColor(event)
                         const textColor = getTextColorForBgUtil(eventColor)
@@ -779,8 +912,7 @@ const TimelineView = ({
                                 height: adjustedHeight,
                                 backgroundColor: eventColor,
                                 minHeight: isShortEvent ? 30 : 40 // Lower minimum height for short events
-                              },
-                              isExpanded && timelineStyles.timelineEventExpanded
+                              }
                             ]}
                             onPress={() => toggleEventExpanded(event.id)}
                           >
@@ -816,7 +948,7 @@ const TimelineView = ({
                                 )}
                               </View>
                             ) : (
-                              // Full or expanded view
+                              // Normal view
                               <>
                                 <Text
                                   style={[
@@ -839,54 +971,6 @@ const TimelineView = ({
                                       : ""}
                                   </Text>
                                 </View>
-
-                                {/* Show expanded details */}
-                                {isExpanded && (
-                                  <View style={timelineStyles.expandedDetails}>
-                                    {event.description && (
-                                      <Text
-                                        style={[
-                                          timelineStyles.expandedDescription,
-                                          { color: textColor }
-                                        ]}
-                                        numberOfLines={3}
-                                      >
-                                        {event.description}
-                                      </Text>
-                                    )}
-                                    {event.speakers &&
-                                      event.speakers.length > 0 && (
-                                        <Text
-                                          style={[
-                                            timelineStyles.expandedSpeakers,
-                                            { color: textColor }
-                                          ]}
-                                        >
-                                          {event.speakers.join(", ")}
-                                        </Text>
-                                      )}
-
-                                    {/* Add shared event users (wrapped in View for presentation) */}
-                                    <View
-                                      style={{
-                                        marginTop: 4,
-                                        backgroundColor:
-                                          "rgba(255,255,255,0.9)",
-                                        borderRadius: 4,
-                                        padding: 2
-                                      }}
-                                    >
-                                      <SharedEventUsers
-                                        eventId={event.id}
-                                        sharedEvents={sharedEvents}
-                                        theme={theme}
-                                        key={`shared-users-${event.id}-${
-                                          Object.keys(sharedEvents).length
-                                        }`}
-                                      />
-                                    </View>
-                                  </View>
-                                )}
 
                                 {event.can_save !== false && (
                                   <TouchableOpacity
@@ -920,6 +1004,228 @@ const TimelineView = ({
           </View>
         </ScrollView>
       </View>
+
+      {/* Event Detail Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        {selectedEvent && (
+          <View style={timelineStyles.modalOverlay}>
+            <View
+              style={[
+                timelineStyles.modalContent,
+                { backgroundColor: theme.colors.surface }
+              ]}
+            >
+              <View style={timelineStyles.modalHeader}>
+                <View
+                  style={[
+                    timelineStyles.modalTypeTag,
+                    { backgroundColor: selectedEvent.categoryColor }
+                  ]}
+                >
+                  <Text
+                    style={[
+                      timelineStyles.modalTypeText,
+                      {
+                        color: getTextColorForBgUtil(
+                          selectedEvent.categoryColor
+                        )
+                      }
+                    ]}
+                  >
+                    {selectedEvent.type}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={timelineStyles.modalCloseButton}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={theme.colors.text.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={timelineStyles.modalScrollView}
+                showsVerticalScrollIndicator={true}
+                bounces={false}
+              >
+                <View style={timelineStyles.modalBody}>
+                  <Text
+                    style={[
+                      timelineStyles.modalTitle,
+                      { color: theme.colors.text.primary }
+                    ]}
+                  >
+                    {selectedEvent.title}
+                  </Text>
+
+                  <View style={timelineStyles.modalTimeLocation}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 8
+                      }}
+                    >
+                      <Ionicons
+                        name="time-outline"
+                        size={16}
+                        color={theme.colors.text.secondary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          timelineStyles.modalDetailText,
+                          { color: theme.colors.text.secondary }
+                        ]}
+                      >
+                        {selectedEvent.time}
+                        {events.find((e) => e.id === selectedEvent.id)?.end_time
+                          ? ` - ${formatTime(
+                              events.find((e) => e.id === selectedEvent.id)
+                                ?.end_time
+                            )}`
+                          : ""}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <Ionicons
+                        name="location-outline"
+                        size={16}
+                        color={theme.colors.text.secondary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          timelineStyles.modalDetailText,
+                          { color: theme.colors.text.secondary }
+                        ]}
+                      >
+                        {selectedEvent.location}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {selectedEvent.description && (
+                    <View style={timelineStyles.modalSection}>
+                      <Text
+                        style={[
+                          timelineStyles.modalSectionTitle,
+                          { color: theme.colors.text.primary }
+                        ]}
+                      >
+                        Description
+                      </Text>
+                      <Text
+                        style={[
+                          timelineStyles.modalDescription,
+                          { color: theme.colors.text.secondary }
+                        ]}
+                      >
+                        {selectedEvent.description}
+                      </Text>
+                    </View>
+                  )}
+
+                  {selectedEvent.speakers &&
+                    selectedEvent.speakers.length > 0 && (
+                      <View style={timelineStyles.modalSection}>
+                        <Text
+                          style={[
+                            timelineStyles.modalSectionTitle,
+                            { color: theme.colors.text.primary }
+                          ]}
+                        >
+                          Speakers
+                        </Text>
+                        <Text
+                          style={[
+                            timelineStyles.modalDescription,
+                            { color: theme.colors.text.secondary }
+                          ]}
+                        >
+                          {selectedEvent.speakers.join(", ")}
+                        </Text>
+                      </View>
+                    )}
+
+                  {/* Add shared event users */}
+                  <View style={timelineStyles.modalSection}>
+                    <Text
+                      style={[
+                        timelineStyles.modalSectionTitle,
+                        { color: theme.colors.text.primary }
+                      ]}
+                    >
+                      Friends Attending
+                    </Text>
+                    <SharedEventUsers
+                      eventId={selectedEvent.id}
+                      sharedEvents={sharedEvents}
+                      theme={theme}
+                      key={`shared-users-${selectedEvent.id}-${
+                        Object.keys(sharedEvents).length
+                      }`}
+                    />
+                  </View>
+
+                  {/* Save button at the bottom */}
+                  {selectedEvent.can_save !== false && (
+                    <TouchableOpacity
+                      style={[
+                        timelineStyles.modalSaveButton,
+                        { backgroundColor: selectedEvent.categoryColor }
+                      ]}
+                      onPress={() => {
+                        onToggleSave(selectedEvent.id)
+                      }}
+                    >
+                      <Ionicons
+                        name={
+                          savedItems.includes(selectedEvent.id)
+                            ? "star"
+                            : "star-outline"
+                        }
+                        size={20}
+                        color={getTextColorForBgUtil(
+                          selectedEvent.categoryColor
+                        )}
+                        style={{ marginRight: 8 }}
+                      />
+                      <Text
+                        style={[
+                          timelineStyles.modalSaveButtonText,
+                          {
+                            color: getTextColorForBgUtil(
+                              selectedEvent.categoryColor
+                            )
+                          }
+                        ]}
+                      >
+                        {savedItems.includes(selectedEvent.id)
+                          ? "Remove from My Schedule"
+                          : "Add to My Schedule"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        )}
+      </Modal>
     </View>
   )
 }
@@ -929,9 +1235,14 @@ const FoodCard = ({ item }: { item: Food }) => {
   const { theme, isDarkMode } = useTheme()
 
   // Calculate distance if available
-  const formattedDistance = item.distance
-    ? `${item.distance} mi.`
-    : "Distance not available"
+  const formattedDistance =
+    item.distance !== null ? `${item.distance} mi.` : "Distance not available"
+
+  // Check if location should show map button
+  const shouldShowMapButton =
+    item.location &&
+    item.location.trim() !== "" &&
+    item.location !== "In the Hotel"
 
   // Define local styles for FoodCard
   const foodCardStyles = StyleSheet.create({
@@ -949,6 +1260,10 @@ const FoodCard = ({ item }: { item: Food }) => {
       alignItems: "flex-start",
       marginBottom: 8
     },
+    titleContainer: {
+      flex: 1,
+      marginRight: 8
+    },
     activityCategory: {
       fontSize: 12,
       color: theme.colors.primary,
@@ -959,9 +1274,20 @@ const FoodCard = ({ item }: { item: Food }) => {
     activityTitle: {
       fontSize: 18,
       color: theme.colors.text.primary,
-      fontWeight: "bold"
+      fontWeight: "bold",
+      flexWrap: "wrap"
+    },
+    buttonContainer: {
+      flexDirection: "row",
+      gap: 8,
+      flexShrink: 0
     },
     mapButton: {
+      padding: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.background
+    },
+    menuButton: {
       padding: 8,
       borderRadius: 4,
       backgroundColor: theme.colors.background
@@ -987,16 +1313,36 @@ const FoodCard = ({ item }: { item: Food }) => {
   return (
     <View style={foodCardStyles.activityCard}>
       <View style={foodCardStyles.activityHeader}>
-        <View>
+        <View style={foodCardStyles.titleContainer}>
           <Text style={foodCardStyles.activityCategory}>{item.category}</Text>
           <Text style={foodCardStyles.activityTitle}>{item.name}</Text>
         </View>
-        <TouchableOpacity
-          onPress={() => openMaps(item.location)}
-          style={foodCardStyles.mapButton}
-        >
-          <Ionicons name="map-outline" size={24} color={theme.colors.primary} />
-        </TouchableOpacity>
+        <View style={foodCardStyles.buttonContainer}>
+          {item.menu && (
+            <TouchableOpacity
+              onPress={() => Linking.openURL(item.menu!)}
+              style={foodCardStyles.menuButton}
+            >
+              <Ionicons
+                name="restaurant-outline"
+                size={24}
+                color={theme.colors.primary}
+              />
+            </TouchableOpacity>
+          )}
+          {shouldShowMapButton && (
+            <TouchableOpacity
+              onPress={() => openMaps(item.location)}
+              style={foodCardStyles.mapButton}
+            >
+              <Ionicons
+                name="map-outline"
+                size={24}
+                color={theme.colors.primary}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       <Text style={foodCardStyles.activityLocation}>{item.location}</Text>
       <Text style={foodCardStyles.activityDistance}>{formattedDistance}</Text>
@@ -3320,9 +3666,16 @@ export default function Program() {
             showsHorizontalScrollIndicator={false}
             style={programStyles(theme).foodListContainer}
           >
-            {foodItems.map((item) => (
-              <FoodCard key={item.id} item={item} />
-            ))}
+            {[...foodItems]
+              .sort((a, b) => {
+                // Handle null/undefined distances
+                if (a.distance === null || a.distance === undefined) return 1
+                if (b.distance === null || b.distance === undefined) return -1
+                return a.distance - b.distance
+              })
+              .map((item) => (
+                <FoodCard key={item.id} item={item} />
+              ))}
           </ScrollView>
         </View>
       </ScrollView>
