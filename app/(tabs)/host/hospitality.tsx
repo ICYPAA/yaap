@@ -368,7 +368,22 @@ export default function HospitalityNotifications() {
             }
           ]}
         >
-          <Text style={styles(theme).statusText}>
+          <Text
+            style={[
+              styles(theme).statusText,
+              {
+                color: getTextColorForBackground(
+                  !item.status ||
+                    item.status === "pending" ||
+                    item.status === "in_progress"
+                    ? theme.colors.warning
+                    : item.status === "completed"
+                    ? theme.colors.success
+                    : theme.colors.error
+                )
+              }
+            ]}
+          >
             {item.status?.replace("_", " ") || "pending"}
           </Text>
         </View>
@@ -416,7 +431,14 @@ export default function HospitalityNotifications() {
               ]}
               onPress={() => handleStatusUpdate(item.id, "completed", true)}
             >
-              <Text style={styles(theme).actionButtonText}>Approve</Text>
+              <Text
+                style={[
+                  styles(theme).actionButtonText,
+                  { color: getTextColorForBackground(theme.colors.success) }
+                ]}
+              >
+                Approve
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -425,7 +447,14 @@ export default function HospitalityNotifications() {
               ]}
               onPress={() => handleStatusUpdate(item.id, "closed")}
             >
-              <Text style={styles(theme).actionButtonText}>Deny</Text>
+              <Text
+                style={[
+                  styles(theme).actionButtonText,
+                  { color: getTextColorForBackground(theme.colors.error) }
+                ]}
+              >
+                Deny
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -439,7 +468,14 @@ export default function HospitalityNotifications() {
               ]}
               onPress={() => handleStatusUpdate(item.id, "completed", true)}
             >
-              <Text style={styles(theme).actionButtonText}>Approve</Text>
+              <Text
+                style={[
+                  styles(theme).actionButtonText,
+                  { color: getTextColorForBackground(theme.colors.success) }
+                ]}
+              >
+                Approve
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -448,7 +484,14 @@ export default function HospitalityNotifications() {
               ]}
               onPress={() => handleStatusUpdate(item.id, "closed")}
             >
-              <Text style={styles(theme).actionButtonText}>Deny</Text>
+              <Text
+                style={[
+                  styles(theme).actionButtonText,
+                  { color: getTextColorForBackground(theme.colors.error) }
+                ]}
+              >
+                Deny
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -461,7 +504,14 @@ export default function HospitalityNotifications() {
             ]}
             onPress={() => handleStatusUpdate(item.id, "in_progress")}
           >
-            <Text style={styles(theme).actionButtonText}>Reopen</Text>
+            <Text
+              style={[
+                styles(theme).actionButtonText,
+                { color: getTextColorForBackground(theme.colors.primary) }
+              ]}
+            >
+              Reopen
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -497,7 +547,20 @@ export default function HospitalityNotifications() {
           ]}
           onPress={() => setActiveFilter("all")}
         >
-          <Text style={styles(theme).filterButtonText}>All</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "all"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            All
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -506,7 +569,20 @@ export default function HospitalityNotifications() {
           ]}
           onPress={() => setActiveFilter("active")}
         >
-          <Text style={styles(theme).filterButtonText}>Active</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "active"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            Active
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -515,7 +591,20 @@ export default function HospitalityNotifications() {
           ]}
           onPress={() => setActiveFilter("completed")}
         >
-          <Text style={styles(theme).filterButtonText}>Completed</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "completed"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            Completed
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -524,7 +613,20 @@ export default function HospitalityNotifications() {
           ]}
           onPress={() => setActiveFilter("closed")}
         >
-          <Text style={styles(theme).filterButtonText}>Closed</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "closed"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            Closed
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -623,7 +725,6 @@ const styles = (theme: ThemeType) =>
       borderRadius: theme.borderRadius.md
     },
     statusText: {
-      color: getTextColorForBackground(theme.colors.warning),
       fontSize: 12,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -661,7 +762,6 @@ const styles = (theme: ThemeType) =>
       marginLeft: theme.spacing.sm
     },
     actionButtonText: {
-      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "500"
     },
     ownerContainer: {
@@ -696,7 +796,6 @@ const styles = (theme: ThemeType) =>
       backgroundColor: theme.colors.primary
     },
     filterButtonText: {
-      fontWeight: "500",
-      color: theme.colors.text.primary
+      fontWeight: "500"
     }
   })

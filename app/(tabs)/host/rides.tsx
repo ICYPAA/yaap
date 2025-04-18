@@ -322,7 +322,22 @@ export default function RideRequests() {
             }
           ]}
         >
-          <Text style={styles(theme).statusText}>
+          <Text
+            style={[
+              styles(theme).statusText,
+              {
+                color: getTextColorForBackground(
+                  !item.status ||
+                    item.status === "pending" ||
+                    item.status === "in_progress"
+                    ? theme.colors.warning
+                    : item.status === "completed"
+                    ? theme.colors.success
+                    : theme.colors.error
+                )
+              }
+            ]}
+          >
             {item.status ? item.status.replace("_", " ") : "pending"}
           </Text>
         </View>
@@ -374,7 +389,14 @@ export default function RideRequests() {
             ]}
             onPress={() => handleStatusUpdate(item.id, "in_progress")}
           >
-            <Text style={styles(theme).actionButtonText}>Start Handling</Text>
+            <Text
+              style={[
+                styles(theme).actionButtonText,
+                { color: getTextColorForBackground(theme.colors.warning) }
+              ]}
+            >
+              Start Handling
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -387,7 +409,14 @@ export default function RideRequests() {
               ]}
               onPress={() => handleStatusUpdate(item.id, "completed")}
             >
-              <Text style={styles(theme).actionButtonText}>Complete</Text>
+              <Text
+                style={[
+                  styles(theme).actionButtonText,
+                  { color: getTextColorForBackground(theme.colors.success) }
+                ]}
+              >
+                Complete
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -396,7 +425,14 @@ export default function RideRequests() {
               ]}
               onPress={() => handleStatusUpdate(item.id, "closed")}
             >
-              <Text style={styles(theme).actionButtonText}>Close</Text>
+              <Text
+                style={[
+                  styles(theme).actionButtonText,
+                  { color: getTextColorForBackground(theme.colors.error) }
+                ]}
+              >
+                Close
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -409,7 +445,14 @@ export default function RideRequests() {
             ]}
             onPress={() => handleStatusUpdate(item.id, "in_progress")}
           >
-            <Text style={styles(theme).actionButtonText}>Reopen</Text>
+            <Text
+              style={[
+                styles(theme).actionButtonText,
+                { color: getTextColorForBackground(theme.colors.primary) }
+              ]}
+            >
+              Reopen
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -445,7 +488,20 @@ export default function RideRequests() {
           ]}
           onPress={() => setActiveFilter("all")}
         >
-          <Text style={styles(theme).filterButtonText}>All</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "all"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            All
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -454,7 +510,20 @@ export default function RideRequests() {
           ]}
           onPress={() => setActiveFilter("active")}
         >
-          <Text style={styles(theme).filterButtonText}>Active</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "active"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            Active
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -463,7 +532,20 @@ export default function RideRequests() {
           ]}
           onPress={() => setActiveFilter("completed")}
         >
-          <Text style={styles(theme).filterButtonText}>Completed</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "completed"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            Completed
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -472,7 +554,20 @@ export default function RideRequests() {
           ]}
           onPress={() => setActiveFilter("closed")}
         >
-          <Text style={styles(theme).filterButtonText}>Closed</Text>
+          <Text
+            style={[
+              styles(theme).filterButtonText,
+              {
+                color: getTextColorForBackground(
+                  activeFilter === "closed"
+                    ? theme.colors.primary
+                    : theme.colors.background
+                )
+              }
+            ]}
+          >
+            Closed
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -524,7 +619,7 @@ const styles = (theme: ThemeType) =>
       borderRadius: theme.borderRadius.md
     },
     debugText: {
-      color: theme.colors.background,
+      color: getTextColorForBackground(theme.colors.error),
       fontSize: 12,
       fontWeight: "bold"
     },
@@ -567,7 +662,6 @@ const styles = (theme: ThemeType) =>
       borderRadius: theme.borderRadius.md
     },
     statusText: {
-      color: getTextColorForBackground(theme.colors.error),
       fontSize: 12,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -610,7 +704,6 @@ const styles = (theme: ThemeType) =>
       marginLeft: theme.spacing.sm
     },
     actionButtonText: {
-      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "500"
     },
     filterContainer: {
@@ -631,8 +724,7 @@ const styles = (theme: ThemeType) =>
       backgroundColor: theme.colors.primary
     },
     filterButtonText: {
-      fontWeight: "500",
-      color: theme.colors.text.primary
+      fontWeight: "500"
     },
     ownerContainer: {
       flexDirection: "row",

@@ -51,6 +51,17 @@ interface VolunteerSignup {
   created_at: string
 }
 
+// Define types for section list data
+interface SectionHeader {
+  id: string
+  itemType: "header"
+  title: string
+  count: number
+}
+
+type VolunteerWithType = VolunteerSignup & { itemType: "volunteer" }
+type SectionListItem = SectionHeader | VolunteerWithType
+
 export default function VolunteerSignups() {
   const router = useRouter()
   const { theme } = useTheme()
@@ -172,7 +183,17 @@ export default function VolunteerSignups() {
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
+      console.log(`Updating volunteer ${id} status to ${newStatus}`)
       const supabaseWithDeviceId = await withDeviceId()
+
+      // Update the status locally first for immediate UI feedback
+      setVolunteers((current) =>
+        current.map((volunteer) =>
+          volunteer.id === id ? { ...volunteer, status: newStatus } : volunteer
+        )
+      )
+
+      // Then update in the database
       const { error } = await makeRequest({
         table: "volunteering_interest",
         isDebugMode,
@@ -183,8 +204,14 @@ export default function VolunteerSignups() {
             .eq("id", id)
       })
 
-      if (error) throw error
-      fetchVolunteers()
+      if (error) {
+        console.error("Error in Supabase update:", error)
+        // Revert the local change if there was an error
+        fetchVolunteers()
+        throw error
+      }
+
+      console.log(`Successfully updated volunteer ${id} status to ${newStatus}`)
     } catch (error) {
       console.error("Error updating volunteer status:", error)
     }
@@ -205,11 +232,26 @@ export default function VolunteerSignups() {
                   ? theme.colors.warning
                   : item.status === "assigned"
                   ? theme.colors.warning
+                  : item.status === "resolved"
+                  ? theme.colors.success
                   : theme.colors.success
             }
           ]}
         >
-          <Text style={styles.statusText}>
+          <Text
+            style={[
+              styles.statusText,
+              {
+                color: getTextColorForBackground(
+                  !item.status ||
+                    item.status === "pending" ||
+                    item.status === "assigned"
+                    ? theme.colors.warning
+                    : theme.colors.success
+                )
+              }
+            ]}
+          >
             {item.status?.replace("_", " ") || "pending"}
           </Text>
         </View>
@@ -285,39 +327,43 @@ export default function VolunteerSignups() {
       </Text>
 
       <View style={styles.actionButtons}>
-        {(!item.status || item.status === "pending") && (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: theme.colors.warning }
-            ]}
-            onPress={() => handleStatusUpdate(item.id, "assigned")}
-          >
-            <Text style={styles.actionButtonText}>Assign Volunteer</Text>
-          </TouchableOpacity>
-        )}
-
-        {item.status === "assigned" && (
+        {(!item.status ||
+          item.status === "pending" ||
+          item.status === "assigned") && (
           <TouchableOpacity
             style={[
               styles.actionButton,
               { backgroundColor: theme.colors.success }
             ]}
-            onPress={() => handleStatusUpdate(item.id, "completed")}
+            onPress={() => handleStatusUpdate(item.id, "resolved")}
           >
-            <Text style={styles.actionButtonText}>Mark Completed</Text>
+            <Text
+              style={[
+                styles.actionButtonText,
+                { color: getTextColorForBackground(theme.colors.success) }
+              ]}
+            >
+              Resolve
+            </Text>
           </TouchableOpacity>
         )}
 
-        {item.status === "completed" && (
+        {item.status === "resolved" && (
           <TouchableOpacity
             style={[
               styles.actionButton,
-              { backgroundColor: theme.colors.primary }
+              { backgroundColor: theme.colors.warning }
             ]}
             onPress={() => handleStatusUpdate(item.id, "pending")}
           >
-            <Text style={styles.actionButtonText}>Reassign</Text>
+            <Text
+              style={[
+                styles.actionButtonText,
+                { color: getTextColorForBackground(theme.colors.warning) }
+              ]}
+            >
+              Reopen
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -355,10 +401,53 @@ export default function VolunteerSignups() {
         </View>
       ) : (
         <FlatList
-          data={volunteers}
-          renderItem={renderItem}
+          data={(() => {
+            const unresolvedVolunteers = volunteers.filter(
+              (v) => v.status !== "resolved"
+            )
+            const resolvedVolunteers = volunteers.filter(
+              (v) => v.status === "resolved"
+            )
+
+            return [
+              {
+                id: "unresolved-header",
+                itemType: "header",
+                title: "Unresolved",
+                count: unresolvedVolunteers.length
+              } as SectionHeader,
+              ...unresolvedVolunteers.map(
+                (v) => ({ ...v, itemType: "volunteer" } as VolunteerWithType)
+              ),
+              {
+                id: "resolved-header",
+                itemType: "header",
+                title: "Resolved",
+                count: resolvedVolunteers.length
+              } as SectionHeader,
+              ...resolvedVolunteers.map(
+                (v) => ({ ...v, itemType: "volunteer" } as VolunteerWithType)
+              )
+            ]
+          })()}
+          renderItem={({ item }) => {
+            if (item.itemType === "header") {
+              return (
+                <View style={styles.sectionListHeader}>
+                  <Text style={styles.sectionListHeaderText}>{item.title}</Text>
+                  <Text style={styles.sectionListCount}>({item.count})</Text>
+                  {item.count === 0 && (
+                    <Text style={styles.emptySectionText}>No items</Text>
+                  )}
+                </View>
+              )
+            }
+            // Manually cast to VolunteerSignup to match renderItem's expected type
+            return renderItem({ item: item as VolunteerSignup })
+          }}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContainer}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
     </View>
@@ -438,7 +527,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       borderRadius: 12
     },
     statusText: {
-      color: getTextColorForBackground(theme.colors.warning),
       fontSize: 12,
       fontWeight: "500",
       textTransform: "capitalize"
@@ -481,7 +569,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       marginLeft: 8
     },
     actionButtonText: {
-      color: getTextColorForBackground(theme.colors.primary),
       fontWeight: "500",
       fontSize: 14
     },
@@ -518,5 +605,37 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       marginLeft: 8,
       fontSize: 14,
       color: theme.colors.text.primary
+    },
+    sectionListHeader: {
+      padding: 16,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+      flexDirection: "row",
+      alignItems: "center"
+    },
+    sectionListHeaderText: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text.primary,
+      flex: 1
+    },
+    sectionListCount: {
+      fontSize: 16,
+      color: theme.colors.text.secondary,
+      marginLeft: 8
+    },
+    emptySectionText: {
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      fontStyle: "italic",
+      marginTop: 4,
+      marginLeft: 8
+    },
+    separator: {
+      height: 1,
+      backgroundColor: theme.colors.border,
+      opacity: 0.2,
+      marginVertical: 4
     }
   })

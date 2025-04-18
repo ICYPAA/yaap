@@ -31,10 +31,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.themindfulpug.icypaa",
-      "useNextNotificationsApi": true,
       "permissions": [
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.VIBRATE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE"
       ]

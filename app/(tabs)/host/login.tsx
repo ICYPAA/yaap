@@ -6,7 +6,9 @@ import * as WebBrowser from "expo-web-browser"
 import React, { useEffect, useState } from "react"
 import {
   Alert,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -271,158 +273,146 @@ export default function HostLogin() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Host Committee Login</Text>
-      <Text style={styles.description}>
-        Access host committee features and settings by logging in with your
-        Discord account.
-      </Text>
-
-      <TouchableOpacity
-        style={styles.loginButton}
-        onPress={handleDiscordLogin}
-        disabled={loading || emailLoading || appleLoading}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        <FontAwesome6
-          name="discord"
-          size={20}
-          color="#e0e3ff"
-          style={styles.iconStyle}
-        />
-        <Text style={styles.loginButtonText}>
-          {loading ? "Logging in..." : "Login with Discord"}
+        <Text style={styles.title}>Host Committee Login</Text>
+        <Text style={styles.description}>
+          Access host committee features and settings by logging in with your
+          Discord account.
         </Text>
-      </TouchableOpacity>
 
-      {/* Apple Sign In Button */}
-      {Platform.OS === "ios" && isAppleAuthAvailable && (
-        <View style={styles.appleButtonContainer}>
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={
-              AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-            }
-            buttonStyle={
-              AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-            }
-            cornerRadius={5}
-            style={styles.appleNativeButton}
-            onPress={async () => {
-              try {
-                setAppleLoading(true)
-                console.log("Apple Login: Starting...")
-
-                const credential = await AppleAuthentication.signInAsync({
-                  requestedScopes: [
-                    AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-                    AppleAuthentication.AppleAuthenticationScope.EMAIL
-                  ]
-                })
-
-                // Sign in via Supabase Auth
-                if (credential.identityToken) {
-                  console.log(
-                    "Apple Login: Got identity token, signing in with Supabase..."
-                  )
-
-                  const { error } = await supabase.auth.signInWithIdToken({
-                    provider: "apple",
-                    token: credential.identityToken
-                  })
-
-                  if (error) throw error
-
-                  console.log(
-                    "Apple Login: Successful login, redirecting to not authorized page..."
-                  )
-                  router.push("/not-authorized" as any)
-                } else {
-                  throw new Error("No identityToken from Apple Sign In.")
-                }
-              } catch (e: any) {
-                if (e.code === "ERR_REQUEST_CANCELED") {
-                  console.log("Apple Login: User canceled the login.")
-                } else {
-                  console.error("Apple login error:", e)
-                  Alert.alert(
-                    "Login Error",
-                    e instanceof Error
-                      ? e.message
-                      : "An unknown error occurred during Apple login. Please try again."
-                  )
-                }
-              } finally {
-                setAppleLoading(false)
-              }
-            }}
-          />
-        </View>
-      )}
-
-      {/* Email/Password Login Section */}
-      <View style={styles.separatorContainer}>
-        <View style={styles.separatorLine} />
-        <Text style={styles.separatorText}>OR</Text>
-        <View style={styles.separatorLine} />
-      </View>
-
-      <TextInput
-        style={styles.input}
-        onChangeText={setEmail}
-        value={email}
-        placeholder="email@address.com"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        placeholderTextColor={theme.colors.text.secondary}
-        editable={!emailLoading && !loading}
-      />
-      <TextInput
-        style={styles.input}
-        onChangeText={setPassword}
-        value={password}
-        secureTextEntry={true}
-        placeholder="Password"
-        autoCapitalize="none"
-        placeholderTextColor={theme.colors.text.secondary}
-        editable={!emailLoading && !loading}
-      />
-      <View style={styles.buttonRow}>
         <TouchableOpacity
-          style={[
-            styles.emailButton,
-            styles.signInButton,
-            styles.fullWidthButton,
-            (emailLoading || loading) && styles.disabledButton
-          ]}
-          onPress={handleSignInWithEmail}
-          disabled={emailLoading || loading}
+          style={styles.loginButton}
+          onPress={handleDiscordLogin}
+          disabled={loading || emailLoading || appleLoading}
         >
-          <Text style={styles.emailButtonText}>
-            {emailLoading ? "Signing In..." : "Sign In"}
+          <FontAwesome6
+            name="discord"
+            size={20}
+            color="#e0e3ff"
+            style={styles.iconStyle}
+          />
+          <Text style={styles.loginButtonText}>
+            {loading ? "Logging in..." : "Login with Discord"}
           </Text>
         </TouchableOpacity>
-      </View>
 
-      {isDebugMode && (
-        <View style={styles.debugContainer}>
-          <Text style={styles.debugText}>
-            Debug mode is enabled. Authentication is bypassed.
-          </Text>
-          <Text style={styles.debugText}>
-            Apple Authentication available:{" "}
-            {isAppleAuthAvailable ? "Yes" : "No"}
-          </Text>
+        {/* Apple Sign In Button */}
+        {Platform.OS === "ios" && isAppleAuthAvailable && (
+          <View style={styles.appleButtonContainer}>
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={
+                AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+              }
+              buttonStyle={
+                AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              }
+              cornerRadius={5}
+              style={styles.appleNativeButton}
+              onPress={async () => {
+                try {
+                  setAppleLoading(true)
+                  console.log("Apple Login: Starting...")
+
+                  const credential = await AppleAuthentication.signInAsync({
+                    requestedScopes: [
+                      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+                      AppleAuthentication.AppleAuthenticationScope.EMAIL
+                    ]
+                  })
+
+                  // Sign in via Supabase Auth
+                  if (credential.identityToken) {
+                    console.log(
+                      "Apple Login: Got identity token, signing in with Supabase..."
+                    )
+
+                    const { error } = await supabase.auth.signInWithIdToken({
+                      provider: "apple",
+                      token: credential.identityToken
+                    })
+
+                    if (error) throw error
+
+                    console.log(
+                      "Apple Login: Successful login, redirecting to not authorized page..."
+                    )
+                    router.push("/not-authorized" as any)
+                  } else {
+                    throw new Error("No identityToken from Apple Sign In.")
+                  }
+                } catch (e: any) {
+                  if (e.code === "ERR_REQUEST_CANCELED") {
+                    console.log("Apple Login: User canceled the login.")
+                  } else {
+                    console.error("Apple login error:", e)
+                    Alert.alert(
+                      "Login Error",
+                      e instanceof Error
+                        ? e.message
+                        : "An unknown error occurred during Apple login. Please try again."
+                    )
+                  }
+                } finally {
+                  setAppleLoading(false)
+                }
+              }}
+            />
+          </View>
+        )}
+
+        {/* Email/Password Login Section */}
+        <View style={styles.separatorContainer}>
+          <View style={styles.separatorLine} />
+          <Text style={styles.separatorText}>OR</Text>
+          <View style={styles.separatorLine} />
+        </View>
+
+        <TextInput
+          style={styles.input}
+          onChangeText={setEmail}
+          value={email}
+          placeholder="email@address.com"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholderTextColor={theme.colors.text.secondary}
+          editable={!emailLoading && !loading}
+        />
+        <TextInput
+          style={styles.input}
+          onChangeText={setPassword}
+          value={password}
+          secureTextEntry={true}
+          placeholder="Password"
+          autoCapitalize="none"
+          placeholderTextColor={theme.colors.text.secondary}
+          editable={!emailLoading && !loading}
+        />
+        <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.loginButton, { marginTop: theme.spacing.md }]}
-            onPress={() => {
-              console.log("Manually setting isAppleAuthAvailable to true")
-              setIsAppleAuthAvailable(true)
-            }}
+            style={[
+              styles.emailButton,
+              styles.signInButton,
+              styles.fullWidthButton,
+              (emailLoading || loading) && styles.disabledButton
+            ]}
+            onPress={handleSignInWithEmail}
+            disabled={emailLoading || loading}
           >
-            <Text style={styles.loginButtonText}>Force Show Apple Button</Text>
+            <Text style={styles.emailButtonText}>
+              {emailLoading ? "Signing In..." : "Sign In"}
+            </Text>
           </TouchableOpacity>
         </View>
-      )}
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -430,7 +420,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.colors.background
+    },
+    scrollContent: {
+      flexGrow: 1,
       padding: theme.spacing.lg,
       justifyContent: "center",
       alignItems: "center"
@@ -452,7 +445,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       paddingVertical: theme.spacing.md,
       paddingHorizontal: theme.spacing.lg,
       borderRadius: theme.borderRadius.md,
-      minWidth: 200,
+      width: "80%",
+      height: 56,
       alignItems: "center",
       flexDirection: "row",
       justifyContent: "center"
@@ -461,7 +455,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       marginRight: theme.spacing.sm
     },
     loginButtonText: {
-      color: theme.colors.background,
+      color: "#e0e3ff",
       fontWeight: "bold",
       fontSize: theme.typography.body.fontSize
     },
@@ -508,9 +502,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       backgroundColor: theme.colors.primary
     },
     emailButtonText: {
-      color: theme.colors.background,
       fontWeight: "bold",
-      fontSize: theme.typography.body.fontSize
+      fontSize: theme.typography.body.fontSize,
+      color: "#fff"
     },
     fullWidthButton: {
       marginHorizontal: 0
@@ -533,12 +527,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
     },
     appleButtonContainer: {
       marginTop: theme.spacing.md,
-      alignItems: "center"
+      alignItems: "center",
+      width: "80%"
     },
     appleNativeButton: {
-      width: "80%",
-      height: 44,
-      maxWidth: 300,
-      minWidth: 200
+      width: "100%",
+      height: 56
     }
   })
