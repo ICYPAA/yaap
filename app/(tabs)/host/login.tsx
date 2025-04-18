@@ -64,7 +64,8 @@ export default function HostLogin() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "discord",
         options: {
-          redirectTo: redirectUri
+          redirectTo: redirectUri,
+          scopes: "identify email guilds"
         }
       })
 
@@ -120,7 +121,7 @@ export default function HostLogin() {
                 )
                 Alert.alert(
                   "Login Error",
-                  "Could not verify user session after login."
+                  `Could not verify user session after login.\n${sessionError}`
                 )
                 await supabase.auth.signOut() // Clean up potentially partial session
                 return // Stop further execution in this block
@@ -177,6 +178,10 @@ export default function HostLogin() {
                   throw new Error(
                     `Failed to fetch guilds: ${guildsResponse.status} ${errorText}`
                   )
+                  Alert.alert(
+                    "Discord Login Error",
+                    `Failed to fetch guilds: ${guildsResponse.status} ${errorText}`
+                  )
                 }
 
                 const guilds = await guildsResponse.json()
@@ -224,7 +229,7 @@ export default function HostLogin() {
                 )
                 Alert.alert(
                   "Verification Error",
-                  "Could not verify your Discord server membership. Please try again."
+                  `Could not verify your Discord server membership. Please try again.\n${guildError}`
                 )
                 await supabase.auth.signOut() // Sign out on error
               }

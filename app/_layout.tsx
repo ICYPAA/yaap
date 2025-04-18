@@ -1,3 +1,4 @@
+import SentryLogger from "@/lib/sentryLogging"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Session } from "@supabase/supabase-js"
 import * as Application from "expo-application"
@@ -16,6 +17,7 @@ import { ThemeProvider, useTheme } from "../context/ThemeContext"
 import { supabase, withDeviceId } from "../lib/supabase"
 import { storeProgramDesign } from "../lib/theme"
 import { Program } from "../types/program"
+import linking from "./linking"
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync()
@@ -68,10 +70,21 @@ async function registerForPushNotificationsAsync() {
 function RootLayoutNav() {
   const { theme, isDarkMode } = useTheme()
 
+  // Log that we are attempting to use the linking config again
+  SentryLogger.captureMessage(
+    "RootLayoutNav: Attempting to pass linking config to Stack",
+    "debug",
+    {
+      hasLinkingConfig: !!linking,
+      configKeys: linking ? Object.keys(linking) : null
+    }
+  )
+
   return (
     <SafeAreaProvider>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
       <Stack
+        linking={linking}
         screenOptions={{
           headerStyle: {
             backgroundColor: theme.colors.background
@@ -292,15 +305,36 @@ export default function RootLayout() {
     }
   }, [loaded, programLoaded, authLoading])
 
+  // Log initial segments
+  useEffect(() => {
+    SentryLogger.captureMessage("RootLayout: Initial segments", "debug", {
+      segments
+    })
+  }, []) // Log only on initial mount
+
   // Initialize URL handler
   useEffect(() => {
     // Setup deep linking handling
     const initializeUrlHandler = async () => {
-      // Get initial URL that opened the app
-      const initialUrl = await Linking.getInitialURL()
-      if (initialUrl) {
-        console.log("App opened with URL:", initialUrl)
-        // Process the URL (our linking.tsx will handle this)
+      // Log initial URL here as well for confirmation
+      try {
+        const initialUrl = await Linking.getInitialURL()
+        SentryLogger.captureMessage(
+          "RootLayout: initializeUrlHandler initial URL",
+          "debug",
+          { initialUrl: initialUrl || "null" }
+        )
+        if (initialUrl) {
+          console.log("App opened with URL:", initialUrl)
+          // Process the URL (our linking.tsx SHOULD handle this now)
+        } else {
+          console.log("App opened without an initial URL")
+        }
+      } catch (error) {
+        SentryLogger.captureError(error, {
+          context: "RootLayout.initializeUrlHandler.getInitialURL"
+        })
+        console.error("Error getting initial URL in RootLayout:", error)
       }
 
       // Add event listener for URL changes when app is open
@@ -408,6 +442,12 @@ export default function RootLayout() {
       }
     }
   }, [loaded, programLoaded, authLoading])
+
+  useEffect(() => {
+    SentryLogger.init()
+    SentryLogger.captureMessage("App loaded", "info")
+    SentryLogger.captureError(error, { context: "RootLayout", error })
+  }, [])
 
   if (!loaded || !programLoaded || authLoading) {
     return null

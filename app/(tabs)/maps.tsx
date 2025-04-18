@@ -452,6 +452,10 @@ export default function Maps() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Calculated item width to ensure consistent sizing
+  const itemWidth = screenWidth * 0.85 // Use 85% of screen width for card
+  const itemSpacing = screenWidth * 0.05 // Use 5% for spacing (2.5% on each side)
+
   // Assume program_id = 1 for now, replace with dynamic value later
   const programId = 1
 
@@ -581,10 +585,14 @@ export default function Maps() {
               keyExtractor={(item, index) => `venue-map-${item.name}-${index}`}
               horizontal
               showsHorizontalScrollIndicator={false}
-              snapToAlignment="start"
+              snapToInterval={itemWidth + itemSpacing} // Snap to card width + spacing
+              snapToAlignment="center"
               decelerationRate="fast"
-              snapToInterval={screenWidth - 40}
-              contentContainerStyle={styles(theme).mapList}
+              contentContainerStyle={[
+                styles(theme).mapList,
+                { paddingHorizontal: itemSpacing / 2 }
+              ]}
+              pagingEnabled={false}
             />
           ) : (
             <Text style={styles(theme).noDataText}>
@@ -637,10 +645,14 @@ export default function Maps() {
               }
               horizontal
               showsHorizontalScrollIndicator={false}
-              snapToAlignment="start"
+              snapToInterval={itemWidth + itemSpacing} // Snap to card width + spacing
+              snapToAlignment="center"
               decelerationRate="fast"
-              snapToInterval={screenWidth - 40}
-              contentContainerStyle={styles(theme).mapList}
+              contentContainerStyle={[
+                styles(theme).mapList,
+                { paddingHorizontal: itemSpacing / 2 }
+              ]}
+              pagingEnabled={false}
             />
           ) : (
             <Text style={styles(theme).noDataText}>
@@ -724,10 +736,14 @@ export default function Maps() {
             keyExtractor={(item) => `activity-${item.id}`}
             horizontal
             showsHorizontalScrollIndicator={false}
-            snapToAlignment="start"
+            snapToInterval={itemWidth + itemSpacing} // Snap to card width + spacing
+            snapToAlignment="center"
             decelerationRate="fast"
-            snapToInterval={screenWidth - 40}
-            contentContainerStyle={styles(theme).mapList}
+            contentContainerStyle={[
+              styles(theme).mapList,
+              { paddingHorizontal: itemSpacing / 2 }
+            ]}
+            pagingEnabled={false}
           />
         ) : (
           <Text style={styles(theme).noDataText}>
@@ -774,11 +790,11 @@ const styles = (theme: any) =>
       color: theme.colors.text.primary
     },
     mapList: {
-      paddingHorizontal: theme.spacing.sm
+      paddingVertical: theme.spacing.md
     },
     mapItem: {
-      width: Dimensions.get("window").width - 80,
-      marginHorizontal: theme.spacing.sm,
+      width: Dimensions.get("window").width * 0.85, // Match the itemWidth constant
+      marginHorizontal: Dimensions.get("window").width * 0.025, // Half of the itemSpacing constant
       backgroundColor: theme.colors.surface,
       borderRadius: theme.borderRadius.md,
       overflow: "hidden",
@@ -920,8 +936,8 @@ const styles = (theme: any) =>
       marginLeft: theme.spacing.sm
     },
     activityCard: {
-      width: Dimensions.get("window").width - 80,
-      marginHorizontal: theme.spacing.sm,
+      width: Dimensions.get("window").width * 0.85, // Match the itemWidth constant
+      marginHorizontal: Dimensions.get("window").width * 0.025, // Half of the itemSpacing constant
       backgroundColor: theme.colors.surface,
       borderRadius: theme.borderRadius.md,
       padding: theme.spacing.md,

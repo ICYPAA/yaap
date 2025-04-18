@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "806477069598",
+    "project_id": "yaap-59126",
+    "storage_bucket": "yaap-59126.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:806477069598:android:b04061ed7267d13f941d0f",
+        "android_client_info": {
+          "package_name": "com.themindfulpug.icypaa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE7EUa1KyWM-kE8tjL3miyEvMQ7J1TQIE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

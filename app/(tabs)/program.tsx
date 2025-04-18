@@ -635,8 +635,41 @@ const TimelineView = ({
   // Find promoted events based on promoteIds
   const promotedEvents = useMemo(() => {
     if (!promoteIds || !events || promoteIds.length === 0) return []
-    return events.filter((event) => promoteIds.includes(event.id))
-  }, [promoteIds, events])
+
+    // Filter for promoted events that match the current day
+    return (
+      events
+        .filter((event) => {
+          // First check if it's a promoted event
+          if (!promoteIds.includes(event.id)) return false
+
+          // Then check if it matches the current day
+          const dateStr = event.date
+          const [year, month, dayNum] = dateStr
+            .split("-")
+            .map((num) => parseInt(num, 10))
+          const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+
+          const itemDate = dateObj.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            timeZone: "UTC"
+          })
+
+          // Only include if the date matches the current day
+          return itemDate === day
+        })
+        // Sort promoted events by time
+        .sort((a, b) => {
+          // Format the start_time values first
+          const timeA = formatTime(a.start_time)
+          const timeB = formatTime(b.start_time)
+          // Then sort using parseTimeForSorting
+          return parseTimeForSorting(timeA) - parseTimeForSorting(timeB)
+        })
+    )
+  }, [promoteIds, events, day])
 
   // Find events for this day and apply filters
   const dayEvents = allScheduleItems
@@ -742,6 +775,18 @@ const TimelineView = ({
     return getProgramColorUtil(programDetails, "primary", theme)
   }
 
+  // Extract just the day name from the formatted date
+  const extractDayName = (fullDay: string) => {
+    // Handle the error case where day might be an error message
+    if (fullDay === "No events scheduled" || fullDay === "No Events") {
+      return ""
+    }
+
+    // Extract the day name from the formatted date (e.g., "Friday, August 12" -> "Friday")
+    const dayName = fullDay.split(",")[0]
+    return dayName
+  }
+
   return (
     <View style={timelineStyles.timelineContainer}>
       <Text style={timelineStyles.dayTitle}>{day}</Text>
@@ -776,7 +821,23 @@ const TimelineView = ({
                 { color: "#ffffff" } // Use white for better contrast on primary color background
               ]}
             >
-              {event.title}
+              {event.title}{" "}
+              {event.date &&
+                (() => {
+                  // Extract day name from the event's date
+                  const dateStr = event.date
+                  const [year, month, dayNum] = dateStr
+                    .split("-")
+                    .map((num) => parseInt(num, 10))
+                  const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+
+                  const eventDate = dateObj.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    timeZone: "UTC"
+                  })
+
+                  return `(${eventDate})`
+                })()}
             </Text>
             <Text
               style={[
@@ -1661,12 +1722,6 @@ const DayScheduleCard = ({
     return getProgramColorUtil(programDetails, "primary", theme)
   }
 
-  // Find promoted events based on promoteIds
-  const promotedEvents = useMemo(() => {
-    if (!promoteIds || !events || promoteIds.length === 0) return []
-    return events.filter((event) => promoteIds.includes(event.id))
-  }, [promoteIds, events])
-
   // Format time for the promoted events display
   const formatTimeDisplay = (timeStr: string | null | undefined): string => {
     if (!timeStr) return ""
@@ -1704,6 +1759,57 @@ const DayScheduleCard = ({
     } catch {
       return timeStr // Fallback on any error
     }
+  }
+
+  // Find promoted events based on promoteIds
+  const promotedEvents = useMemo(() => {
+    if (!promoteIds || !events || promoteIds.length === 0) return []
+
+    // Filter for promoted events that match the current day
+    return (
+      events
+        .filter((event) => {
+          // First check if it's a promoted event
+          if (!promoteIds.includes(event.id)) return false
+
+          // Then check if it matches the current day
+          const dateStr = event.date
+          const [year, month, dayNum] = dateStr
+            .split("-")
+            .map((num) => parseInt(num, 10))
+          const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+
+          const itemDate = dateObj.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            timeZone: "UTC"
+          })
+
+          // Only include if the date matches the current day
+          return itemDate === day
+        })
+        // Sort promoted events by time
+        .sort((a, b) => {
+          // Format the start_time values first
+          const timeA = formatTimeDisplay(a.start_time)
+          const timeB = formatTimeDisplay(b.start_time)
+          // Then sort using parseTimeForSorting
+          return parseTimeForSorting(timeA) - parseTimeForSorting(timeB)
+        })
+    )
+  }, [promoteIds, events, day])
+
+  // Extract just the day name from the formatted date
+  const extractDayName = (fullDay: string) => {
+    // Handle the error case where day might be an error message
+    if (fullDay === "No events scheduled" || fullDay === "No Events") {
+      return ""
+    }
+
+    // Extract the day name from the formatted date (e.g., "Friday, August 12" -> "Friday")
+    const dayName = fullDay.split(",")[0]
+    return dayName
   }
 
   return (
@@ -1752,7 +1858,7 @@ const DayScheduleCard = ({
                         { color: textColor }
                       ]}
                     >
-                      {event.title}
+                      {event.title} {event.date && `(${extractDayName(day)})`}
                     </Text>
                     <Text
                       style={[
