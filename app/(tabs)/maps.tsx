@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import RNIImageViewer from "react-native-image-zoom-viewer"
 import { useTheme } from "../../context/ThemeContext"
 import { withDeviceId } from "../../lib/supabase"
 import { Activity } from "../../types/activities"
@@ -240,11 +241,16 @@ const ImageViewer = ({
 
   React.useEffect(() => {
     if (visible && image) {
+      // Reset error state when modal becomes visible with a new image
       setImageError(false)
-      setIsLoading(true)
-      setImageLoaded(false)
+      // Initial loading state might still be relevant before library takes over? Or maybe not.
+      // Let's simplify and rely on the library's loading indicator for now.
+      // setIsLoading(true);
+      // setImageLoaded(false);
 
-      // Check if image is cached
+      // Pre-fetching/cache check logic might be removed or adapted if library handles it.
+      // Let's remove it for now to rely on the library.
+      /*
       if (
         image &&
         typeof image === "string" &&
@@ -265,13 +271,18 @@ const ImageViewer = ({
             // Continue with normal loading if queryCache fails
           })
       }
+      */
     }
   }, [visible, image])
 
-  // Updated getImageSource for remote assets and URLs
-  const getImageSource = () => {
+  // getImageSource logic remains important to get the correct URI or fallback
+  const getImageSource = (): { uri: string } => {
+    // Add try-catch block around the entire logic
     try {
       if (imageError || !image) {
+        console.log(
+          "Modal: Using fallback because image is null or error state is true."
+        )
         return { uri: FALLBACK_IMAGE }
       }
       // Check if it's a remote asset key first
@@ -286,27 +297,73 @@ const ImageViewer = ({
         return { uri: image }
       }
       // Invalid source
-      console.warn(`Modal: Invalid image source: ${image}`)
-      setImageError(true)
+      console.warn(
+        `Modal: Invalid image source: ${image}. Setting error state.`
+      )
+      setImageError(true) // Set error state here
       return { uri: FALLBACK_IMAGE }
     } catch (error) {
       console.error("Error getting modal image source:", error)
-      setImageError(true)
+      setImageError(true) // Set error on catch
       return { uri: FALLBACK_IMAGE }
     }
   }
 
-  if (!image) return null
+  // Don't render anything if not visible or no image
+  if (!visible || !image) return null
 
-  const source = getImageSource() // Determine source
-  const isFallbackOrError =
-    imageError ||
-    (typeof source === "object" &&
-      "uri" in source &&
-      source.uri === FALLBACK_IMAGE)
+  const source = getImageSource() // Determine source URI
 
+  // Prepare imageUrls for the react-native-image-zoom-viewer library
+  const imageUrls = [{ url: source.uri }]
+
+  // Use the react-native-image-zoom-viewer
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <RNIImageViewer
+        imageUrls={imageUrls}
+        onCancel={onClose}
+        enableSwipeDown // Optional: Allow swiping down to close
+        saveToLocalByLongPress={false} // Optional: Disable saving image
+        renderIndicator={() => <View />} // Return an empty view instead of null
+        loadingRender={() => (
+          // Custom loading indicator
+          <View style={styles(theme).modalOverlayContainer}>
+            <ActivityIndicator size="large" color="#ffffff" />
+          </View>
+        )}
+        failImageSource={{
+          // Use the same fallback image URI
+          url: FALLBACK_IMAGE,
+          width: Dimensions.get("window").width,
+          height: Dimensions.get("window").height
+        }}
+        // Optional: Add custom header or footer if needed, e.g., for the close button
+        renderHeader={() => (
+          <TouchableOpacity
+            style={styles(theme).closeButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <View style={styles(theme).closeButtonInner}>
+              <Ionicons name="close" size={30} color="#ffffff" />
+            </View>
+          </TouchableOpacity>
+        )}
+        // Handle internal errors from the library
+        onShowModal={() => setImageError(false)} // Reset error state when modal shown
+        // Note: The library might have limited onError props. Error handling is mainly via failImageSource.
+
+        // Pass theme styles or other props if needed by the library's components
+        // style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }} // Example style override
+      />
+      {/* Remove the old manual Image display and error/loading handling */}
+      {/*
       <View style={styles(theme).modalContainer}>
         <TouchableOpacity
           style={styles(theme).closeButton}
@@ -319,7 +376,7 @@ const ImageViewer = ({
         </TouchableOpacity>
 
         <View style={styles(theme).fullImageContainer}>
-          {((isLoading && !imageLoaded) || isFallbackOrError) && ( // Only show loading if not already loaded
+          {((isLoading && !imageLoaded) || isFallbackOrError) && (
             <View style={styles(theme).modalOverlayContainer}>
               {isLoading && !imageLoaded && !isFallbackOrError && (
                 <ActivityIndicator size="large" color="#ffffff" />
@@ -341,10 +398,10 @@ const ImageViewer = ({
               )}
             </View>
           )}
-          {/* Conditionally render Image only when not loading initially and not error/fallback */}
+
           {!isFallbackOrError && (
             <Image
-              source={source} // Use the determined source
+              source={source}
               style={styles(theme).fullImage}
               resizeMode="contain"
               onError={(e) => {
@@ -370,6 +427,7 @@ const ImageViewer = ({
           )}
         </View>
       </View>
+      */}
     </Modal>
   )
 }
@@ -847,7 +905,7 @@ const styles = (theme: any) =>
     },
     closeButton: {
       position: "absolute",
-      top: 40,
+      top: Platform.OS === "ios" ? 40 : 20,
       right: 20,
       zIndex: 10,
       padding: 8
@@ -876,8 +934,7 @@ const styles = (theme: any) =>
       bottom: 0,
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-      zIndex: 5
+      backgroundColor: "transparent"
     },
     errorContainer: {
       justifyContent: "center",

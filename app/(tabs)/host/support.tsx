@@ -16,6 +16,7 @@ import {
 } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
+import { sendNotification } from "../../../lib/notificationHelper"
 import { makeRequest } from "../../../lib/requestHelper"
 import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
@@ -252,6 +253,26 @@ export default function SupportChats() {
       })
 
       if (error) throw error
+
+      // Send notification to the user
+      try {
+        await sendNotification({
+          eventType: "support", // Assuming 'host' is the correct type for user-facing notifications
+          programId: 1, // Assuming programId is 1
+          data: {
+            title: `New reply in "${selectedChat.chat_title}"`,
+            message: replyText,
+            chatId: selectedChat.id, // Send chatId for navigation
+            deviceId: selectedChat.device_id // Send deviceId to target the specific user
+          }
+        })
+        console.log(
+          `Sent support reply notification to device ${selectedChat.device_id}`
+        )
+      } catch (notifyError) {
+        console.error("Error sending support reply notification:", notifyError)
+        // Optionally handle notification errors, e.g., show an alert to the host
+      }
 
       setReplyText("")
       fetchChats()

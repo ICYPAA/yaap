@@ -11,7 +11,7 @@ export async function sendNotification({
   data,
   userId
 }: {
-  eventType: "hospitality" | "schedule" | "host"
+  eventType: "hospitality" | "schedule" | "host" | "support"
   programId: number
   data: any
   userId?: number

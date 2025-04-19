@@ -318,6 +318,85 @@ const getEventPosition = (startTime: string, endTime?: string) => {
   return { top: startMinutes, height }
 }
 
+// Helper function to parse event date and time strings
+const parseEventDateTime = (
+  dateStr: string,
+  timeStr: string, // This will represent the END time when checking if passed
+  startTimeStr?: string // The event's START time string
+): Date | null => {
+  // Parse END time (timeStr)
+  const endTimeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+  if (!endTimeMatch) {
+    console.warn(`parseEventDateTime failed to parse time: ${timeStr}`)
+    return null
+  }
+  let endHours = parseInt(endTimeMatch[1], 10)
+  const endMinutes = parseInt(endTimeMatch[2], 10)
+  const endPeriod = endTimeMatch[3].toUpperCase()
+  if (endPeriod === "PM" && endHours < 12) endHours += 12
+  if (endPeriod === "AM" && endHours === 12) endHours = 0 // Midnight case
+
+  // Parse START time (startTimeStr) if provided
+  let startHours = -1 // Default indicates start time not parsed or not needed
+  let startMinutes = -1
+  if (startTimeStr) {
+    const startTimeMatch = startTimeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+    if (startTimeMatch) {
+      startHours = parseInt(startTimeMatch[1], 10)
+      startMinutes = parseInt(startTimeMatch[2], 10)
+      const startPeriod = startTimeMatch[3].toUpperCase()
+      if (startPeriod === "PM" && startHours < 12) startHours += 12
+      if (startPeriod === "AM" && startHours === 12) startHours = 0
+    } else {
+      console.warn(
+        `parseEventDateTime failed to parse start time: ${startTimeStr}`
+      )
+      // Decide how to handle - maybe proceed without adjusting date? For now, let's log and continue.
+      startHours = -1 // Reset to indicate failure/ignore
+    }
+  }
+
+  // Parse DATE (dateStr)
+  const dateMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (!dateMatch) {
+    console.warn(`parseEventDateTime failed to parse date: ${dateStr}`)
+    return null
+  }
+  const year = parseInt(dateMatch[1], 10)
+  const month = parseInt(dateMatch[2], 10) - 1 // Month is 0-indexed
+  let day = parseInt(dateMatch[3], 10) // Use let for potential modification
+
+  // Check if end time is on the next day
+  let dayOffset = 0
+  if (startHours !== -1) {
+    // Only adjust if start time was successfully parsed
+    const endTotalMinutes = endHours * 60 + endMinutes
+    const startTotalMinutes = startHours * 60 + startMinutes
+    if (endTotalMinutes < startTotalMinutes) {
+      dayOffset = 1 // End time is on the next day
+    }
+  }
+
+  try {
+    // Use Date.UTC. Note: Date.UTC handles month/day rollovers automatically.
+    // -- Switched to local Date constructor --
+    // This assumes the input date/time strings represent time in the user's *local* timezone.
+    // If the DB times are strictly CST/CDT, this will only be accurate for users in CST/CDT.
+    // const utcTimestamp = Date.UTC(
+    //   year,
+    //   month,
+    //   day + dayOffset,
+    //   endHours,
+    //   endMinutes
+    // )
+    // return new Date(utcTimestamp)
+    return new Date(year, month, day + dayOffset, endHours, endMinutes)
+  } catch (e) {
+    console.error("Error creating date:", e)
+    return null
+  }
+}
+
 // Create a new TimelineView component that shows events across rooms
 const TimelineView = ({
   day,
@@ -963,6 +1042,28 @@ const TimelineView = ({
                         const eventColor = getProgramEventColor(event)
                         const textColor = getTextColorForBgUtil(eventColor)
 
+                        // Check if the event has passed
+                        const now = new Date()
+                        const endTimeForCheck = formattedEndTime || event.time // Use end time if available, else start time
+                        const eventEndDateTime = parseEventDateTime(
+                          event.date,
+                          endTimeForCheck, // This is the end time string
+                          event.time // Pass the start time string
+                        )
+                        const hasPassed = eventEndDateTime
+                          ? eventEndDateTime < now
+                          : false
+                        // --- DEBUG LOG ---
+                        // Removed event.id < 5 condition to log all relevant events
+                        // console.log(
+                        //   `Timeline Event ID: ${event.id}, Date: ${
+                        //     event.date
+                        //   }, TimeStrToParse: ${endTimeForCheck}, ParsedEnd: ${
+                        //     eventEndDateTime?.toISOString() || "null"
+                        //   }, Now: ${now.toISOString()}, HasPassed: ${hasPassed}`
+                        // )
+                        // --- END DEBUG LOG ---
+
                         return (
                           <TouchableOpacity
                             key={event.id}
@@ -972,10 +1073,12 @@ const TimelineView = ({
                                 top,
                                 height: adjustedHeight,
                                 backgroundColor: eventColor,
-                                minHeight: isShortEvent ? 30 : 40 // Lower minimum height for short events
+                                minHeight: isShortEvent ? 30 : 40, // Lower minimum height for short events
+                                opacity: hasPassed ? 0.5 : 1 // Grey out past events
                               }
                             ]}
                             onPress={() => toggleEventExpanded(event.id)}
+                            disabled={hasPassed} // Optionally disable interaction
                           >
                             {isShortEvent ? (
                               // Compact view for short events
@@ -1002,6 +1105,7 @@ const TimelineView = ({
                                     size={16}
                                     color={textColor}
                                     onPress={(e) => {
+                                      if (hasPassed) return // Prevent saving past events
                                       e.stopPropagation()
                                       onToggleSave(event.id)
                                     }}
@@ -1037,9 +1141,11 @@ const TimelineView = ({
                                   <TouchableOpacity
                                     style={timelineStyles.timelineSaveButton}
                                     onPress={(e) => {
+                                      if (hasPassed) return // Prevent saving past events
                                       e.stopPropagation()
                                       onToggleSave(event.id)
                                     }}
+                                    disabled={hasPassed}
                                   >
                                     <Ionicons
                                       name={
@@ -1927,6 +2033,22 @@ const DayScheduleCard = ({
                   const endTime = eventDetails?.end_time
                   const canSave = eventDetails?.can_save !== false
 
+                  // Check if event has passed
+                  const now = new Date()
+                  // Use end time if available and valid, otherwise use start time
+                  const endTimeForCheck = endTime
+                    ? formatEventTime(endTime)
+                    : item.time
+                  const eventEndDateTime = parseEventDateTime(
+                    item.date,
+                    endTimeForCheck, // This is the end time string
+                    item.time // Pass the start time string
+                  )
+                  const hasPassed = eventEndDateTime
+                    ? eventEndDateTime < now
+                    : false
+                  const itemOpacity = hasPassed ? 0.5 : 1 // Opacity for past events
+
                   return (
                     <TouchableOpacity
                       key={item.id}
@@ -1934,21 +2056,25 @@ const DayScheduleCard = ({
                         styles(theme).scheduleItem,
                         {
                           borderLeftWidth: 4,
-                          borderLeftColor: itemColor
+                          borderLeftColor: itemColor,
+                          opacity: itemOpacity // Apply opacity here
                         }
                       ]}
-                      onPress={() => toggleExpansion(item.id)}
-                      activeOpacity={0.7}
+                      onPress={() => !hasPassed && toggleExpansion(item.id)} // Disable press if passed
+                      activeOpacity={hasPassed ? itemOpacity : 0.7} // Adjust active opacity too
+                      disabled={hasPassed} // Disable touchable
                     >
                       <View style={styles(theme).scheduleItemHeader}>
                         <Text style={styles(theme).itemTime}>{item.time}</Text>
                         {canSave && (
                           <TouchableOpacity
                             onPress={(e) => {
+                              if (hasPassed) return // Prevent saving past events
                               e.stopPropagation()
                               onToggleSave(item.id)
                             }}
                             style={styles(theme).saveButton}
+                            disabled={hasPassed} // Disable button if passed
                           >
                             <Ionicons
                               name={
@@ -1980,36 +2106,39 @@ const DayScheduleCard = ({
                         {item.location}
                       </Text>
 
-                      {expandedItems[item.id] && (
-                        <View style={styles(theme).expandedDetails}>
-                          {/* Add event time section */}
-                          <View style={styles(theme).eventTimeSection}>
-                            <Text style={styles(theme).eventTimeLabel}>
-                              Event Time:
-                            </Text>
-                            <Text style={styles(theme).eventTimeValue}>
-                              {item.time}
-                              {endTime ? ` - ${formatEventTime(endTime)}` : ""}
-                            </Text>
+                      {expandedItems[item.id] &&
+                        !hasPassed && ( // Only show expanded if not passed
+                          <View style={styles(theme).expandedDetails}>
+                            {/* Add event time section */}
+                            <View style={styles(theme).eventTimeSection}>
+                              <Text style={styles(theme).eventTimeLabel}>
+                                Event Time:
+                              </Text>
+                              <Text style={styles(theme).eventTimeValue}>
+                                {item.time}
+                                {endTime
+                                  ? ` - ${formatEventTime(endTime)}`
+                                  : ""}
+                              </Text>
+                            </View>
+
+                            {item.description && (
+                              <Text style={styles(theme).itemDetailText}>
+                                {item.description}
+                              </Text>
+                            )}
+
+                            {/* Show shared event users */}
+                            <SharedEventUsers
+                              eventId={item.id}
+                              sharedEvents={sharedEvents}
+                              theme={theme}
+                              key={`shared-users-${item.id}-${
+                                Object.keys(sharedEvents).length
+                              }`}
+                            />
                           </View>
-
-                          {item.description && (
-                            <Text style={styles(theme).itemDetailText}>
-                              {item.description}
-                            </Text>
-                          )}
-
-                          {/* Show shared event users */}
-                          <SharedEventUsers
-                            eventId={item.id}
-                            sharedEvents={sharedEvents}
-                            theme={theme}
-                            key={`shared-users-${item.id}-${
-                              Object.keys(sharedEvents).length
-                            }`}
-                          />
-                        </View>
-                      )}
+                        )}
                     </TouchableOpacity>
                   )
                 })}
@@ -2043,6 +2172,9 @@ export default function Program() {
   const [foodItems, setFoodItems] = useState<Food[]>([]) // Use fetched food state
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+
+  // State for My Schedule collapsible past events
+  const [isPastEventsCollapsed, setIsPastEventsCollapsed] = useState(true)
 
   // Reference to scroll view to track scrolling
   const scrollViewRef = React.useRef<ScrollView>(null)
@@ -2745,7 +2877,7 @@ export default function Program() {
       sectionTitle: {
         fontSize: 20,
         fontWeight: "bold",
-        color: theme.colors.text,
+        color: theme.colors.text.primary, // Use text.primary
         marginTop: 20,
         marginBottom: 10,
         marginHorizontal: 16
@@ -2755,7 +2887,7 @@ export default function Program() {
         flex: 1,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: theme.roundness,
+        borderRadius: theme.borderRadius.md, // Use theme border radius
         overflow: "hidden",
         height: 600
       },
@@ -2825,7 +2957,7 @@ export default function Program() {
         borderBottomColor: theme.colors.primary
       },
       dayTabText: {
-        ...theme.typography.body,
+        fontSize: theme.typography.body.fontSize, // Use theme typography
         color: theme.colors.text.secondary
       },
       activeDayTabText: {
@@ -2854,7 +2986,7 @@ export default function Program() {
         borderColor: theme.colors.primary
       },
       viewButtonText: {
-        ...theme.typography.caption,
+        fontSize: theme.typography.caption.fontSize, // Use theme typography
         color: theme.colors.text.secondary,
         marginLeft: 4
       },
@@ -3093,9 +3225,28 @@ export default function Program() {
       },
       scrollViewContent: {
         paddingBottom: 20
+      },
+      // Styles for Past Events Collapsible Section
+      pastEventsSection: {
+        marginTop: 24,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
+        paddingTop: 16
+      },
+      pastEventsHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 12
+      },
+      pastEventsTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: theme.colors.text.primary
+      },
+      pastEventsList: {
+        // Optional: Add padding or margin if needed
       }
-      // Additional common styles for components
-      // ... add any other styles needed
     })
 
   // --- RENDER LOGIC ---
@@ -3403,16 +3554,38 @@ export default function Program() {
               </View>
             ) : (
               <View>
-                <View style={programStyles(theme).dateSection}>
-                  <Text
-                    style={[
-                      programStyles(theme).dateTitle,
-                      { color: isDarkMode ? "#fff" : theme.colors.text.primary }
-                    ]}
-                  >
-                    {currentDay}
-                  </Text>
-                  {currentDaySavedItems.map((item) => {
+                {/* Split events into upcoming and past */}
+                {(() => {
+                  const now = new Date()
+                  const upcomingEvents: DisplayScheduleItem[] = []
+                  const pastEvents: DisplayScheduleItem[] = []
+
+                  currentDaySavedItems.forEach((item) => {
+                    const eventDetails = events.find((e) => e.id === item.id)
+                    const endTimeForCheck = eventDetails?.end_time
+                      ? formatTime(eventDetails.end_time)
+                      : item.time
+                    const eventEndDateTime = parseEventDateTime(
+                      item.date,
+                      endTimeForCheck,
+                      item.time
+                    )
+                    const hasPassed = eventEndDateTime
+                      ? eventEndDateTime < now
+                      : false
+
+                    if (hasPassed) {
+                      pastEvents.push(item)
+                    } else {
+                      upcomingEvents.push(item)
+                    }
+                  })
+
+                  // Helper function to render an event card (used for both lists)
+                  const renderEventCard = (
+                    item: DisplayScheduleItem,
+                    isPastEvent = false
+                  ) => {
                     const hasConflict = hasTimeConflict(
                       item,
                       currentDaySavedItems
@@ -3426,12 +3599,17 @@ export default function Program() {
                         key={item.id}
                         style={[
                           programStyles(theme).eventCard,
-                          hasConflict && programStyles(theme).conflictingEvent
+                          // No opacity applied directly here anymore
+                          hasConflict &&
+                            !isPastEvent &&
+                            programStyles(theme).conflictingEvent // Only show conflict for upcoming
                         ]}
                         onPress={() => toggleMyScheduleExpansion(item.id)}
                         activeOpacity={0.7}
                       >
+                        {/* Card Content - No wrapping view needed now */}
                         <View style={programStyles(theme).eventHeader}>
+                          {/* ... Header Content (Time, Type Tag, Title) ... */}
                           <View style={{ flex: 1, marginRight: 8 }}>
                             <View
                               style={{
@@ -3540,17 +3718,15 @@ export default function Program() {
                           {item.location}
                         </Text>
 
-                        {/* Show conflict warning if needed */}
-                        {hasConflict && (
+                        {hasConflict && !isPastEvent && (
                           <Text style={programStyles(theme).conflictWarning}>
                             ⚠️ Time conflict with another saved event
                           </Text>
                         )}
 
-                        {/* Show expanded details when card is clicked */}
                         {myScheduleExpandedItems[item.id] && (
                           <View style={programStyles(theme).expandedDetails}>
-                            {/* Event time details */}
+                            {/* ... Expanded Details Content ... */}
                             <View style={programStyles(theme).eventTimeSection}>
                               <Text style={programStyles(theme).eventTimeLabel}>
                                 Event Time:
@@ -3563,14 +3739,12 @@ export default function Program() {
                               </Text>
                             </View>
 
-                            {/* Event description if available */}
                             {item.description && (
                               <Text style={programStyles(theme).itemDetailText}>
                                 {item.description}
                               </Text>
                             )}
 
-                            {/* Speakers if available */}
                             {item.speakers && item.speakers.length > 0 && (
                               <View style={{ marginTop: 8 }}>
                                 <Text
@@ -3589,7 +3763,6 @@ export default function Program() {
                               </View>
                             )}
 
-                            {/* Friends section - show all friends */}
                             {friendsGoing.length > 0 && (
                               <View style={{ marginTop: 12 }}>
                                 <Text
@@ -3632,7 +3805,6 @@ export default function Program() {
                               </View>
                             )}
 
-                            {/* Show users sharing their schedules */}
                             <SharedEventUsers
                               eventId={item.id}
                               sharedEvents={sharedEvents}
@@ -3644,7 +3816,6 @@ export default function Program() {
                           </View>
                         )}
 
-                        {/* Show collapsed version of friends for non-expanded cards */}
                         {!myScheduleExpandedItems[item.id] &&
                           friendsGoing.length > 0 && (
                             <View style={programStyles(theme).friendAvatars}>
@@ -3678,10 +3849,61 @@ export default function Program() {
                           )}
                       </TouchableOpacity>
                     )
-                  })}
-                </View>
+                  }
+
+                  return (
+                    <View>
+                      {/* Render Upcoming Events */}
+                      <View style={programStyles(theme).dateSection}>
+                        {upcomingEvents.length === 0 ? (
+                          <Text style={programStyles(theme).emptyStateSubtext}>
+                            No upcoming saved events for this day.
+                          </Text>
+                        ) : (
+                          upcomingEvents.map((item) =>
+                            renderEventCard(item, false)
+                          )
+                        )}
+                      </View>
+
+                      {/* Render Collapsible Past Events */}
+                      {pastEvents.length > 0 && (
+                        <View style={programStyles(theme).pastEventsSection}>
+                          <TouchableOpacity
+                            style={programStyles(theme).pastEventsHeader}
+                            onPress={() =>
+                              setIsPastEventsCollapsed(!isPastEventsCollapsed)
+                            }
+                          >
+                            <Text style={programStyles(theme).pastEventsTitle}>
+                              Past Events ({pastEvents.length})
+                            </Text>
+                            <Ionicons
+                              name={
+                                isPastEventsCollapsed
+                                  ? "chevron-down"
+                                  : "chevron-up"
+                              }
+                              size={24}
+                              color={theme.colors.text.primary}
+                            />
+                          </TouchableOpacity>
+
+                          {!isPastEventsCollapsed && (
+                            <View style={programStyles(theme).pastEventsList}>
+                              {pastEvents.map((item) =>
+                                renderEventCard(item, true)
+                              )}
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  )
+                })()}
               </View>
             )}
+
             {/* QR Code or Profile Button Section */}
             <View style={programStyles(theme).qrSection}>
               <Text
@@ -3858,7 +4080,7 @@ const HospitalitySection = ({
       marginBottom: 8
     },
     hospitalityTitle: {
-      ...theme.typography.h2,
+      fontSize: theme.typography.h2.fontSize, // Use theme typography
       marginLeft: 8,
       color: theme.colors.text.primary,
       fontWeight: "bold"
