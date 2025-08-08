@@ -3,53 +3,29 @@ import { useFocusEffect } from "@react-navigation/native"
 import { useRouter } from "expo-router"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
+  Alert,
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from "react-native"
+import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
-import { makeRequest } from "../../../lib/requestHelper"
+import { Permission } from "../../../lib/roleChecker"
 import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
-
-interface VolunteerSignup {
-  id: string
-  program_id: number
-  name: string
-  last_initial: string
-  phone: string
-  email: string
-  type: string
-  data: {
-    interests: {
-      greeter: boolean
-      security: boolean
-      cleanup: boolean
-      setup: boolean
-      host_committee: boolean
-      wherever_needed: boolean
-    }
-    time_slots: {
-      thursday_pm: boolean
-      friday_am: boolean
-      friday_midday: boolean
-      friday_pm: boolean
-      saturday_am: boolean
-      saturday_midday: boolean
-      saturday_pm: boolean
-      sunday_am: boolean
-      sunday_midday: boolean
-      sunday_pm: boolean
-      other: string
-    }
-    comments: string
-  }
-  status?: string
-  created_at: string
-}
+import {
+  Event,
+  getAllVolunteersForEvent,
+  getEvents,
+  getOrCreateVolunteeringData,
+  getVolunteerInterest,
+  VolunteeringData,
+  VolunteerSignup
+} from "../../../lib/volunteerAPI"
 
 // Define types for section list data
 interface SectionHeader {
@@ -62,17 +38,23 @@ interface SectionHeader {
 type VolunteerWithType = VolunteerSignup & { itemType: "volunteer" }
 type SectionListItem = SectionHeader | VolunteerWithType
 
-export default function VolunteerSignups() {
+function VolunteerSignupsContent() {
   const router = useRouter()
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
+  const [events, setEvents] = useState<Event[]>([])
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [volunteeringData, setVolunteeringData] =
+    useState<VolunteeringData | null>(null)
   const [volunteers, setVolunteers] = useState<VolunteerSignup[]>([])
+  const [volunteerInterest, setVolunteerInterest] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const styles = createStyles(theme)
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
 
   useEffect(() => {
-    fetchVolunteers()
+    fetchInitialData()
     setupRealtimeSubscription()
 
     // Cleanup subscription when component unmounts
@@ -86,42 +68,48 @@ export default function VolunteerSignups() {
   // Refetch data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log("Volunteers screen focused, fetching volunteer sign-ups")
-      fetchVolunteers()
+      console.log("Volunteers screen focused, fetching data")
+      fetchInitialData()
       return () => {
-        // This runs when the screen is unfocused
         console.log("Volunteers screen unfocused")
       }
     }, [])
   )
+
+  // Fetch data when selected event changes
+  useEffect(() => {
+    if (selectedEvent) {
+      fetchVolunteeringDataForEvent(selectedEvent.id)
+    }
+  }, [selectedEvent])
 
   const setupRealtimeSubscription = async () => {
     try {
       const supabaseWithDeviceId = await withDeviceId()
 
       const subscription = supabaseWithDeviceId
-        .channel("volunteer_signups_changes")
+        .channel("volunteering_changes")
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
-            table: "volunteering_interest",
-            filter: "program_id=eq.1"
+            table: "volunteering"
           },
           (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload
 
             // Handle different event types
-            if (eventType === "INSERT") {
-              // Add the new volunteer to the list
-              handleNewVolunteer(newRecord)
-            } else if (eventType === "UPDATE") {
-              // Update the changed volunteer in the list
-              handleUpdatedVolunteer(newRecord)
+            if (eventType === "INSERT" || eventType === "UPDATE") {
+              // If this is for the currently selected event, refresh the data
+              if (selectedEvent && newRecord?.event_id === selectedEvent.id) {
+                fetchVolunteeringDataForEvent(selectedEvent.id)
+              }
             } else if (eventType === "DELETE") {
-              // Remove the deleted volunteer from the list
-              handleDeletedVolunteer(oldRecord?.id)
+              // Handle deletion
+              if (selectedEvent && oldRecord?.event_id === selectedEvent.id) {
+                fetchVolunteeringDataForEvent(selectedEvent.id)
+              }
             }
           }
         )
@@ -133,242 +121,53 @@ export default function VolunteerSignups() {
     }
   }
 
-  const handleNewVolunteer = (newRecord: any) => {
-    if (!newRecord) return
-
-    // Add to volunteers list
-    setVolunteers((prev) => [newRecord, ...prev])
-  }
-
-  const handleUpdatedVolunteer = (updatedRecord: any) => {
-    if (!updatedRecord) return
-
-    // Update in the list
-    setVolunteers((prev) =>
-      prev.map((volunteer) =>
-        volunteer.id === updatedRecord.id ? updatedRecord : volunteer
-      )
-    )
-  }
-
-  const handleDeletedVolunteer = (id?: string) => {
-    if (!id) return
-
-    // Remove from the list
-    setVolunteers((prev) => prev.filter((volunteer) => volunteer.id !== id))
-  }
-
-  const fetchVolunteers = async () => {
+  const fetchInitialData = async () => {
     try {
-      const supabaseWithDeviceId = await withDeviceId()
-      const { data, error } = await makeRequest({
-        table: "volunteering_interest",
-        isDebugMode,
-        query: () =>
-          supabaseWithDeviceId
-            .from("volunteering_interest")
-            .select("*")
-            .eq("program_id", 1)
-            .order("created_at", { ascending: false })
-      })
+      setLoading(true)
 
-      if (error) throw error
-      setVolunteers(data || [])
+      // Fetch events and volunteer interest
+      const [eventsData, volunteerInterestData] = await Promise.all([
+        getEvents(),
+        getVolunteerInterest()
+      ])
+
+      setEvents(eventsData)
+      setVolunteerInterest(volunteerInterestData)
+
+      // If there are events, select the first one by default
+      if (eventsData.length > 0) {
+        setSelectedEvent(eventsData[0])
+      }
     } catch (error) {
-      console.error("Error fetching volunteer signups:", error)
+      console.error("Error fetching initial data:", error)
+      Alert.alert("Error", "Failed to load volunteer data")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleStatusUpdate = async (id: string, newStatus: string) => {
+  const fetchVolunteeringDataForEvent = async (eventId: string) => {
     try {
-      console.log(`Updating volunteer ${id} status to ${newStatus}`)
-      const supabaseWithDeviceId = await withDeviceId()
+      const [volunteeringData, allVolunteers] = await Promise.all([
+        getOrCreateVolunteeringData(eventId),
+        getAllVolunteersForEvent(eventId)
+      ])
 
-      // Update the status locally first for immediate UI feedback
-      setVolunteers((current) =>
-        current.map((volunteer) =>
-          volunteer.id === id ? { ...volunteer, status: newStatus } : volunteer
-        )
-      )
-
-      // Then update in the database
-      const { error } = await makeRequest({
-        table: "volunteering_interest",
-        isDebugMode,
-        query: () =>
-          supabaseWithDeviceId
-            .from("volunteering_interest")
-            .update({ status: newStatus })
-            .eq("id", id)
-      })
-
-      if (error) {
-        console.error("Error in Supabase update:", error)
-        // Revert the local change if there was an error
-        fetchVolunteers()
-        throw error
-      }
-
-      console.log(`Successfully updated volunteer ${id} status to ${newStatus}`)
+      setVolunteeringData(volunteeringData)
+      setVolunteers(allVolunteers)
     } catch (error) {
-      console.error("Error updating volunteer status:", error)
+      console.error("Error fetching volunteering data for event:", error)
+      // If no volunteering data exists, just clear the state
+      setVolunteeringData(null)
+      setVolunteers([])
     }
   }
 
-  const renderItem = ({ item }: { item: VolunteerSignup }) => (
-    <View style={styles.volunteerCard}>
-      <View style={styles.volunteerHeader}>
-        <Text style={styles.volunteerName}>
-          {item.name} {item.last_initial}.
-        </Text>
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor:
-                !item.status || item.status === "pending"
-                  ? theme.colors.warning
-                  : item.status === "assigned"
-                  ? theme.colors.warning
-                  : item.status === "resolved"
-                  ? theme.colors.success
-                  : theme.colors.success
-            }
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusText,
-              {
-                color: getTextColorForBackground(
-                  !item.status ||
-                    item.status === "pending" ||
-                    item.status === "assigned"
-                    ? theme.colors.warning
-                    : theme.colors.success
-                )
-              }
-            ]}
-          >
-            {item.status?.replace("_", " ") || "pending"}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.volunteerDetails}>
-        <View style={styles.detailRow}>
-          <Ionicons name="mail" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>Email: {item.email}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="call" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>Phone: {item.phone}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="person" size={16} color={theme.colors.primary} />
-          <Text style={styles.detailText}>Type: {item.type}</Text>
-        </View>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Interests</Text>
-      </View>
-      <View style={styles.interestsContainer}>
-        {Object.entries(item.data.interests).map(
-          ([key, value]) =>
-            value && (
-              <View key={key} style={styles.interestItem}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={16}
-                  color={theme.colors.success}
-                />
-                <Text style={styles.interestText}>
-                  {key
-                    .replace(/_/g, " ")
-                    .replace(/\b\w/g, (l) => l.toUpperCase())}
-                </Text>
-              </View>
-            )
-        )}
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Available Times</Text>
-      </View>
-      <View style={styles.timeSlotsContainer}>
-        {Object.entries(item.data.time_slots)
-          .filter(([key, value]) => key !== "other" && value)
-          .map(([key, value]) => (
-            <View key={key} style={styles.timeSlotItem}>
-              <Ionicons name="time" size={16} color={theme.colors.primary} />
-              <Text style={styles.timeSlotText}>
-                {key
-                  .replace(/_/g, " ")
-                  .replace(/\b\w/g, (l) => l.toUpperCase())}
-              </Text>
-            </View>
-          ))}
-        {item.data.time_slots.other && (
-          <View style={styles.timeSlotItem}>
-            <Ionicons name="time" size={16} color={theme.colors.primary} />
-            <Text style={styles.timeSlotText}>
-              Other: {item.data.time_slots.other}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <Text style={styles.additionalInfo}>{item.data.comments}</Text>
-      <Text style={styles.timestamp}>
-        Signed up: {new Date(item.created_at).toLocaleDateString()}
-      </Text>
-
-      <View style={styles.actionButtons}>
-        {(!item.status ||
-          item.status === "pending" ||
-          item.status === "assigned") && (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: theme.colors.success }
-            ]}
-            onPress={() => handleStatusUpdate(item.id, "resolved")}
-          >
-            <Text
-              style={[
-                styles.actionButtonText,
-                { color: getTextColorForBackground(theme.colors.success) }
-              ]}
-            >
-              Resolve
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {item.status === "resolved" && (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: theme.colors.warning }
-            ]}
-            onPress={() => handleStatusUpdate(item.id, "pending")}
-          >
-            <Text
-              style={[
-                styles.actionButtonText,
-                { color: getTextColorForBackground(theme.colors.warning) }
-              ]}
-            >
-              Reopen
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  )
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await fetchInitialData()
+    setRefreshing(false)
+  }
 
   return (
     <View style={styles.container}>
@@ -383,7 +182,7 @@ export default function VolunteerSignups() {
             color={getTextColorForBackground(theme.colors.primary)}
           />
         </TouchableOpacity>
-        <Text style={styles.title}>Volunteer Sign-ups</Text>
+        <Text style={styles.title}>Volunteer Management</Text>
         {isDebugMode && (
           <View style={styles.debugBadge}>
             <Text style={styles.debugText}>DEBUG</Text>
@@ -393,61 +192,142 @@ export default function VolunteerSignups() {
 
       {loading ? (
         <View style={styles.centered}>
-          <Text style={styles.centeredText}>Loading volunteer sign-ups...</Text>
-        </View>
-      ) : volunteers.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.centeredText}>No volunteer sign-ups found.</Text>
+          <Text style={styles.centeredText}>Loading volunteer data...</Text>
         </View>
       ) : (
         <FlatList
-          data={(() => {
-            const unresolvedVolunteers = volunteers.filter(
-              (v) => v.status !== "resolved"
-            )
-            const resolvedVolunteers = volunteers.filter(
-              (v) => v.status === "resolved"
-            )
+          data={[]}
+          renderItem={() => null}
+          ListHeaderComponent={
+            <View style={styles.content}>
+              {/* Event Selection */}
+              <View style={styles.eventSelector}>
+                <Text style={styles.sectionTitle}>Select Event</Text>
+                <FlatList
+                  data={events}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.eventCard,
+                        selectedEvent?.id === item.id &&
+                          styles.selectedEventCard
+                      ]}
+                      onPress={() => setSelectedEvent(item)}
+                    >
+                      <Text
+                        style={[
+                          styles.eventTitle,
+                          selectedEvent?.id === item.id &&
+                            styles.selectedEventTitle
+                        ]}
+                      >
+                        {item.title}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.eventDate,
+                          selectedEvent?.id === item.id &&
+                            styles.selectedEventDate
+                        ]}
+                      >
+                        {new Date(item.date).toLocaleDateString()}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={styles.eventList}
+                />
+              </View>
 
-            return [
-              {
-                id: "unresolved-header",
-                itemType: "header",
-                title: "Unresolved",
-                count: unresolvedVolunteers.length
-              } as SectionHeader,
-              ...unresolvedVolunteers.map(
-                (v) => ({ ...v, itemType: "volunteer" } as VolunteerWithType)
-              ),
-              {
-                id: "resolved-header",
-                itemType: "header",
-                title: "Resolved",
-                count: resolvedVolunteers.length
-              } as SectionHeader,
-              ...resolvedVolunteers.map(
-                (v) => ({ ...v, itemType: "volunteer" } as VolunteerWithType)
-              )
-            ]
-          })()}
-          renderItem={({ item }) => {
-            if (item.itemType === "header") {
-              return (
-                <View style={styles.sectionListHeader}>
-                  <Text style={styles.sectionListHeaderText}>{item.title}</Text>
-                  <Text style={styles.sectionListCount}>({item.count})</Text>
-                  {item.count === 0 && (
-                    <Text style={styles.emptySectionText}>No items</Text>
+              {/* Volunteer Jobs */}
+              {selectedEvent && volunteeringData && (
+                <View style={styles.jobsSection}>
+                  <Text style={styles.sectionTitle}>Volunteer Jobs</Text>
+                  {volunteeringData.jobs.map((job, jobIndex) => (
+                    <View key={jobIndex} style={styles.jobCard}>
+                      <Text style={styles.jobTitle}>{job.name}</Text>
+                      <Text style={styles.jobDescription}>
+                        {job.description}
+                      </Text>
+
+                      {/* Time Slots */}
+                      {job.time_slots.length > 0 ? (
+                        job.time_slots.map((timeSlot, slotIndex) => (
+                          <View key={slotIndex} style={styles.timeSlotCard}>
+                            <View style={styles.timeSlotHeader}>
+                              <Text style={styles.timeSlotTime}>
+                                {timeSlot.time}
+                              </Text>
+                              <Text style={styles.volunteerCount}>
+                                {timeSlot.current_volunteers.length}/
+                                {timeSlot.max_volunteers}
+                              </Text>
+                            </View>
+
+                            {/* Current Volunteers */}
+                            {timeSlot.current_volunteers.length > 0 && (
+                              <View style={styles.volunteersContainer}>
+                                {timeSlot.current_volunteers.map(
+                                  (volunteer, volIndex) => (
+                                    <View
+                                      key={volIndex}
+                                      style={styles.volunteerTag}
+                                    >
+                                      <Text style={styles.volunteerName}>
+                                        {volunteer.name}{" "}
+                                        {volunteer.last_initial}.
+                                      </Text>
+                                    </View>
+                                  )
+                                )}
+                              </View>
+                            )}
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.noTimeSlotsText}>
+                          No time slots configured
+                        </Text>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Volunteer Interest Section */}
+              {volunteerInterest.length > 0 && (
+                <View style={styles.interestSection}>
+                  <Text style={styles.sectionTitle}>
+                    Volunteer Interest ({volunteerInterest.length})
+                  </Text>
+                  <Text style={styles.sectionSubtitle}>
+                    People who have expressed interest in volunteering
+                  </Text>
+                  {volunteerInterest.slice(0, 5).map((interest, index) => (
+                    <View key={index} style={styles.interestCard}>
+                      <Text style={styles.interestName}>
+                        {interest.name} {interest.last_initial}.
+                      </Text>
+                      <Text style={styles.interestType}>{interest.type}</Text>
+                      <Text style={styles.interestDate}>
+                        {new Date(interest.created_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  ))}
+                  {volunteerInterest.length > 5 && (
+                    <Text style={styles.moreInterestText}>
+                      And {volunteerInterest.length - 5} more...
+                    </Text>
                   )}
                 </View>
-              )
-            }
-            // Manually cast to VolunteerSignup to match renderItem's expected type
-            return renderItem({ item: item as VolunteerSignup })
-          }}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContainer}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+              )}
+            </View>
+          }
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       )}
     </View>
@@ -496,146 +376,177 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       color: theme.colors.text.primary,
       fontSize: 16
     },
-    listContainer: {
+    content: {
       padding: 16
     },
-    volunteerCard: {
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: theme.colors.text.primary,
+      marginBottom: 12
+    },
+    sectionSubtitle: {
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      marginBottom: 12
+    },
+    // Event Selection Styles
+    eventSelector: {
+      marginBottom: 24
+    },
+    eventList: {
+      paddingHorizontal: 4
+    },
+    eventCard: {
       backgroundColor: theme.colors.surface,
-      borderRadius: 8,
+      borderRadius: 12,
+      padding: 16,
+      marginRight: 12,
+      borderWidth: 2,
+      borderColor: theme.colors.border,
+      minWidth: 180
+    },
+    selectedEventCard: {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary
+    },
+    eventTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.text.primary,
+      marginBottom: 4
+    },
+    selectedEventTitle: {
+      color: getTextColorForBackground(theme.colors.primary)
+    },
+    eventDate: {
+      fontSize: 14,
+      color: theme.colors.text.secondary
+    },
+    selectedEventDate: {
+      color: getTextColorForBackground(theme.colors.primary),
+      opacity: 0.8
+    },
+    // Volunteer Jobs Styles
+    jobsSection: {
+      marginBottom: 24
+    },
+    jobCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
       padding: 16,
       marginBottom: 16,
-      elevation: 2,
-      shadowColor: theme.colors.border,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.2,
-      shadowRadius: 2
+      borderWidth: 1,
+      borderColor: theme.colors.border
     },
-    volunteerHeader: {
+    jobTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme.colors.text.primary,
+      marginBottom: 4
+    },
+    jobDescription: {
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      marginBottom: 12
+    },
+    noTimeSlotsText: {
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      fontStyle: "italic",
+      textAlign: "center",
+      padding: 12
+    },
+    timeSlotCard: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.border
+    },
+    timeSlotHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
       marginBottom: 8
     },
-    volunteerName: {
-      fontSize: 18,
+    timeSlotTime: {
+      fontSize: 16,
       fontWeight: "500",
       color: theme.colors.text.primary
     },
-    statusBadge: {
+    volunteerCount: {
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      backgroundColor: theme.colors.surface,
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 12
     },
-    statusText: {
+    volunteersContainer: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8
+    },
+    volunteerTag: {
+      backgroundColor: theme.colors.primary,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 16
+    },
+    volunteerName: {
       fontSize: 12,
-      fontWeight: "500",
-      textTransform: "capitalize"
+      color: getTextColorForBackground(theme.colors.primary),
+      fontWeight: "500"
     },
-    volunteerDetails: {
-      marginBottom: 12,
-      backgroundColor: theme.colors.surface,
-      padding: 10,
-      borderRadius: 6
+    // Volunteer Interest Styles
+    interestSection: {
+      marginBottom: 24
     },
-    detailRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 6
-    },
-    detailText: {
-      marginLeft: 8,
-      fontSize: 14,
-      color: theme.colors.text.primary
-    },
-    additionalInfo: {
-      fontSize: 16,
-      marginBottom: 12,
-      lineHeight: 22,
-      color: theme.colors.text.primary
-    },
-    timestamp: {
-      fontSize: 12,
-      color: theme.colors.text.secondary,
-      marginBottom: 12
-    },
-    actionButtons: {
-      flexDirection: "row",
-      justifyContent: "flex-end"
-    },
-    actionButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 6,
-      marginLeft: 8
-    },
-    actionButtonText: {
-      fontWeight: "500",
-      fontSize: 14
-    },
-    sectionHeader: {
-      marginBottom: 8
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: theme.colors.text.primary
-    },
-    interestsContainer: {
-      marginBottom: 12
-    },
-    interestItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 4
-    },
-    interestText: {
-      marginLeft: 8,
-      fontSize: 14,
-      color: theme.colors.text.primary
-    },
-    timeSlotsContainer: {
-      marginBottom: 12
-    },
-    timeSlotItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 4
-    },
-    timeSlotText: {
-      marginLeft: 8,
-      fontSize: 14,
-      color: theme.colors.text.primary
-    },
-    sectionListHeader: {
-      padding: 16,
+    interestCard: {
       backgroundColor: theme.colors.surface,
       borderRadius: 8,
+      padding: 12,
       marginBottom: 8,
       flexDirection: "row",
+      justifyContent: "space-between",
       alignItems: "center"
     },
-    sectionListHeaderText: {
-      fontSize: 18,
-      fontWeight: "bold",
+    interestName: {
+      fontSize: 16,
+      fontWeight: "500",
       color: theme.colors.text.primary,
       flex: 1
     },
-    sectionListCount: {
-      fontSize: 16,
+    interestType: {
+      fontSize: 12,
       color: theme.colors.text.secondary,
-      marginLeft: 8
+      backgroundColor: theme.colors.background,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginHorizontal: 8,
+      textTransform: "capitalize"
     },
-    emptySectionText: {
+    interestDate: {
+      fontSize: 12,
+      color: theme.colors.text.secondary
+    },
+    moreInterestText: {
       fontSize: 14,
       color: theme.colors.text.secondary,
+      textAlign: "center",
       fontStyle: "italic",
-      marginTop: 4,
-      marginLeft: 8
-    },
-    separator: {
-      height: 1,
-      backgroundColor: theme.colors.border,
-      opacity: 0.2,
-      marginVertical: 4
+      marginTop: 8
     }
   })
+
+// Default export wrapped with ProtectedComponent
+export default function VolunteerSignups() {
+  return (
+    <ProtectedComponent requiredPermissions={[Permission.MANAGE_VOLUNTEERS]}>
+      <VolunteerSignupsContent />
+    </ProtectedComponent>
+  )
+}

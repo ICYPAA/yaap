@@ -1,0 +1,168 @@
+{
+  "tabs": {
+    "program": "Barnaamij",
+    "accommodations": "Hoyga",
+    "services": "Adeegyada",
+    "profile": "Astaanta",
+    "host": "Martisoore"
+  },
+  "program": {
+    "title": "Barnaamijka Shirka",
+    "loading": "Soo raraya Barnaamijka...",
+    "error": "Khalad ayaa dhacay markii la raadinayay Barnaamijka",
+    "noEvents": "Ma jiraan dhacdooyin loogu talo galay shaandadhan.",
+    "promoted": "Dhacdooyinka Muhiimka ah",
+    "filters": {
+      "all": "Dhammaan Dhacdooyinka",
+      "speaker": "Hadallayaasha",
+      "panel": "Guddiga",
+      "entertainment": "Madadaalo",
+      "marathon": "Orod dheer"
+    },
+    "days": {
+      "thursday": "Khamiis",
+      "friday": "Jimce",
+      "saturday": "Sabti",
+      "sunday": "Axad"
+    }
+  },
+  "accommodations": {
+    "title": "Hoyga",
+    "sections": {
+      "venue": "Khariidadaha Meelaha",
+      "food": "Doorashooyinka Cuntada",
+      "hospitality": "Soo dhaweyn",
+      "childcare": "Adeegyada Daryeelka Carruurta",
+      "activities": "Hawlaha Maxalliga ah"
+    },
+    "loading": "Soo raraya Khariidadaha...",
+    "error": "Khalad ayaa dhacay markii la raadinayay Khariidadaha",
+    "noData": {
+      "venue": "Khariidado meelaha ma jiraan.",
+      "food": "Doorashooyinka cuntada ma jiraan.",
+      "activities": "Hawlaha ma jiraan."
+    },
+    "hospitality": {
+      "hours": "Saacadaha:",
+      "location": "Goobta"
+    },
+    "childcare": {
+      "title": "Daryeel Badbaado ah oo la Kormeero",
+      "description": "Waxaan bixinnaa adeegyada daryeelka carruurta ee xirfadlayaasha ah inta lagu jiro dhacdooyinka shirka. Mutadawiciinteenna waa la baaray oo waay khibro u leeyihiin carruurta da'da kala duwan.",
+      "features": {
+        "hours": "Diyaar ah inta lagu jiro dhacdooyinka muhiimka ah ee shirka",
+        "location": "Qol gaar ah oo daryeelka carruurta ah oo meesha ku yaal",
+        "verified": "Mutadawiciin la hubiyay asalkooda",
+        "advance": "Soo dir codsasho 48+ saacadood ka hor"
+      },
+      "note": "Si aad u codsato adeegyada daryeelka carruurta, booqo qaybta Adeegyada oo buuxi foomka codsashada daryeelka carruurta."
+    },
+    "buttons": {
+      "viewMenu": "Eeg Liiska",
+      "viewImage": "Eeg Sawirka"
+    }
+  },
+  "services": {
+    "title": "Adeegyada",
+    "sections": {
+      "help": "Sidee ayaan kaa caawin karnaa?",
+      "volunteer": "Haddii aad doonayso inaad na caawiso",
+      "other": "Kuwa kale"
+    },
+    "accessibility": {
+      "title": "Codso Caawimaad Helitaan",
+      "description": "Ma u baahan tahay caawimaad jireed, turjubaan ASL, ama turjubaan luuqad? Na ogolow inaan kaa caawino si khibradaada shirka loo heli karo."
+    },
+    "childcare": {
+      "title": "Codso Adeegyada Daryeelka Carruurta",
+      "description": "Ma u baahan tahay daryeelka carruurta inta lagu jiro dhacdooyinka shirka? Soo dir codsasho oo waxaan kaa caawin doonnaa in aan daryeel badbaado ah oo la kormeero carruurta loogu diyaariyo."
+    },
+    "volunteer": {
+      "title": "Iskaa Wax U Qabso Shirka",
+      "description": "Ka caawi in ICYPAA dhacdo! Isdiiwaangeli soo dhaweynta, dejinta, nadiifinta, ama fursado kale oo adeeg ah."
+    },
+    "hospitality": {
+      "title": "Cusboonaysiinta Soo dhaweynta",
+      "description": "Dhammaan u sheeg markaad keenayso cunto ama alaabta qolka soo dhaweynta!"
+    },
+    "support": {
+      "title": "Wada sheekaysi Taageero",
+      "description": "Ma caawimaad baahan tahay? Bilow wada sheekaysi kooxdeenna taageerada."
+    },
+    "faq": {
+      "title": "Su'aalaha Inta Badan La Isweydiiyo"
+    }
+  },
+  "childcare": {
+    "title": "Codsashada Daryeelka Carruurta",
+    "info": {
+      "title": "Adeegyada Daryeelka Carruurta",
+      "description": "Waxaan bixinnaa daryeel badbaado ah oo la kormeero inta lagu jiro dhacdooyinka shirka. Mutadawiciinteenna waa la baaray oo waay khibro u leeyihiin carruurta. Fadlan soo dir codsashadaada ugu yaraan 48 saacadood ka hor."
+    },
+    "sections": {
+      "parent": "Macluumaadka Waalidka",
+      "child": "Macluumaadka Ilmaha",
+      "details": "Faahfaahinta Daryeelka Carruurta"
+    },
+    "fields": {
+      "parentName": "Magaca Waalidka/Masuulka",
+      "email": "Ciwaanka Iimaylka",
+      "phone": "Lambarka Taleefanka",
+      "childName": "Magaca Ilmaha",
+      "childAge": "Da'da Ilmaha",
+      "specialNeeds": "Baahiyaha Gaarka ah ama Tixgalinta",
+      "eventDate": "Taariikhda Dhacdada",
+      "startTime": "Waqtiga Bilowga",
+      "endTime": "Waqtiga Dhamaadka",
+      "additionalInfo": "Macluumaad dheeraad ah"
+    },
+    "placeholders": {
+      "parentName": "Magacaaga buuxa",
+      "email": "kaaga@iimaylka.com",
+      "phone": "(555) 123-4567",
+      "childName": "Magaca buuxa ee ilmaha",
+      "childAge": "Da'da sanadaha",
+      "specialNeeds": "Wax kasta oo xasaasiyad, baahiyaha caafimaadka, tixgalinta dabeecadda, iwm.",
+      "eventDate": "BB/MM/SSSS",
+      "startTime": "9:00 AM",
+      "endTime": "5:00 PM",
+      "additionalInfo": "Macluumaad kale oo aan ogaan lahayn..."
+    },
+    "submit": "Soo Dir Codsashada",
+    "submitting": "Soo diraya...",
+    "success": {
+      "title": "Codsashada la Soo Diray",
+      "message": "Codsashadaada daryeelka carruurta waa la soo diray. Waxaan kula xidhiidhi doonnaa 24 saacadood gudahood xaqiijin iyo faahfaahin."
+    },
+    "error": {
+      "title": "Khalad",
+      "message": "Soo dirista codsashada way fashilantay. Fadlan isku day mar kale.",
+      "required": "Fadlan buuxi dhammaan goobaha loo baahan yahay."
+    },
+    "required": " *"
+  },
+  "profile": {
+    "title": "Astaanta"
+  },
+  "host": {
+    "title": "Aaladaha Martisoore"
+  },
+  "common": {
+    "loading": "Soo raraya...",
+    "error": "Khalad",
+    "retry": "Isku day mar kale",
+    "close": "Xir",
+    "ok": "OK",
+    "cancel": "Jooji",
+    "save": "Kaydso",
+    "delete": "Tirtir",
+    "edit": "Wax ka beddel",
+    "back": "Dib u noqo",
+    "next": "Xiga",
+    "submit": "Soo dir",
+    "search": "Raadi",
+    "filter": "Shaandhee",
+    "clear": "Nadiifi",
+    "refresh": "Cusboonaysii"
+  }
+}

@@ -82,7 +82,7 @@ export default function AccessibilityRequests() {
             event: "*",
             schema: "public",
             table: "accessibility_forms",
-            filter: "program_id=eq.1"
+            filter: "program_id=eq.3"
           },
           (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload
@@ -198,7 +198,7 @@ export default function AccessibilityRequests() {
           supabaseWithDeviceId
             .from("accessibility_forms")
             .select("*")
-            .eq("program_id", 1)
+            .eq("program_id", 3)
             .order("created_at", { ascending: false })
       })
 

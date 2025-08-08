@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { withDeviceId } from "../../../lib/supabase"
@@ -186,7 +187,7 @@ export default function SupportRequest() {
       const { data, error } = await supabaseWithDeviceId
         .from("support_chats")
         .insert({
-          program_id: 1, // Default to program ID 1
+          program_id: 3, // Default to program ID 3
           chat_title: newChatTitle,
           messages: [], // Start with empty messages
           device_id: deviceId,
@@ -256,11 +257,12 @@ export default function SupportRequest() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 130 : 0}
-    >
+    <ProtectedComponent requiredFeatures={["support_chat_enabled"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 130 : 0}
+      >
       <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Stack.Screen
           options={{
@@ -777,6 +779,7 @@ export default function SupportRequest() {
           </View>
         </Modal>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ProtectedComponent>
   )
 }

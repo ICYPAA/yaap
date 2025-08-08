@@ -1,0 +1,168 @@
+{
+  "tabs": {
+    "program": "Program",
+    "accommodations": "Accommodations",
+    "services": "Services",
+    "profile": "Profile",
+    "host": "Host"
+  },
+  "program": {
+    "title": "Conference Program",
+    "loading": "Loading Program...",
+    "error": "Error Loading Program",
+    "noEvents": "No events scheduled for this filter.",
+    "promoted": "Featured Events",
+    "filters": {
+      "all": "All Events",
+      "speaker": "Speakers",
+      "panel": "Panels",
+      "entertainment": "Entertainment",
+      "marathon": "Marathon"
+    },
+    "days": {
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    }
+  },
+  "accommodations": {
+    "title": "Accommodations",
+    "sections": {
+      "venue": "Venue Maps",
+      "food": "Food Options",
+      "hospitality": "Hospitality",
+      "childcare": "Childcare Services",
+      "activities": "Local Activities"
+    },
+    "loading": "Loading Maps...",
+    "error": "Error Loading Maps",
+    "noData": {
+      "venue": "No venue maps available.",
+      "food": "No food options available.",
+      "activities": "No activities available."
+    },
+    "hospitality": {
+      "hours": "Hours:",
+      "location": "Location"
+    },
+    "childcare": {
+      "title": "Safe, Supervised Care",
+      "description": "We provide professional childcare services during conference events. Our volunteers are background-checked and experienced with children of all ages.",
+      "features": {
+        "hours": "Available during main conference events",
+        "location": "Dedicated childcare room on-site",
+        "verified": "Background-checked volunteers",
+        "advance": "Submit requests 48+ hours in advance"
+      },
+      "note": "To request childcare services, visit the Services tab and submit a childcare request form."
+    },
+    "buttons": {
+      "viewMenu": "View Menu",
+      "viewImage": "View Image"
+    }
+  },
+  "services": {
+    "title": "Services",
+    "sections": {
+      "help": "How can we help?",
+      "volunteer": "If you want to help us",
+      "other": "Other"
+    },
+    "accessibility": {
+      "title": "Request Accessibility Assistance",
+      "description": "Need physical assistance, ASL interpreter, or language translator? Let us help make your conference experience accessible."
+    },
+    "childcare": {
+      "title": "Request Childcare Services",
+      "description": "Need childcare during conference events? Submit a request and we'll help coordinate safe, supervised care for your children."
+    },
+    "volunteer": {
+      "title": "Volunteer at Conference",
+      "description": "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities."
+    },
+    "hospitality": {
+      "title": "Hospitality Updates",
+      "description": "Let everyone know when you're bringing food or supplies to the hospitality suite!"
+    },
+    "support": {
+      "title": "Support Chat",
+      "description": "Need help? Start a chat with our support team."
+    },
+    "faq": {
+      "title": "Frequently Asked Questions"
+    }
+  },
+  "childcare": {
+    "title": "Childcare Request",
+    "info": {
+      "title": "Childcare Services",
+      "description": "We provide safe, supervised childcare during conference events. Our volunteers are background-checked and experienced with children. Please submit your request at least 48 hours in advance."
+    },
+    "sections": {
+      "parent": "Parent Information",
+      "child": "Child Information",
+      "details": "Childcare Details"
+    },
+    "fields": {
+      "parentName": "Parent/Guardian Name",
+      "email": "Email Address",
+      "phone": "Phone Number",
+      "childName": "Child's Name",
+      "childAge": "Child's Age",
+      "specialNeeds": "Special Needs or Considerations",
+      "eventDate": "Event Date",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "additionalInfo": "Additional Information"
+    },
+    "placeholders": {
+      "parentName": "Your full name",
+      "email": "your@email.com",
+      "phone": "(555) 123-4567",
+      "childName": "Child's full name",
+      "childAge": "Age in years",
+      "specialNeeds": "Any allergies, medical needs, behavioral considerations, etc.",
+      "eventDate": "MM/DD/YYYY",
+      "startTime": "9:00 AM",
+      "endTime": "5:00 PM",
+      "additionalInfo": "Any other information we should know..."
+    },
+    "submit": "Submit Request",
+    "submitting": "Submitting...",
+    "success": {
+      "title": "Request Submitted",
+      "message": "Your childcare request has been submitted. We'll contact you within 24 hours with confirmation and details."
+    },
+    "error": {
+      "title": "Error",
+      "message": "Failed to submit request. Please try again.",
+      "required": "Please fill in all required fields."
+    },
+    "required": " *"
+  },
+  "profile": {
+    "title": "Profile"
+  },
+  "host": {
+    "title": "Host Tools"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "close": "Close",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "refresh": "Refresh"
+  }
+}

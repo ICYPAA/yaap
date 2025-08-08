@@ -20,6 +20,9 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { LanguagePicker } from "../../components/LanguagePicker"
+import { useFeatures } from "../../context/FeatureContext"
+import { useI18n } from "../../context/I18nContext"
 import { useTheme } from "../../context/ThemeContext"
 import { sendNotification } from "../../lib/notificationHelper"
 import { clearImageCache, uploadProfilePicture } from "../../lib/profilePicture"
@@ -76,11 +79,14 @@ type DisplayUser = Pick<
 
 export default function Profile() {
   const { theme, isDarkMode, toggleTheme } = useTheme()
+  const { currentLanguage, availableLanguages, changeLanguage } = useI18n()
+  const { isFeatureEnabled } = useFeatures()
   const router = useRouter()
 
   // State for current user data
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [deviceId, setDeviceId] = useState<string | null>(null)
+  const [programId, setProgramId] = useState<number>(3)
 
   // Profile Info State (will be populated from currentUser)
   const [firstName, setFirstName] = useState("")
@@ -100,6 +106,27 @@ export default function Profile() {
   const [hospitalityNotificationsEnabled, setHospitalityNotificationsEnabled] =
     useState(true)
 
+  // Language picker state
+  const [languagePickerVisible, setLanguagePickerVisible] = useState(false)
+  
+  // Bid schedule toggle state
+  const [showBidSchedule, setShowBidSchedule] = useState(true)
+  
+  // Load bid schedule preference
+  useEffect(() => {
+    AsyncStorage.getItem("showBidSchedule").then((value) => {
+      if (value !== null) {
+        setShowBidSchedule(value === "true")
+      }
+    })
+  }, [])
+  
+  // Save bid schedule preference
+  const handleBidScheduleToggle = async (value: boolean) => {
+    setShowBidSchedule(value)
+    await AsyncStorage.setItem("showBidSchedule", value.toString())
+  }
+
   // Sharing State (will be populated by fetching related users)
   const [incomingRequests, setIncomingRequests] = useState<DisplayUser[]>([])
   const [sharingWith, setSharingWith] = useState<DisplayUser[]>([])
@@ -107,9 +134,6 @@ export default function Profile() {
   const [viewingFrom, setViewingFrom] = useState<DisplayUser[]>([])
   const [bannedUsers, setBannedUsers] = useState<DisplayUser[]>([])
   const [loadingSharing, setLoadingSharing] = useState(true)
-
-  // New state for program ID
-  const [programId, setProgramId] = useState<number | null>(null)
 
   // Get Device ID on mount
   useEffect(() => {
@@ -279,6 +303,7 @@ export default function Profile() {
 
     fetchUserData()
   }, [deviceId]) // Re-run if deviceId changes
+
 
   // Function to fetch user details for sharing lists
   const fetchSharingListsDetails = async (schedule: Schedule) => {
@@ -528,24 +553,16 @@ export default function Profile() {
 
   // Add function to get program ID
   useEffect(() => {
-    const fetchProgramId = async () => {
+    const fetchCurrentProgramId = async () => {
       try {
-        // Get the active program ID (assuming there's only one active program)
-        const supabaseWithDeviceId = await withDeviceId()
-        const { data, error } = await supabaseWithDeviceId
-          .from("programs")
-          .select("id")
-          .limit(1)
-          .single()
-
-        if (error) throw error
-        if (data) setProgramId(data.id)
+        // Hardcode program ID as 3 based on the current setup
+        setProgramId(3)
       } catch (error) {
-        console.error("Error fetching program ID:", error)
+        console.error("Error setting program ID:", error)
       }
     }
 
-    fetchProgramId()
+    fetchCurrentProgramId()
   }, [])
 
   // --- Sharing Action Handlers (using DisplayUser type) ---
@@ -967,6 +984,7 @@ export default function Profile() {
     )
   }
 
+
   // --- End Handlers ---
 
   const styles = createStyles(theme)
@@ -1334,7 +1352,29 @@ export default function Profile() {
             />
           </View>
 
+          {/* Language Picker */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => setLanguagePickerVisible(true)}
+          >
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingLabel}>Language</Text>
+              <Text style={styles.settingDescription}>
+                {availableLanguages.find(
+                  (lang) => lang.code === currentLanguage
+                )?.name || "English"}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.text.secondary}
+            />
+          </TouchableOpacity>
+
           {/* Notification Settings (Updated with direct updates) */}
+          {isFeatureEnabled("push_notifications_enabled") && (
+          <>
           <Text style={styles.subsectionTitle}>Notifications</Text>
 
           {/* Master Toggle */}
@@ -1554,9 +1594,36 @@ export default function Profile() {
               }
             />
           </View>
+          </>
+          )}
+
         </View>
 
+        {/* Other Settings Section */}
+        {isFeatureEnabled("bid_schedule_enabled") && (
+        <View style={styles.settingsContainer}>
+          <Text style={styles.sectionTitle}>Other Settings</Text>
+          
+          {/* Bid Schedule Toggle */}
+          <View style={styles.settingRow}>
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingLabel}>Show Bid Schedule</Text>
+              <Text style={styles.settingDescription}>
+                Display bid presentation schedule in Program
+              </Text>
+            </View>
+            <Switch
+              value={showBidSchedule}
+              onValueChange={handleBidScheduleToggle}
+              trackColor={{ false: "#767577", true: theme.colors.primary }}
+              thumbColor={showBidSchedule ? "#f4f3f4" : "#f4f3f4"}
+            />
+          </View>
+        </View>
+        )}
+
         {/* Schedule Sharing Section (Now uses fetched data) */}
+        {isFeatureEnabled("schedule_sharing_enabled") && (
         <View style={styles.settingsContainer}>
           <Text style={styles.sectionTitle}>Schedule Sharing</Text>
           {/* Show loading indicator while fetching sharing lists */}
@@ -1717,6 +1784,7 @@ export default function Profile() {
             </>
           )}
         </View>
+        )}
 
         {/* Danger Zone */}
         <View style={styles.dangerZoneContainer}>
@@ -1738,6 +1806,13 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      
+      {/* Language Picker Modal */}
+      <LanguagePicker 
+        visible={languagePickerVisible}
+        onClose={() => setLanguagePickerVisible(false)}
+        changeLanguage={changeLanguage}
+      />
     </KeyboardAvoidingView>
   )
 }

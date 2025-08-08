@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { withDeviceId } from "../../../lib/supabase"
@@ -213,7 +214,7 @@ export default function VolunteerSignup() {
           phone: formData.phone,
           email: formData.email,
           type: "general",
-          program_id: 1, // Default to program ID 1
+          program_id: 3, // Default to program ID 3
           data: {
             interests: {
               greeter: formData.interests.greeter,
@@ -456,11 +457,12 @@ export default function VolunteerSignup() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
+    <ProtectedComponent requiredFeatures={["volunteering_enabled"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
       <ScrollView
         style={{
           flex: 1,
@@ -958,7 +960,8 @@ export default function VolunteerSignup() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ProtectedComponent>
   )
 }
 

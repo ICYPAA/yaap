@@ -66,9 +66,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="maps"
         options={{
-          title: "Maps",
+          title: "Accommodations",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="map" size={size} color={color} />
+            <Ionicons name="bed" size={size} color={color} />
           )
         }}
       />

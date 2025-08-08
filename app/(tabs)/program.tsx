@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useNavigation } from "@react-navigation/native"
+import BidCommitteeSchedule from "../../components/BidCommitteeSchedule"
+import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import * as Application from "expo-application"
 import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
@@ -20,13 +21,14 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
 import { supabase, withDeviceId } from "../../lib/supabase"
 import {
   getProgramColor as getProgramColorUtil,
   getTextColorForBackground as getTextColorForBgUtil
 } from "../../lib/theme"
-import { Activity, Food } from "../../types/activities"
+import { Activity } from "../../types/activities"
 import {
   Event,
   EventCategory,
@@ -424,6 +426,7 @@ const TimelineView = ({
   // Add refs to synchronize scrolling
   const roomHeadersScrollRef = React.useRef<ScrollView>(null)
   const roomColumnsScrollRef = React.useRef<ScrollView>(null)
+  const isScrollingSyncRef = React.useRef(false) // Add flag to prevent scroll feedback loop
   const { theme, isDarkMode } = useTheme()
 
   // State for modal instead of expanded events
@@ -686,13 +689,22 @@ const TimelineView = ({
 
   // Helper function to handle synchronized horizontal scrolling
   const handleHorizontalScroll = (event: any, fromHeaders: boolean) => {
+    // Prevent feedback loop
+    if (isScrollingSyncRef.current) return
+    
     const scrollX = event.nativeEvent.contentOffset.x
+    isScrollingSyncRef.current = true
 
     if (fromHeaders && roomColumnsScrollRef.current) {
       roomColumnsScrollRef.current.scrollTo({ x: scrollX, animated: false })
     } else if (!fromHeaders && roomHeadersScrollRef.current) {
       roomHeadersScrollRef.current.scrollTo({ x: scrollX, animated: false })
     }
+
+    // Reset the flag after a short delay to allow the scroll to complete
+    setTimeout(() => {
+      isScrollingSyncRef.current = false
+    }, 10)
   }
 
   // Replace toggle event expansion with show modal
@@ -954,7 +966,7 @@ const TimelineView = ({
             showsHorizontalScrollIndicator={false}
             style={timelineStyles.roomHeadersScroll}
             onScroll={(e) => handleHorizontalScroll(e, true)}
-            scrollEventThrottle={16}
+            scrollEventThrottle={1}
             bounces={false}
             decelerationRate="fast"
             overScrollMode="never"
@@ -1010,7 +1022,7 @@ const TimelineView = ({
               showsHorizontalScrollIndicator={false}
               style={timelineStyles.roomColumnsScroll}
               onScroll={(e) => handleHorizontalScroll(e, false)}
-              scrollEventThrottle={16}
+              scrollEventThrottle={1}
               bounces={false}
               decelerationRate="fast"
               overScrollMode="never"
@@ -1397,126 +1409,6 @@ const TimelineView = ({
   )
 }
 
-// Food card component
-const FoodCard = ({ item }: { item: Food }) => {
-  const { theme, isDarkMode } = useTheme()
-
-  // Calculate distance if available
-  const formattedDistance =
-    item.distance !== null ? `${item.distance} mi.` : "Distance not available"
-
-  // Check if location should show map button
-  const shouldShowMapButton =
-    item.location &&
-    item.location.trim() !== "" &&
-    item.location !== "In the Hotel"
-
-  // Define local styles for FoodCard
-  const foodCardStyles = StyleSheet.create({
-    activityCard: {
-      backgroundColor: theme.colors.surface,
-      padding: 16,
-      borderRadius: 8,
-      width: 300,
-      marginHorizontal: 8,
-      ...getShadowStyles(isDarkMode)
-    },
-    activityHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: 8
-    },
-    titleContainer: {
-      flex: 1,
-      marginRight: 8
-    },
-    activityCategory: {
-      fontSize: 12,
-      color: theme.colors.primary,
-      marginBottom: 4,
-      textTransform: "uppercase",
-      fontWeight: "bold"
-    },
-    activityTitle: {
-      fontSize: 18,
-      color: theme.colors.text.primary,
-      fontWeight: "bold",
-      flexWrap: "wrap"
-    },
-    buttonContainer: {
-      flexDirection: "row",
-      gap: 8,
-      flexShrink: 0
-    },
-    mapButton: {
-      padding: 8,
-      borderRadius: 4,
-      backgroundColor: theme.colors.background
-    },
-    menuButton: {
-      padding: 8,
-      borderRadius: 4,
-      backgroundColor: theme.colors.background
-    },
-    activityLocation: {
-      fontSize: 14,
-      color: theme.colors.text.primary,
-      marginBottom: 4
-    },
-    activityDistance: {
-      fontSize: 14,
-      color: theme.colors.text.secondary,
-      marginBottom: 4,
-      fontStyle: "italic"
-    },
-    activityDescription: {
-      fontSize: 14,
-      color: theme.colors.text.primary,
-      lineHeight: 20
-    }
-  })
-
-  return (
-    <View style={foodCardStyles.activityCard}>
-      <View style={foodCardStyles.activityHeader}>
-        <View style={foodCardStyles.titleContainer}>
-          <Text style={foodCardStyles.activityCategory}>{item.category}</Text>
-          <Text style={foodCardStyles.activityTitle}>{item.name}</Text>
-        </View>
-        <View style={foodCardStyles.buttonContainer}>
-          {item.menu && (
-            <TouchableOpacity
-              onPress={() => Linking.openURL(item.menu!)}
-              style={foodCardStyles.menuButton}
-            >
-              <Ionicons
-                name="restaurant-outline"
-                size={24}
-                color={theme.colors.primary}
-              />
-            </TouchableOpacity>
-          )}
-          {shouldShowMapButton && (
-            <TouchableOpacity
-              onPress={() => openMaps(item.location)}
-              style={foodCardStyles.mapButton}
-            >
-              <Ionicons
-                name="map-outline"
-                size={24}
-                color={theme.colors.primary}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-      <Text style={foodCardStyles.activityLocation}>{item.location}</Text>
-      <Text style={foodCardStyles.activityDistance}>{formattedDistance}</Text>
-      <Text style={foodCardStyles.activityDescription}>{item.description}</Text>
-    </View>
-  )
-}
 
 // Define a type for the DayScheduleCard component props
 type DayScheduleCardProps = {
@@ -1792,7 +1684,7 @@ const DayScheduleCard = ({
     const orderedCategories: Record<string, DisplayScheduleItem[]> = {}
 
     // Priority categories in order
-    const priorityOrder = ["Speaker", "Panel", "Entertainment", "Marathon"]
+    const priorityOrder = ["Main Meeting", "Speaker", "Panel", "Entertainment", "Marathon"]
 
     // First add priority categories if they exist
     priorityOrder.forEach((category) => {
@@ -1946,7 +1838,13 @@ const DayScheduleCard = ({
                     styles(theme).mainMeetingCard,
                     { backgroundColor: primaryColor }
                   ]}
-                  onPress={() => onToggleSave(event.id)}
+                  onPress={() => {
+                    if (event.link) {
+                      Linking.openURL(event.link)
+                    } else {
+                      onToggleSave(event.id)
+                    }
+                  }}
                 >
                   {event.can_save !== false && (
                     <Ionicons
@@ -2152,6 +2050,7 @@ const DayScheduleCard = ({
 
 export default function Program() {
   const { theme, isDarkMode } = useTheme()
+  const { isFeatureEnabled } = useFeatures()
   const shadowStyles = getShadowStyles(isDarkMode)
   const navigation = useNavigation()
 
@@ -2169,12 +2068,14 @@ export default function Program() {
   const [events, setEvents] = useState<Event[]>([])
   const [categories, setCategories] = useState<EventCategory[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
-  const [foodItems, setFoodItems] = useState<Food[]>([]) // Use fetched food state
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   // State for My Schedule collapsible past events
   const [isPastEventsCollapsed, setIsPastEventsCollapsed] = useState(true)
+  
+  // State for bid schedule visibility
+  const [showBidSchedule, setShowBidSchedule] = useState(true)
 
   // Reference to scroll view to track scrolling
   const scrollViewRef = React.useRef<ScrollView>(null)
@@ -2198,6 +2099,17 @@ export default function Program() {
     return null
   }
 
+  // Load bid schedule preference when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      AsyncStorage.getItem("showBidSchedule").then((value) => {
+        if (value !== null) {
+          setShowBidSchedule(value === "true")
+        }
+      })
+    }, [])
+  )
+  
   // Load saved items from AsyncStorage on mount
   useEffect(() => {
     const loadSavedItems = async () => {
@@ -2416,11 +2328,11 @@ export default function Program() {
       setLoading(true)
       setError(null)
       try {
-        // Assume program ID 1 for now
-        const programId = 1
+        // Assume program ID 3 for now
+        const programId = 3
 
         const supabaseWithDeviceId = await withDeviceId()
-        const [programRes, eventsRes, categoriesRes, activitiesRes, foodRes] =
+        const [programRes, eventsRes, categoriesRes, activitiesRes] =
           await Promise.all([
             supabaseWithDeviceId
               .from("programs")
@@ -2439,10 +2351,6 @@ export default function Program() {
             supabaseWithDeviceId
               .from("activities")
               .select("*")
-              .eq("program_id", programId),
-            supabaseWithDeviceId
-              .from("food")
-              .select("*")
               .eq("program_id", programId)
           ])
 
@@ -2451,7 +2359,6 @@ export default function Program() {
         if (eventsRes.error) throw eventsRes.error
         if (categoriesRes.error) throw categoriesRes.error
         if (activitiesRes.error) throw activitiesRes.error
-        if (foodRes.error) throw foodRes.error
 
         // Set state
         setProgramDetails(programRes.data)
@@ -2459,7 +2366,6 @@ export default function Program() {
         setEvents((eventsRes.data as Event[]) || [])
         setCategories(categoriesRes.data || [])
         setActivities(activitiesRes.data || [])
-        setFoodItems(foodRes.data || [])
       } catch (err: any) {
         console.error("Error fetching data:", err)
         setError(err instanceof Error ? err : new Error(String(err)))
@@ -2743,10 +2649,15 @@ export default function Program() {
   )
 
   // Convert to array for rendering, matching original structure
-  const scheduleDays = Object.entries(scheduleData).map(([date, items]) => ({
-    day: date,
-    items
-  }))
+  const scheduleDays = Object.entries(scheduleData)
+    .map(([date, items]) => ({
+      day: date,
+      items,
+      // Add sortable date for proper ordering
+      sortDate: new Date(items[0]?.date || "1970-01-01")
+    }))
+    .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime())
+    .map(({ day, items }) => ({ day, items }))
 
   // Ensure activeDay is within bounds
   useEffect(() => {
@@ -3213,12 +3124,6 @@ export default function Program() {
       createProfileButtonText: {
         fontSize: 16,
         fontWeight: "bold"
-      },
-      foodSection: {
-        marginVertical: 16
-      },
-      foodListContainer: {
-        paddingHorizontal: 16
       },
       scrollView: {
         flex: 1
@@ -3904,7 +3809,15 @@ export default function Program() {
               </View>
             )}
 
+            {/* Bid Committee Schedule */}
+            {isFeatureEnabled("bid_schedule_enabled") && showBidSchedule && (
+              <View style={{ marginVertical: 16 }}>
+                <BidCommitteeSchedule showAll={false} />
+              </View>
+            )}
+
             {/* QR Code or Profile Button Section */}
+            {isFeatureEnabled("schedule_sharing_enabled") && (
             <View style={programStyles(theme).qrSection}>
               <Text
                 style={[
@@ -3968,6 +3881,7 @@ export default function Program() {
                 </>
               )}
             </View>
+            )}
           </View>
         )}
 
@@ -3978,34 +3892,6 @@ export default function Program() {
             day={getCurrentDay()}
           />
         )}
-
-        {/* Food section */}
-        <View style={programStyles(theme).foodSection}>
-          <Text
-            style={{
-              ...programStyles(theme).sectionTitle,
-              color: theme.colors.text.primary
-            }}
-          >
-            Food
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={programStyles(theme).foodListContainer}
-          >
-            {[...foodItems]
-              .sort((a, b) => {
-                // Handle null/undefined distances
-                if (a.distance === null || a.distance === undefined) return 1
-                if (b.distance === null || b.distance === undefined) return -1
-                return a.distance - b.distance
-              })
-              .map((item) => (
-                <FoodCard key={item.id} item={item} />
-              ))}
-          </ScrollView>
-        </View>
       </ScrollView>
     </View>
   )

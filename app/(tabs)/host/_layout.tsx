@@ -1,59 +1,38 @@
 import { Redirect, Stack, usePathname } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
+import { useRole } from "../../../context/RoleContext"
 import { useTheme } from "../../../context/ThemeContext"
-import { supabase } from "../../../lib/supabase"
 
 export default function HostLayout() {
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const { loading, isAuthenticated, canAccessHostTools } = useRole()
   const pathname = usePathname()
 
   // Check if current route is the login page
   const isLoginPage = pathname === "/host/login"
 
-  useEffect(() => {
-    // If in debug mode, we skip authentication check
-    if (isDebugMode) {
-      setIsAuthenticated(true)
-      return
-    }
-
-    // The listener will fire initially with the restored session or null.
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        console.log("session", session)
-        // This will set the state correctly after storage is checked
-        // or after the redirect tokens are processed.
-        setIsAuthenticated(!!session)
-      }
-    )
-
-    return () => {
-      if (authListener && authListener.subscription) {
-        authListener.subscription.unsubscribe()
-      }
-    }
-  }, [isDebugMode])
-
-  // Show loading while checking authentication
-  if (isAuthenticated === null) {
+  // Show loading while checking authentication and roles
+  if (loading) {
     return (
       <View style={styles(theme).loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles(theme).loadingText}>
-          Checking authentication...
-        </Text>
+        <Text style={styles(theme).loadingText}>Checking permissions...</Text>
       </View>
     )
   }
 
   // If in debug mode, we don't redirect to login
-  // Otherwise, redirect to login if not authenticated and not already on login page
-  if (!isAuthenticated && !isLoginPage && !isDebugMode) {
+  if (isDebugMode) {
+    // Allow access in debug mode
+  } else if (!isAuthenticated && !isLoginPage) {
+    // Redirect to login if not authenticated and not already on login page
     return <Redirect href="/host/login" />
+  } else if (isAuthenticated && !canAccessHostTools() && !isLoginPage) {
+    // Redirect to unauthorized if authenticated but doesn't have host access
+    return <Redirect href="/not-authorized" />
   }
 
   return (
@@ -68,10 +47,14 @@ export default function HostLayout() {
         }}
       />
       <Stack.Screen name="accessibility" options={{ headerShown: false }} />
-      <Stack.Screen name="rides" options={{ headerShown: false }} />
       <Stack.Screen name="volunteers" options={{ headerShown: false }} />
       <Stack.Screen name="hospitality" options={{ headerShown: false }} />
       <Stack.Screen name="support" options={{ headerShown: false }} />
+      <Stack.Screen name="chairperson" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="general-notifications"
+        options={{ headerShown: false }}
+      />
     </Stack>
   )
 }

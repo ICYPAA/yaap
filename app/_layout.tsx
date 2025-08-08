@@ -13,6 +13,9 @@ import { AppState, Platform } from "react-native"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { DebugProvider } from "../context/DebugContext"
+import { FeatureProvider } from "../context/FeatureContext"
+import { I18nProvider } from "../context/I18nContext"
+import { RoleProvider } from "../context/RoleContext"
 import { ThemeProvider, useTheme } from "../context/ThemeContext"
 import { supabase, withDeviceId } from "../lib/supabase"
 import { storeProgramDesign } from "../lib/theme"
@@ -195,7 +198,7 @@ export default function RootLayout() {
   useEffect(() => {
     const fetchProgramData = async () => {
       try {
-        const programId = 1
+        const programId = 3
         const supabaseWithDeviceId = await withDeviceId()
         const { data, error } = await supabaseWithDeviceId
           .from("programs")
@@ -454,10 +457,16 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <DebugProvider>
-        <RootLayoutNav />
-      </DebugProvider>
-    </ThemeProvider>
+    <I18nProvider>
+      <ThemeProvider>
+        <DebugProvider>
+          <FeatureProvider>
+            <RoleProvider>
+              <RootLayoutNav />
+            </RoleProvider>
+          </FeatureProvider>
+        </DebugProvider>
+      </ThemeProvider>
+    </I18nProvider>
   )
 }

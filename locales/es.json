@@ -1,0 +1,168 @@
+{
+  "tabs": {
+    "program": "Programa",
+    "accommodations": "Alojamiento",
+    "services": "Servicios",
+    "profile": "Perfil",
+    "host": "Anfitrión"
+  },
+  "program": {
+    "title": "Programa de la Conferencia",
+    "loading": "Cargando Programa...",
+    "error": "Error al Cargar Programa",
+    "noEvents": "No hay eventos programados para este filtro.",
+    "promoted": "Eventos Destacados",
+    "filters": {
+      "all": "Todos los Eventos",
+      "speaker": "Oradores",
+      "panel": "Paneles",
+      "entertainment": "Entretenimiento",
+      "marathon": "Maratón"
+    },
+    "days": {
+      "thursday": "Jueves",
+      "friday": "Viernes",
+      "saturday": "Sábado",
+      "sunday": "Domingo"
+    }
+  },
+  "accommodations": {
+    "title": "Alojamiento",
+    "sections": {
+      "venue": "Mapas del Lugar",
+      "food": "Opciones de Comida",
+      "hospitality": "Hospitalidad",
+      "childcare": "Servicios de Cuidado Infantil",
+      "activities": "Actividades Locales"
+    },
+    "loading": "Cargando Mapas...",
+    "error": "Error al Cargar Mapas",
+    "noData": {
+      "venue": "No hay mapas del lugar disponibles.",
+      "food": "No hay opciones de comida disponibles.",
+      "activities": "No hay actividades disponibles."
+    },
+    "hospitality": {
+      "hours": "Horarios:",
+      "location": "Ubicación"
+    },
+    "childcare": {
+      "title": "Cuidado Seguro y Supervisado",
+      "description": "Proporcionamos servicios profesionales de cuidado infantil durante los eventos de la conferencia. Nuestros voluntarios tienen antecedentes verificados y experiencia con niños de todas las edades.",
+      "features": {
+        "hours": "Disponible durante los eventos principales de la conferencia",
+        "location": "Sala de cuidado infantil dedicada en el lugar",
+        "verified": "Voluntarios con antecedentes verificados",
+        "advance": "Envíe solicitudes con 48+ horas de anticipación"
+      },
+      "note": "Para solicitar servicios de cuidado infantil, visite la pestaña de Servicios y envíe un formulario de solicitud de cuidado infantil."
+    },
+    "buttons": {
+      "viewMenu": "Ver Menú",
+      "viewImage": "Ver Imagen"
+    }
+  },
+  "services": {
+    "title": "Servicios",
+    "sections": {
+      "help": "¿Cómo podemos ayudarte?",
+      "volunteer": "Si quieres ayudarnos",
+      "other": "Otros"
+    },
+    "accessibility": {
+      "title": "Solicitar Asistencia de Accesibilidad",
+      "description": "¿Necesita asistencia física, intérprete de ASL o traductor de idiomas? Permítanos ayudarle a que su experiencia en la conferencia sea accesible."
+    },
+    "childcare": {
+      "title": "Solicitar Servicios de Cuidado Infantil",
+      "description": "¿Necesita cuidado infantil durante los eventos de la conferencia? Envíe una solicitud y le ayudaremos a coordinar un cuidado seguro y supervisado para sus hijos."
+    },
+    "volunteer": {
+      "title": "Voluntario en la Conferencia",
+      "description": "¡Ayude a que ICYPAA suceda! Regístrese para saludar, configurar, limpiar u otras oportunidades de servicio."
+    },
+    "hospitality": {
+      "title": "Actualizaciones de Hospitalidad",
+      "description": "¡Hágale saber a todos cuándo está trayendo comida o suministros a la suite de hospitalidad!"
+    },
+    "support": {
+      "title": "Chat de Soporte",
+      "description": "¿Necesita ayuda? Inicie un chat con nuestro equipo de soporte."
+    },
+    "faq": {
+      "title": "Preguntas Frecuentes"
+    }
+  },
+  "childcare": {
+    "title": "Solicitud de Cuidado Infantil",
+    "info": {
+      "title": "Servicios de Cuidado Infantil",
+      "description": "Proporcionamos cuidado infantil seguro y supervisado durante los eventos de la conferencia. Nuestros voluntarios tienen antecedentes verificados y experiencia con niños. Por favor envíe su solicitud al menos 48 horas antes."
+    },
+    "sections": {
+      "parent": "Información de los Padres",
+      "child": "Información del Niño",
+      "details": "Detalles del Cuidado Infantil"
+    },
+    "fields": {
+      "parentName": "Nombre del Padre/Tutor",
+      "email": "Dirección de Correo Electrónico",
+      "phone": "Número de Teléfono",
+      "childName": "Nombre del Niño",
+      "childAge": "Edad del Niño",
+      "specialNeeds": "Necesidades Especiales o Consideraciones",
+      "eventDate": "Fecha del Evento",
+      "startTime": "Hora de Inicio",
+      "endTime": "Hora de Finalización",
+      "additionalInfo": "Información Adicional"
+    },
+    "placeholders": {
+      "parentName": "Su nombre completo",
+      "email": "su@correo.com",
+      "phone": "(555) 123-4567",
+      "childName": "Nombre completo del niño",
+      "childAge": "Edad en años",
+      "specialNeeds": "Cualquier alergia, necesidades médicas, consideraciones de comportamiento, etc.",
+      "eventDate": "MM/DD/AAAA",
+      "startTime": "9:00 AM",
+      "endTime": "5:00 PM",
+      "additionalInfo": "Cualquier otra información que debamos saber..."
+    },
+    "submit": "Enviar Solicitud",
+    "submitting": "Enviando...",
+    "success": {
+      "title": "Solicitud Enviada",
+      "message": "Su solicitud de cuidado infantil ha sido enviada. Nos pondremos en contacto con usted dentro de 24 horas con confirmación y detalles."
+    },
+    "error": {
+      "title": "Error",
+      "message": "No se pudo enviar la solicitud. Por favor, inténtelo de nuevo.",
+      "required": "Por favor complete todos los campos requeridos."
+    },
+    "required": " *"
+  },
+  "profile": {
+    "title": "Perfil"
+  },
+  "host": {
+    "title": "Herramientas de Anfitrión"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "retry": "Reintentar",
+    "close": "Cerrar",
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "submit": "Enviar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "clear": "Limpiar",
+    "refresh": "Actualizar"
+  }
+}

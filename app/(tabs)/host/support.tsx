@@ -101,7 +101,7 @@ export default function SupportChats() {
             event: "*",
             schema: "public",
             table: "support_chats",
-            filter: "program_id=eq.1"
+            filter: "program_id=eq.3"
           },
           (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload
@@ -175,7 +175,7 @@ export default function SupportChats() {
           supabaseWithDeviceId
             .from("support_chats")
             .select("*")
-            .eq("program_id", 1)
+            .eq("program_id", 3)
             .order("created_at", { ascending: false })
       })
 

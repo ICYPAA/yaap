@@ -1,0 +1,168 @@
+{
+  "tabs": {
+    "program": "Kev Npaj",
+    "accommodations": "Chaw Nyob",
+    "services": "Kev Pabcuam",
+    "profile": "Profile",
+    "host": "Tus Tswv Tsev"
+  },
+  "program": {
+    "title": "Lub Rooj Sab Laj Kev Npaj",
+    "loading": "Tab tom thauj Kev Npaj...",
+    "error": "Muaj teeb meem thauj Kev Npaj",
+    "noEvents": "Tsis muaj kev ua si rau qhov lim no.",
+    "promoted": "Cov Kev Ua Si Tseem Ceeb",
+    "filters": {
+      "all": "Tag Nrho Cov Kev Ua Si",
+      "speaker": "Cov Neeg Hais Lus",
+      "panel": "Pawg Sab Laj",
+      "entertainment": "Kev Lom Zem",
+      "marathon": "Marathon"
+    },
+    "days": {
+      "thursday": "Hnub Plaub",
+      "friday": "Hnub Friday",
+      "saturday": "Hnub Saturday",
+      "sunday": "Hnub Sunday"
+    }
+  },
+  "accommodations": {
+    "title": "Chaw Nyob",
+    "sections": {
+      "venue": "Daim Ntawv Qhia Chaw",
+      "food": "Kev Xaiv Zaub Mov",
+      "hospitality": "Kev Tos Txais",
+      "childcare": "Kev Saib Xyuas Menyuam",
+      "activities": "Hauv Zos Ua Si"
+    },
+    "loading": "Tab tom thauj Daim Ntawv Qhia...",
+    "error": "Muaj teeb meem thauj Daim Ntawv Qhia",
+    "noData": {
+      "venue": "Tsis muaj chaw daim ntawv qhia.",
+      "food": "Tsis muaj zaub mov xaiv.",
+      "activities": "Tsis muaj kev ua si."
+    },
+    "hospitality": {
+      "hours": "Sijhawm:",
+      "location": "Qhov Chaw"
+    },
+    "childcare": {
+      "title": "Kev Saib Xyuas Ruaj Ntseg",
+      "description": "Peb muab kev saib xyuas menyuam yaus thaum lub rooj sab laj. Peb cov neeg pab dawb tau kuaj keeb kwm thiab muaj kev paub txog menyuam yaus txhua hnub nyoog.",
+      "features": {
+        "hours": "Muaj thaum lub rooj sab laj tseem ceeb",
+        "location": "Chav saib xyuas menyuam nyob ntawm qhov chaw",
+        "verified": "Cov neeg pab dawb kuaj keeb kwm lawm",
+        "advance": "Xa daim ntawv thov 48+ teev ua ntej"
+      },
+      "note": "Txhawm rau thov kev saib xyuas menyuam, mus rau Kev Pabcuam tab thiab xa daim ntawv thov saib xyuas menyuam."
+    },
+    "buttons": {
+      "viewMenu": "Saib Ntawv Qhia Zaub Mov",
+      "viewImage": "Saib Duab"
+    }
+  },
+  "services": {
+    "title": "Kev Pabcuam",
+    "sections": {
+      "help": "Peb yuav pab koj li cas?",
+      "volunteer": "Yog koj xav pab peb",
+      "other": "Lwm Yam"
+    },
+    "accessibility": {
+      "title": "Thov Kev Pab Txhawb",
+      "description": "Xav tau kev pab lub cev, tus neeg txhais lus ASL, lossis tus neeg txhais lus? Cia peb pab kom koj lub rooj sab laj muaj kev nkag tau."
+    },
+    "childcare": {
+      "title": "Thov Kev Saib Xyuas Menyuam",
+      "description": "Xav tau kev saib xyuas menyuam thaum lub rooj sab laj? Xa daim ntawv thov thiab peb yuav pab npaj kev saib xyuas ruaj ntseg rau koj cov menyuam."
+    },
+    "volunteer": {
+      "title": "Ua Neeg Pab Dawb ntawm Lub Rooj Sab Laj",
+      "description": "Pab ua kom ICYPAA tshwm sim! Sau npe rau kev tos txais, teeb tsa, ntxuav, lossis lwm yam kev pabcuam."
+    },
+    "hospitality": {
+      "title": "Kev Tos Txais Cov Xov Xwm",
+      "description": "Qhia rau txhua tus paub thaum koj nqa zaub mov lossis khoom siv rau chav tos txais!"
+    },
+    "support": {
+      "title": "Kev Txhawb Nqa Sib Tham",
+      "description": "Xav tau kev pab? Pib sib tham nrog peb pab pawg txhawb nqa."
+    },
+    "faq": {
+      "title": "Cov Lus Nug Nquag Nug"
+    }
+  },
+  "childcare": {
+    "title": "Kev Thov Saib Xyuas Menyuam",
+    "info": {
+      "title": "Kev Saib Xyuas Menyuam",
+      "description": "Peb muab kev saib xyuas menyuam ruaj ntseg thaum lub rooj sab laj. Peb cov neeg pab dawb tau kuaj keeb kwm thiab muaj kev paub txog menyuam. Thov xa koj daim ntawv thov tsawg kawg 48 teev ua ntej."
+    },
+    "sections": {
+      "parent": "Niam Txiv Cov Ntaub Ntawv",
+      "child": "Menyuam Cov Ntaub Ntawv",
+      "details": "Kev Saib Xyuas Menyuam Cov Ntsiab Lus"
+    },
+    "fields": {
+      "parentName": "Niam Txiv/Tus Saib Xyuas Lub Npe",
+      "email": "Email Chaw Nyob",
+      "phone": "Xov Tooj",
+      "childName": "Menyuam Lub Npe",
+      "childAge": "Menyuam Hnub Nyoog",
+      "specialNeeds": "Kev Xav Tau Tshwj Xeeb lossis Kev Xav",
+      "eventDate": "Hnub Tim",
+      "startTime": "Sijhawm Pib",
+      "endTime": "Sijhawm Xaus",
+      "additionalInfo": "Ntaub Ntawv Ntxiv"
+    },
+    "placeholders": {
+      "parentName": "Koj lub npe tag nrho",
+      "email": "koj@email.com",
+      "phone": "(555) 123-4567",
+      "childName": "Menyuam lub npe tag nrho",
+      "childAge": "Hnub nyoog hauv xyoo",
+      "specialNeeds": "Muaj kev ua xua, kev kho mob, kev coj cwj pwm, thiab lwm yam.",
+      "eventDate": "MM/DD/YYYY",
+      "startTime": "9:00 AM",
+      "endTime": "5:00 PM",
+      "additionalInfo": "Lwm yam ntaub ntawv peb yuav tsum paub..."
+    },
+    "submit": "Xa Daim Ntawv Thov",
+    "submitting": "Tab tom xa...",
+    "success": {
+      "title": "Daim Ntawv Thov Xa Lawm",
+      "message": "Koj daim ntawv thov saib xyuas menyuam tau xa lawm. Peb yuav hu rau koj hauv 24 teev nrog kev lees paub thiab cov ntsiab lus."
+    },
+    "error": {
+      "title": "Yuam Kev",
+      "message": "Tsis tuaj yeem xa daim ntawv thov. Thov sim dua.",
+      "required": "Thov sau tag nrho cov chaw uas yuav tsum tau."
+    },
+    "required": " *"
+  },
+  "profile": {
+    "title": "Profile"
+  },
+  "host": {
+    "title": "Tus Tswv Tsev Cuab Yeej"
+  },
+  "common": {
+    "loading": "Tab tom thauj...",
+    "error": "Yuam Kev",
+    "retry": "Sim Dua",
+    "close": "Kaw",
+    "ok": "OK",
+    "cancel": "Tso Tseg",
+    "save": "Khaws",
+    "delete": "Rho Tawm",
+    "edit": "Kho",
+    "back": "Rov Qab",
+    "next": "Tom Ntej",
+    "submit": "Xa",
+    "search": "Nrhiav",
+    "filter": "Lim",
+    "clear": "Ntxuav",
+    "refresh": "Rov Tshiab"
+  }
+}

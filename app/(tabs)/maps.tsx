@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
+import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
@@ -15,11 +16,40 @@ import {
   View
 } from "react-native"
 import RNIImageViewer from "react-native-image-zoom-viewer"
+import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
 import { withDeviceId } from "../../lib/supabase"
-import { Activity } from "../../types/activities"
-import { Transportation } from "../../types/transportation"
+import { Activity, Food } from "../../types/activities"
+import { Program } from "../../types/program"
 import { Venue } from "../../types/venue"
+
+// Helper function to format time objects to strings
+const formatTimeValue = (time: any): string => {
+  if (!time) return ""
+
+  // If it's already a string, return it
+  if (typeof time === "string") return time
+
+  // If it's an object with time properties, try to format it
+  if (typeof time === "object") {
+    // Try common time object formats
+    if (time.hour !== undefined && time.minute !== undefined) {
+      const hour = time.hour
+      const minute = time.minute.toString().padStart(2, "0")
+      const period = hour >= 12 ? "PM" : "AM"
+      const displayHour = hour % 12 === 0 ? 12 : hour % 12
+      return `${displayHour}:${minute} ${period}`
+    }
+
+    // If it has a toString method, use it
+    if (time.toString && typeof time.toString === "function") {
+      return time.toString()
+    }
+  }
+
+  // Fallback to string conversion
+  return String(time)
+}
 
 // Remote asset URLs from Supabase
 interface RemoteAssets {
@@ -45,21 +75,10 @@ const remoteAssets: RemoteAssets = {
 }
 
 // Mapping functions to get asset key from DB map name
-const getVenueMapKey = (name: string): string | null => {
+const getVenueMapKey = (name: string | undefined | null): string | null => {
+  if (!name) return null
   const lowerName = name.toLowerCase()
   if (lowerName.includes("main floor")) return "hotelPlan"
-  return null
-}
-
-const getTransportationMapKey = (name: string): string | null => {
-  const lowerName = name.toLowerCase()
-  if (
-    lowerName.includes("airport to venue") ||
-    lowerName.includes("airport to hotel")
-  )
-    return "airportToHotel"
-  if (lowerName.includes("public transit")) return "airportToHotelPublic"
-  if (lowerName.includes("walking map")) return "walkingMap"
   return null
 }
 
@@ -100,36 +119,27 @@ const MapItem = ({
   const [isLoading, setIsLoading] = useState(true)
   const [imageLoaded, setImageLoaded] = useState(false)
 
-  // Updated getImageSource to use remoteAssets
+  // Updated getImageSource to handle URLs directly
   const getImageSource = () => {
     try {
       if (imageError) {
         return { uri: FALLBACK_IMAGE }
       }
 
-      // If it's a key in remoteAssets, use the remote URL
-      if (item.image && remoteAssets[item.image as keyof RemoteAssets]) {
-        const source = { uri: remoteAssets[item.image as keyof RemoteAssets] }
-        console.log(`Using remote asset for: ${item.image}`, source)
-        return source
-      }
-
-      // Otherwise, if it looks like a URL, treat it as one
+      // If it's a URL, use it directly
       if (
         item.image &&
         typeof item.image === "string" &&
         (item.image.startsWith("http") || item.image.startsWith("https"))
       ) {
-        console.log(`Using remote URL for: ${item.image}`)
+        console.log(`Using URL for venue map: ${item.image}`)
         return { uri: item.image }
       }
 
-      // If it's neither a valid key nor a URL, trigger error state
-      console.warn(
-        `Invalid image source: ${item.image}. Not found in remoteAssets and not a valid URL.`
-      )
-      setImageError(true) // Set error state immediately
-      return { uri: FALLBACK_IMAGE } // Return fallback
+      // If no valid URL, use fallback
+      console.warn(`Invalid image source: ${item.image}. Using fallback.`)
+      setImageError(true)
+      return { uri: FALLBACK_IMAGE }
     } catch (error) {
       console.error("Error getting image source:", error)
       setImageError(true)
@@ -465,48 +475,22 @@ const AmenitiesCard = ({
   )
 }
 
-// Travel times card component
-const TravelTimesCard = ({
-  details,
-  theme
-}: {
-  details: Transportation["travel_details"] | undefined
-  theme: any
-}) => {
-  if (!details || details.length === 0) {
-    return (
-      <View style={styles(theme).travelTimesCard}>
-        <Text style={styles(theme).cardTitle}>Travel Details</Text>
-        <Text style={styles(theme).travelTimeDetail}>
-          No travel details available.
-        </Text>
-      </View>
-    )
-  }
-  return (
-    <View style={styles(theme).travelTimesCard}>
-      <Text style={styles(theme).cardTitle}>Travel Details</Text>
-      {details.map((item, index) => (
-        <View key={index} style={styles(theme).travelTimeItem}>
-          <Text style={styles(theme).travelTimeTitle}>{item.name}</Text>
-          <Text style={styles(theme).travelTimeDetail}>{item.description}</Text>
-        </View>
-      ))}
-    </View>
-  )
-}
-
 // Main Maps component
 export default function Maps() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const screenWidth = Dimensions.get("window").width
   const { theme } = useTheme()
+  const { isFeatureEnabled } = useFeatures()
+  const router = useRouter()
 
   // State for fetched data, loading, and errors
   const [venueData, setVenueData] = useState<Venue | null>(null)
-  const [transportationData, setTransportationData] =
-    useState<Transportation | null>(null)
   const [activitiesData, setActivitiesData] = useState<Activity[]>([])
+  const [foodData, setFoodData] = useState<Food[]>([])
+  const [hospitalityData, setHospitalityData] = useState<
+    Program["hospitality"] | null
+  >(null)
+  const [childcareContent, setChildcareContent] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -514,8 +498,8 @@ export default function Maps() {
   const itemWidth = screenWidth * 0.85 // Use 85% of screen width for card
   const itemSpacing = screenWidth * 0.05 // Use 5% for spacing (2.5% on each side)
 
-  // Assume program_id = 1 for now, replace with dynamic value later
-  const programId = 1
+  // Assume program_id = 3 for now, replace with dynamic value later
+  const programId = 3
 
   useEffect(() => {
     const fetchData = async () => {
@@ -533,21 +517,18 @@ export default function Maps() {
 
         if (venueError)
           throw new Error(`Venue fetch error: ${venueError.message}`)
-        setVenueData(venueResult)
-
-        // Fetch Transportation data
-        const { data: transportResult, error: transportError } =
-          await supabaseWithDeviceId
-            .from("transportation")
-            .select("*")
-            .eq("program_id", programId)
-            .maybeSingle()
-
-        if (transportError)
-          throw new Error(
-            `Transportation fetch error: ${transportError.message}`
-          )
-        setTransportationData(transportResult)
+        
+        // Fix nested array issue - floors and amenities might be double-nested
+        if (venueResult) {
+          const fixedVenue = {
+            ...venueResult,
+            floors: Array.isArray(venueResult.floors?.[0]) ? venueResult.floors[0] : venueResult.floors,
+            amenities: Array.isArray(venueResult.amenities?.[0]) ? venueResult.amenities[0] : venueResult.amenities
+          }
+          setVenueData(fixedVenue)
+        } else {
+          setVenueData(venueResult)
+        }
 
         // Fetch Activities data
         const { data: activitiesResult, error: activitiesError } =
@@ -559,6 +540,30 @@ export default function Maps() {
         if (activitiesError)
           throw new Error(`Activities fetch error: ${activitiesError.message}`)
         setActivitiesData(activitiesResult || [])
+
+        // Fetch Food data
+        const { data: foodResult, error: foodError } =
+          await supabaseWithDeviceId
+            .from("food")
+            .select("*")
+            .eq("program_id", programId)
+
+        if (foodError) throw new Error(`Food fetch error: ${foodError.message}`)
+        setFoodData(foodResult || [])
+
+        // Fetch Program data for hospitality info and childcare content
+        const { data: programResult, error: programError } =
+          await supabaseWithDeviceId
+            .from("programs")
+            .select("hospitality, content")
+            .eq("id", programId)
+            .single()
+
+        if (programError && programError.code !== "PGRST116") {
+          throw new Error(`Program fetch error: ${programError.message}`)
+        }
+        setHospitalityData(programResult?.hospitality || null)
+        setChildcareContent(programResult?.content?.childcare || null)
       } catch (err: any) {
         console.error("Failed to fetch map data:", err)
         setError(err.message || "Failed to load map information.")
@@ -604,123 +609,225 @@ export default function Maps() {
   return (
     <ScrollView style={styles(theme).container}>
       {/* Venue Section */}
-      {venueData && (
-        <View style={styles(theme).section}>
-          <Text style={styles(theme).sectionTitle}>Venue Maps</Text>
-          {venueData.floors && venueData.floors.length > 0 ? (
-            <FlatList
-              data={venueData.floors}
-              renderItem={({ item }) => {
-                // Ensure imageSource is always a string
-                let imageSource: string = FALLBACK_IMAGE
-                const mapKey = getVenueMapKey(item.name)
-
-                if (mapKey) {
-                  imageSource = mapKey
-                } else if (item.url) {
-                  imageSource = item.url
-                  console.warn(
-                    `No asset key found for venue map: ${item.name}. Falling back to URL: ${item.url}`
-                  )
-                } else {
-                  console.warn(
-                    `No asset key or URL found for venue map: ${item.name}. Using fallback.`
-                  )
-                }
-
-                return (
-                  <MapItem
-                    item={{
-                      title: item.name,
-                      image: imageSource,
-                      description: item.description
-                    }}
-                    onPress={() => handleImagePress(imageSource)} // imageSource is guaranteed string
-                    theme={theme}
-                  />
+      <View style={styles(theme).section}>
+        <Text style={styles(theme).sectionTitle}>Venue Maps</Text>
+        {venueData && venueData.floors && venueData.floors.length > 0 ? (
+          <FlatList
+            data={venueData.floors}
+            renderItem={({ item }) => {
+              // Use the URL directly from the database
+              let imageSource: string = item?.url || FALLBACK_IMAGE
+              
+              if (!item?.url) {
+                console.warn(
+                  `No URL found for venue map: ${item?.name}. Using fallback.`
                 )
-              }}
-              keyExtractor={(item, index) => `venue-map-${item.name}-${index}`}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={itemWidth + itemSpacing} // Snap to card width + spacing
-              snapToAlignment="center"
-              decelerationRate="fast"
-              contentContainerStyle={[
-                styles(theme).mapList,
-                { paddingHorizontal: itemSpacing / 2 }
-              ]}
-              pagingEnabled={false}
-            />
-          ) : (
-            <Text style={styles(theme).noDataText}>
-              No venue maps available.
-            </Text>
-          )}
-          <AmenitiesCard amenities={venueData.amenities} theme={theme} />
+              }
+
+              return (
+                <MapItem
+                  item={{
+                    title: item?.name || "Venue Map",
+                    image: imageSource,
+                    description: item?.description || ""
+                  }}
+                  onPress={() => handleImagePress(imageSource)}
+                  theme={theme}
+                />
+              )
+            }}
+            keyExtractor={(item, index) => `venue-map-${item?.name || "map"}-${index}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={itemWidth + itemSpacing} // Snap to card width + spacing
+            snapToAlignment="center"
+            decelerationRate="fast"
+            contentContainerStyle={[
+              styles(theme).mapList,
+              { paddingHorizontal: itemSpacing / 2 }
+            ]}
+            pagingEnabled={false}
+          />
+        ) : (
+          <Text style={styles(theme).noDataText}>No venue maps available.</Text>
+        )}
+        <AmenitiesCard amenities={venueData?.amenities} theme={theme} />
+      </View>
+
+      {/* Hospitality Section */}
+      {hospitalityData && (
+        <View style={styles(theme).section}>
+          <Text style={styles(theme).sectionTitle}>Hospitality</Text>
+          <View style={styles(theme).hospitalityCard}>
+            <View style={styles(theme).hospitalityHeader}>
+              <Ionicons
+                name="location"
+                size={20}
+                color={theme.colors.primary}
+              />
+              <Text style={styles(theme).hospitalityLocation}>
+                {hospitalityData.location}
+              </Text>
+            </View>
+            <Text style={styles(theme).hospitalityTimesTitle}>Hours:</Text>
+            {hospitalityData.times.map((time, index) => (
+              <View key={index} style={styles(theme).hospitalityTimeRow}>
+                <Text style={styles(theme).hospitalityDay}>{time.day}:</Text>
+                <Text style={styles(theme).hospitalityTime}>
+                  {formatTimeValue(time.start_time)} -{" "}
+                  {formatTimeValue(time.end_time)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
       )}
 
-      {/* Transportation Section */}
-      {transportationData && (
-        <View style={styles(theme).section}>
-          <Text style={styles(theme).sectionTitle}>Transportation</Text>
-          {transportationData.maps && transportationData.maps.length > 0 ? (
-            <FlatList
-              data={transportationData.maps}
-              renderItem={({ item }) => {
-                // Ensure imageSource is always a string
-                let imageSource: string = FALLBACK_IMAGE
-                const mapKey = getTransportationMapKey(item.name)
-
-                if (mapKey) {
-                  imageSource = mapKey
-                } else if (item.url) {
-                  imageSource = item.url
-                  console.warn(
-                    `No asset key found for transportation map: ${item.name}. Falling back to URL: ${item.url}`
-                  )
-                } else {
-                  console.warn(
-                    `No asset key or URL found for transportation map: ${item.name}. Using fallback.`
-                  )
-                }
-
-                return (
-                  <MapItem
-                    item={{
-                      title: item.name,
-                      image: imageSource,
-                      description: item.description
-                    }}
-                    onPress={() => handleImagePress(imageSource)} // imageSource is guaranteed string
-                    theme={theme}
-                  />
-                )
-              }}
-              keyExtractor={(item, index) =>
-                `transport-map-${item.name}-${index}`
-              }
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={itemWidth + itemSpacing} // Snap to card width + spacing
-              snapToAlignment="center"
-              decelerationRate="fast"
-              contentContainerStyle={[
-                styles(theme).mapList,
-                { paddingHorizontal: itemSpacing / 2 }
-              ]}
-              pagingEnabled={false}
-            />
-          ) : (
-            <Text style={styles(theme).noDataText}>
-              No transportation maps available.
-            </Text>
-          )}
-          <TravelTimesCard
-            details={transportationData.travel_details}
-            theme={theme}
+      {/* Food Options Section */}
+      <View style={styles(theme).section}>
+        <Text style={styles(theme).sectionTitle}>Food Options</Text>
+        {foodData.length > 0 ? (
+          <FlatList
+            data={foodData}
+            renderItem={({ item }) => (
+              <View style={styles(theme).activityCard}>
+                <View style={styles(theme).activityHeader}>
+                  <View style={{ flex: 1, marginRight: theme.spacing.sm }}>
+                    <Text
+                      style={styles(theme).activityCategory}
+                      numberOfLines={1}
+                    >
+                      {item.category}
+                    </Text>
+                    <Text style={styles(theme).activityTitle} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => item.location && openMaps(item.location)}
+                    style={styles(theme).mapButton}
+                    disabled={!item.location}
+                  >
+                    <Ionicons
+                      name="map-outline"
+                      size={24}
+                      color={
+                        item.location
+                          ? theme.colors.primary
+                          : theme.colors.text.secondary
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+                {item.location && (
+                  <Text
+                    style={styles(theme).activityLocation}
+                    numberOfLines={1}
+                  >
+                    {item.location}
+                  </Text>
+                )}
+                {item.distance != null && (
+                  <Text style={styles(theme).activityDistance}>
+                    Approx. {item.distance} mi away
+                  </Text>
+                )}
+                <Text
+                  style={styles(theme).activityDescription}
+                  numberOfLines={3}
+                >
+                  {item.description}
+                </Text>
+                {item.menu && (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(item.menu!)}
+                    style={styles(theme).viewImageButton}
+                  >
+                    <Text style={styles(theme).viewImageButtonText}>
+                      View Menu
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {item.image && (
+                  <TouchableOpacity
+                    onPress={() => handleImagePress(item.image!)}
+                    style={styles(theme).viewImageButton}
+                  >
+                    <Text style={styles(theme).viewImageButtonText}>
+                      View Image
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            keyExtractor={(item) => `food-${item.id}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={itemWidth + itemSpacing}
+            snapToAlignment="center"
+            decelerationRate="fast"
+            contentContainerStyle={[
+              styles(theme).mapList,
+              { paddingHorizontal: itemSpacing / 2 }
+            ]}
+            pagingEnabled={false}
           />
+        ) : (
+          <Text style={styles(theme).noDataText}>
+            No food options available.
+          </Text>
+        )}
+      </View>
+
+      {/* Childcare Information Section */}
+      {childcareContent && isFeatureEnabled("child_care_enabled") && (
+        <View style={styles(theme).section}>
+          <Text style={styles(theme).sectionTitle}>Childcare Services</Text>
+          <View style={styles(theme).childcareCard}>
+            <View style={styles(theme).childcareHeader}>
+              <Ionicons name="heart" size={24} color={theme.colors.primary} />
+              <Text style={styles(theme).childcareTitle}>
+                {childcareContent.title || "Safe, Supervised Care"}
+              </Text>
+            </View>
+            <Text style={styles(theme).childcareDescription}>
+              {childcareContent.description || 
+                "We provide professional childcare services during conference events."}
+            </Text>
+
+            {childcareContent.features && childcareContent.features.map((feature: any, index: number) => (
+              <View key={index} style={styles(theme).childcareInfoRow}>
+                <Ionicons 
+                  name={feature.icon as any} 
+                  size={16} 
+                  color={theme.colors.primary} 
+                />
+                <Text style={styles(theme).childcareInfoText}>
+                  {feature.text}
+                </Text>
+              </View>
+            ))}
+
+            {childcareContent.note && (
+              <Text style={styles(theme).childcareNote}>
+                {childcareContent.note}
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={styles(theme).childcareButton}
+              onPress={() => router.push("/services/childcare")}
+            >
+              <Text style={styles(theme).childcareButtonText}>
+                {childcareContent.linkText || "Request Childcare Services"}
+              </Text>
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color="#ffffff"
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -1078,5 +1185,99 @@ const styles = (theme: any) =>
     viewImageButtonText: {
       ...theme.typography.button,
       color: theme.colors.primary
+    },
+    hospitalityCard: {
+      marginTop: theme.spacing.lg,
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      ...shadowStyles
+    },
+    hospitalityHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: theme.spacing.md
+    },
+    hospitalityLocation: {
+      ...theme.typography.h3,
+      color: theme.colors.text.primary,
+      marginLeft: theme.spacing.sm
+    },
+    hospitalityTimesTitle: {
+      ...theme.typography.body,
+      fontWeight: "bold",
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.sm
+    },
+    hospitalityTimeRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: theme.spacing.xs
+    },
+    hospitalityDay: {
+      ...theme.typography.body,
+      fontWeight: "600",
+      color: theme.colors.text.primary
+    },
+    hospitalityTime: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary
+    },
+    childcareCard: {
+      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.md,
+      ...shadowStyles
+    },
+    childcareHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: theme.spacing.md
+    },
+    childcareTitle: {
+      ...theme.typography.h3,
+      color: theme.colors.text.primary,
+      marginLeft: theme.spacing.sm,
+      fontWeight: "bold"
+    },
+    childcareDescription: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.lg,
+      lineHeight: 20
+    },
+    childcareInfoRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: theme.spacing.sm
+    },
+    childcareInfoText: {
+      ...theme.typography.body,
+      color: theme.colors.text.primary,
+      marginLeft: theme.spacing.sm
+    },
+    childcareNote: {
+      ...theme.typography.caption,
+      color: theme.colors.text.secondary,
+      fontStyle: "italic",
+      marginTop: theme.spacing.md,
+      paddingTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border
+    },
+    childcareButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      marginTop: theme.spacing.lg,
+      gap: theme.spacing.sm
+    },
+    childcareButtonText: {
+      ...theme.typography.button,
+      color: "#ffffff",
+      fontWeight: "600"
     }
   })

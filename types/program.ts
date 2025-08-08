@@ -77,6 +77,19 @@ export type Event = {
     title: string
     color: string
   } | null
+  // Optional link for promoted events
+  link?: string
+  // Accessibility and service features
+  services?: {
+    asl?: boolean // American Sign Language interpretation
+    spanish?: boolean // Spanish translation
+    french?: boolean // French translation
+    hmong?: boolean // Hmong translation
+    somali?: boolean // Somali translation
+    hybrid?: boolean // Hybrid meeting (in-person + virtual)
+    childcare?: boolean // Childcare available
+    wheelchair?: boolean // Wheelchair accessible
+  }
 }
 
 export type EventCategory = {

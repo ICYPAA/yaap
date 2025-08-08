@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { withDeviceId } from "../../../lib/supabase"
@@ -265,11 +266,12 @@ export default function AccessibilityRequest() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
+    <ProtectedComponent requiredFeatures={["accessibility_enabled"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
       <ScrollView
         style={{
           flex: 1,
@@ -638,6 +640,7 @@ export default function AccessibilityRequest() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ProtectedComponent>
   )
 }

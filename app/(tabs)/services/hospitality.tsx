@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
@@ -85,7 +86,7 @@ export default function HospitalityUpdate() {
       const { error } = await supabaseWithDeviceId
         .from("hospitality_forms")
         .insert({
-          program_id: 1, // Default to program ID 1
+          program_id: 3, // Default to program ID 3
           group_name: form.groupName,
           item_description: form.itemDescription,
           allergies: form.allergies,
@@ -226,11 +227,12 @@ export default function HospitalityUpdate() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
+    <ProtectedComponent requiredFeatures={["hospitality_enabled"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
       <ScrollView
         style={{
           flex: 1,
@@ -448,7 +450,8 @@ export default function HospitalityUpdate() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ProtectedComponent>
   )
 }
 

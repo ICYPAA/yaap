@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Link } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import {
   ScrollView,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useFeatures } from "../../../context/FeatureContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { getStoredProgram } from "../../../lib/theme"
 import { Program } from "../../../types/program"
@@ -23,6 +24,7 @@ type ServiceSection = {
 
 export default function Services() {
   const { theme } = useTheme()
+  const { isFeatureEnabled } = useFeatures()
   const styles = createStyles(theme)
   const [program, setProgram] = useState<Program | null>(null)
 
@@ -38,74 +40,82 @@ export default function Services() {
   }, [])
 
   // Service sections data with dynamic content from program if available
-  const serviceSections = {
+  const getAllServiceItems = () => [
+    ...(isFeatureEnabled("accessibility_enabled") ? [{
+      id: "accessibility",
+      title:
+        program?.content?.services?.accessibility?.title ||
+        "Request Accessibility Assistance",
+      description:
+        program?.content?.services?.accessibility?.description ||
+        "Need physical assistance, ASL interpreter, or language translator? Let us help make your conference experience accessible.",
+      icon: "accessibility-outline" as const,
+      route: "/(tabs)/services/accessibility"
+    }] : []),
+    ...(isFeatureEnabled("child_care_enabled") ? [{
+      id: "childcare",
+      title:
+        program?.content?.services?.childcare?.title ||
+        "Request Childcare Services",
+      description:
+        program?.content?.services?.childcare?.description ||
+        "Need childcare during conference events? Submit a request and we'll help coordinate safe, supervised care for your children.",
+      icon: "heart-outline" as const,
+      route: "/(tabs)/services/childcare"
+    }] : [])
+  ]
+
+  const getVolunteerServiceItems = () => [
+    ...(isFeatureEnabled("volunteering_enabled") ? [{
+      id: "volunteer",
+      title:
+        program?.content?.services?.volunteering?.title ||
+        "Volunteer at Conference",
+      description:
+        program?.content?.services?.volunteering?.description ||
+        "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities.",
+      icon: "people-outline" as const,
+      route: "/(tabs)/services/volunteer"
+    }] : []),
+    ...(isFeatureEnabled("hospitality_enabled") ? [{
+      id: "hospitality",
+      title:
+        program?.content?.services?.hospitality?.title ||
+        "Hospitality Updates",
+      description:
+        program?.content?.services?.hospitality?.description ||
+        "Let everyone know when you're bringing food or supplies to the hospitality suite!",
+      icon: "restaurant-outline" as const,
+      route: "/(tabs)/services/hospitality"
+    }] : [])
+  ]
+
+  const getOtherServiceItems = () => [
+    ...(isFeatureEnabled("support_chat_enabled") ? [{
+      id: "support",
+      title: program?.content?.services?.support?.title || "Support Chat",
+      description:
+        program?.content?.services?.support?.description ||
+        "Need help? Start a chat with our support team.",
+      icon: "chatbubbles-outline" as const,
+      route: "/(tabs)/services/support"
+    }] : [])
+  ]
+
+  const serviceSections = useMemo(() => ({
     help: {
       title: "How can we help?",
-      items: [
-        {
-          id: "accessibility",
-          title:
-            program?.content?.services?.accessibility?.title ||
-            "Request Accessibility Assistance",
-          description:
-            program?.content?.services?.accessibility?.description ||
-            "Need physical assistance, ASL interpreter, or language translator? Let us help make your conference experience accessible.",
-          icon: "accessibility-outline" as const,
-          route: "/(tabs)/services/accessibility"
-        },
-        {
-          id: "ride",
-          title: program?.content?.services?.rides?.title || "Request a Ride",
-          description:
-            program?.content?.services?.rides?.description ||
-            "Need a ride within 30 miles of the conference? Connect with local members offering rides.",
-          icon: "car-outline" as const,
-          route: "/(tabs)/services/ride"
-        }
-      ]
+      items: getAllServiceItems()
     },
     volunteer: {
       title: "If you want to help us",
-      items: [
-        {
-          id: "volunteer",
-          title:
-            program?.content?.services?.volunteering?.title ||
-            "Volunteer at Conference",
-          description:
-            program?.content?.services?.volunteering?.description ||
-            "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities.",
-          icon: "people-outline" as const,
-          route: "/(tabs)/services/volunteer"
-        },
-        {
-          id: "hospitality",
-          title:
-            program?.content?.services?.hospitality?.title ||
-            "Hospitality Updates",
-          description:
-            program?.content?.services?.hospitality?.description ||
-            "Let everyone know when you're bringing food or supplies to the hospitality suite!",
-          icon: "restaurant-outline" as const,
-          route: "/(tabs)/services/hospitality"
-        }
-      ]
+      items: getVolunteerServiceItems()
     },
     other: {
       title: "Other",
-      items: [
-        {
-          id: "support",
-          title: program?.content?.services?.support?.title || "Support Chat",
-          description:
-            program?.content?.services?.support?.description ||
-            "Need help? Start a chat with our support team.",
-          icon: "chatbubbles-outline" as const,
-          route: "/(tabs)/services/support"
-        }
-      ]
+      items: getOtherServiceItems()
     }
-  }
+  }), [isFeatureEnabled, program])
 
   // Service section component
   const ServiceSection = ({
@@ -138,13 +148,15 @@ export default function Services() {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Services</Text>
-      {Object.entries(serviceSections).map(([key, section]) => (
-        <ServiceSection
-          key={key}
-          title={section.title}
-          items={section.items as ServiceSection[]}
-        />
-      ))}
+      {Object.entries(serviceSections)
+        .filter(([key, section]) => section.items.length > 0)
+        .map(([key, section]) => (
+          <ServiceSection
+            key={key}
+            title={section.title}
+            items={section.items as ServiceSection[]}
+          />
+        ))}
 
       {/* FAQ Section - New */}
       <View style={styles.section}>

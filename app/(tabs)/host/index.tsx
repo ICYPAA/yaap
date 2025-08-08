@@ -11,6 +11,7 @@ import {
   View
 } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
+import { useFeatures } from "../../../context/FeatureContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeCountRequest, makeRequest } from "../../../lib/requestHelper"
 import { supabase, withDeviceId } from "../../../lib/supabase"
@@ -19,7 +20,6 @@ import { getTextColorForBackground } from "../../../lib/theme"
 // Define table names to make code more maintainable
 const TABLES = {
   ACCESSIBILITY: "accessibility_forms",
-  RIDES: "ride_forms",
   VOLUNTEERS: "volunteering_interest",
   HOSPITALITY: "hospitality_forms",
   SUPPORT: "support_chats"
@@ -36,9 +36,11 @@ interface FormRecord {
 type ServiceSection = {
   title: string
   route: string
-  count: number
+  count?: number
   icon: React.ComponentProps<typeof Ionicons>["name"]
-  table: string
+  table?: string
+  isAction?: boolean
+  category?: string
 }
 
 interface UserProfile {
@@ -50,45 +52,85 @@ interface UserProfile {
 export default function HostDashboard() {
   const router = useRouter()
   const { theme, isDarkMode } = useTheme()
+  const { isFeatureEnabled } = useFeatures()
   const { isDebugMode } = useDebug()
   const [user, setUser] = useState<any>(null)
-  const [serviceSections, setServiceSections] = useState<ServiceSection[]>([
-    {
-      title: "Accessibility Requests",
-      route: "accessibility",
-      count: 0,
-      icon: "accessibility",
-      table: TABLES.ACCESSIBILITY
-    },
-    {
-      title: "Ride Requests",
-      route: "rides",
-      count: 0,
-      icon: "car",
-      table: TABLES.RIDES
-    },
-    {
-      title: "Volunteer Sign-ups",
-      route: "volunteers",
-      count: 0,
-      icon: "people",
-      table: TABLES.VOLUNTEERS
-    },
-    {
-      title: "Hospitality Notifications",
-      route: "hospitality",
-      count: 0,
-      icon: "restaurant",
-      table: TABLES.HOSPITALITY
-    },
-    {
-      title: "Support Chats",
-      route: "support",
-      count: 0,
-      icon: "chatbubbles",
-      table: TABLES.SUPPORT
+  const getServiceSections = () => {
+    const sections: ServiceSection[] = []
+    
+    if (isFeatureEnabled("accessibility_enabled")) {
+      sections.push({
+        title: "Accessibility Requests",
+        route: "accessibility",
+        count: 0,
+        icon: "accessibility",
+        table: TABLES.ACCESSIBILITY,
+        category: "services"
+      })
     }
-  ])
+    
+    if (isFeatureEnabled("volunteering_enabled")) {
+      sections.push({
+        title: "Volunteer Sign-ups",
+        route: "volunteers",
+        count: 0,
+        icon: "people",
+        table: TABLES.VOLUNTEERS,
+        category: "services"
+      })
+    }
+    
+    if (isFeatureEnabled("hospitality_enabled")) {
+      sections.push({
+        title: "Hospitality Notifications",
+        route: "hospitality",
+        count: 0,
+        icon: "restaurant",
+        table: TABLES.HOSPITALITY,
+        category: "services"
+      })
+    }
+    
+    if (isFeatureEnabled("support_chat_enabled")) {
+      sections.push({
+        title: "Support Chats",
+        route: "support",
+        count: 0,
+        icon: "chatbubbles",
+        table: TABLES.SUPPORT,
+        category: "services"
+      })
+    }
+    
+    // Tools are always shown
+    sections.push({
+      title: "Send General Notification",
+      route: "general-notifications",
+      icon: "notifications",
+      isAction: true,
+      category: "tools"
+    })
+    
+    sections.push({
+      title: "Feature Management",
+      route: "features",
+      icon: "settings",
+      isAction: true,
+      category: "tools"
+    })
+    
+    sections.push({
+      title: "Chairperson Schedule",
+      route: "chairperson",
+      icon: "calendar",
+      isAction: true,
+      category: "user"
+    })
+    
+    return sections
+  }
+  
+  const [serviceSections, setServiceSections] = useState<ServiceSection[]>(getServiceSections())
   const [loading, setLoading] = useState(true)
   const subscriptionsRef = useRef<{ [key: string]: any }>({})
 
@@ -106,6 +148,11 @@ export default function HostDashboard() {
       })
     }
   }, [])
+  
+  // Update sections when features change
+  useEffect(() => {
+    setServiceSections(getServiceSections())
+  }, [isFeatureEnabled])
 
   const setupRealtimeSubscriptions = async () => {
     try {
@@ -113,6 +160,9 @@ export default function HostDashboard() {
 
       // Set up subscriptions for each table
       serviceSections.forEach((section) => {
+        // Skip sections without a table (like General Notifications)
+        if (!section.table) return
+
         // Skip if support chats, as they need different handling
         if (section.table === TABLES.SUPPORT) {
           const supportSubscription = supabaseWithDeviceId
@@ -123,7 +173,7 @@ export default function HostDashboard() {
                 event: "*", // Listen for all events (insert, update, delete)
                 schema: "public",
                 table: section.table,
-                filter: `program_id=eq.1`
+                filter: `program_id=eq.3`
               },
               (payload: any) => {
                 const { eventType } = payload
@@ -136,7 +186,7 @@ export default function HostDashboard() {
                   newRecord &&
                   newRecord.status !== "resolved"
                 ) {
-                  updateServiceSectionCount(section.table, 1)
+                  updateServiceSectionCount(section.table!, 1)
                 }
                 // For updates, check if status changed to/from resolved
                 else if (eventType === "UPDATE" && oldRecord && newRecord) {
@@ -145,14 +195,14 @@ export default function HostDashboard() {
                     oldRecord.status === "resolved" &&
                     newRecord.status !== "resolved"
                   ) {
-                    updateServiceSectionCount(section.table, 1)
+                    updateServiceSectionCount(section.table!, 1)
                   }
                   // Changed from something else to resolved (decrement)
                   else if (
                     oldRecord.status !== "resolved" &&
                     newRecord.status === "resolved"
                   ) {
-                    updateServiceSectionCount(section.table, -1)
+                    updateServiceSectionCount(section.table!, -1)
                   }
                 }
                 // For deletes, decrement if it wasn't resolved
@@ -161,7 +211,7 @@ export default function HostDashboard() {
                   oldRecord &&
                   oldRecord.status !== "resolved"
                 ) {
-                  updateServiceSectionCount(section.table, -1)
+                  updateServiceSectionCount(section.table!, -1)
                 }
               }
             )
@@ -180,7 +230,7 @@ export default function HostDashboard() {
               event: "*", // Listen for all events (insert, update, delete)
               schema: "public",
               table: section.table,
-              filter: `program_id=eq.1`
+              filter: `program_id=eq.3`
             },
             (payload: any) => {
               const { eventType } = payload
@@ -194,7 +244,7 @@ export default function HostDashboard() {
                   !newRecord.status ||
                   ["pending", "in_progress"].includes(newRecord.status)
                 ) {
-                  updateServiceSectionCount(section.table, 1)
+                  updateServiceSectionCount(section.table!, 1)
                 }
               }
               // For updates
@@ -208,7 +258,7 @@ export default function HostDashboard() {
                   ["completed", "closed"].includes(oldStatus) &&
                   (!newStatus || ["pending", "in_progress"].includes(newStatus))
                 ) {
-                  updateServiceSectionCount(section.table, 1)
+                  updateServiceSectionCount(section.table!, 1)
                 }
                 // If status changed from pending/in_progress/null to completed/closed
                 else if (
@@ -217,12 +267,12 @@ export default function HostDashboard() {
                   newStatus &&
                   ["completed", "closed"].includes(newStatus)
                 ) {
-                  updateServiceSectionCount(section.table, -1)
+                  updateServiceSectionCount(section.table!, -1)
                 }
               }
               // For deletes - if the record had a pending status, decrease count
               else if (eventType === "DELETE") {
-                updateServiceSectionCount(section.table, -1)
+                updateServiceSectionCount(section.table!, -1)
               }
             }
           )
@@ -241,7 +291,7 @@ export default function HostDashboard() {
         if (section.table === table) {
           return {
             ...section,
-            count: Math.max(0, section.count + delta) // Ensure count doesn't go below 0
+            count: Math.max(0, (section.count ?? 0) + delta)
           }
         }
         return section
@@ -262,7 +312,7 @@ export default function HostDashboard() {
             supabaseWithDeviceId
               .from(table)
               .select("*", { count: "exact", head: true })
-              .eq("program_id", 1)
+              .eq("program_id", 3)
               .not("status", "eq", "resolved")
         })
 
@@ -281,7 +331,7 @@ export default function HostDashboard() {
           supabaseWithDeviceId
             .from(table)
             .select("*", { count: "exact", head: true })
-            .eq("program_id", 1)
+            .eq("program_id", 3)
             .or("status.is.null,status.eq.pending,status.eq.in_progress")
       })
 
@@ -290,9 +340,6 @@ export default function HostDashboard() {
       switch (table) {
         case TABLES.ACCESSIBILITY:
           debugDefault = 2
-          break
-        case TABLES.RIDES:
-          debugDefault = 3
           break
         case TABLES.VOLUNTEERS:
           debugDefault = 5
@@ -355,94 +402,18 @@ export default function HostDashboard() {
   }
 
   const fetchPendingCounts = async () => {
+    setLoading(true)
     try {
-      // Fetch counts for each service type using makeCountRequest
-      const supabaseWithDeviceId = await withDeviceId()
-      const [
-        { count: accessibilityCount },
-        { count: ridesCount },
-        { count: volunteersCount },
-        { count: hospitalityCount },
-        { count: supportCount }
-      ] = await Promise.all([
-        makeCountRequest({
-          table: TABLES.ACCESSIBILITY,
-          isDebugMode,
-          query: () =>
-            supabaseWithDeviceId
-              .from(TABLES.ACCESSIBILITY)
-              .select("*", { count: "exact", head: true })
-              .eq("program_id", 1)
-              .or("status.is.null,status.eq.pending,status.eq.in_progress")
-        }),
-        makeCountRequest({
-          table: TABLES.RIDES,
-          isDebugMode,
-          query: () =>
-            supabaseWithDeviceId
-              .from(TABLES.RIDES)
-              .select("*", { count: "exact", head: true })
-              .eq("program_id", 1)
-              .or("status.is.null,status.eq.pending,status.eq.in_progress")
-        }),
-        makeCountRequest({
-          table: TABLES.VOLUNTEERS,
-          isDebugMode,
-          query: () =>
-            supabaseWithDeviceId
-              .from(TABLES.VOLUNTEERS)
-              .select("*", { count: "exact", head: true })
-              .eq("program_id", 1)
-              .or("status.is.null,status.eq.pending,status.eq.in_progress")
-        }),
-        makeCountRequest({
-          table: TABLES.HOSPITALITY,
-          isDebugMode,
-          query: () =>
-            supabaseWithDeviceId
-              .from(TABLES.HOSPITALITY)
-              .select("*", { count: "exact", head: true })
-              .eq("program_id", 1)
-              .or("status.is.null,status.eq.pending,status.eq.in_progress")
-        }),
-        makeCountRequest({
-          table: TABLES.SUPPORT,
-          isDebugMode,
-          query: () =>
-            supabaseWithDeviceId
-              .from(TABLES.SUPPORT)
-              .select("*", { count: "exact", head: true })
-              .eq("program_id", 1)
-              .not("status", "eq", "resolved")
-        })
-      ])
-
-      console.log("Counts fetched:", {
-        accessibility: accessibilityCount,
-        rides: ridesCount,
-        volunteers: volunteersCount,
-        hospitality: hospitalityCount,
-        support: supportCount
-      })
-
-      // Force some dummy values for debug display if all counts are 0
-      const counts = [
-        accessibilityCount || (isDebugMode ? 2 : 0),
-        ridesCount || (isDebugMode ? 3 : 0),
-        volunteersCount || (isDebugMode ? 5 : 0),
-        hospitalityCount || (isDebugMode ? 1 : 0),
-        supportCount || (isDebugMode ? 4 : 0)
-      ]
-
-      setServiceSections((prev) => [
-        { ...prev[0], count: counts[0] },
-        { ...prev[1], count: counts[1] },
-        { ...prev[2], count: counts[2] },
-        { ...prev[3], count: counts[3] },
-        { ...prev[4], count: counts[4] }
-      ])
+      await Promise.all(
+        serviceSections
+          .filter((section) => section.table)
+          .map((section) => fetchCountForTable(section.table!))
+      )
     } catch (error) {
-      console.error("Error fetching pending counts:", error)
+      console.error("Error triggering fetch counts:", error)
+      Alert.alert("Error", "Could not fetch pending item counts.")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -546,45 +517,154 @@ export default function HostDashboard() {
       </View>
 
       <ScrollView style={styles(theme).scrollContainer}>
-        <View style={styles(theme).servicesContainer}>
-          {serviceSections.map((service) => (
-            <TouchableOpacity
-              key={service.route}
-              style={styles(theme).serviceCard}
-              onPress={() => navigateToService(service.route)}
-            >
-              <View style={styles(theme).serviceCardContent}>
-                <View
-                  style={[
-                    styles(theme).serviceIconContainer,
-                    { backgroundColor: theme.colors.primary }
-                  ]}
+        {/* Services Section */}
+        <View style={styles(theme).sectionContainer}>
+          <Text style={styles(theme).sectionHeader}>Services</Text>
+          <Text style={styles(theme).sectionDescription}>
+            Handle incoming requests and notifications from attendees
+          </Text>
+          <View style={styles(theme).servicesContainer}>
+            {serviceSections
+              .filter((service) => service.category === "services")
+              .map((service) => (
+                <TouchableOpacity
+                  key={service.route}
+                  style={styles(theme).serviceCard}
+                  onPress={() => navigateToService(service.route)}
                 >
-                  <Ionicons
-                    name={service.icon}
-                    size={28}
-                    color={getTextColorForBackground(theme.colors.primary)}
-                  />
-                </View>
-                <View style={styles(theme).serviceTextContainer}>
-                  <Text style={styles(theme).serviceTitle}>
-                    {service.title}
-                  </Text>
-                  <Text style={styles(theme).serviceSubtitle}>
-                    {service.count} {service.count === 1 ? "item" : "items"} to
-                    handle
-                  </Text>
-                </View>
-              </View>
-              <View style={styles(theme).serviceCardAction}>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={theme.colors.text.secondary}
-                />
-              </View>
-            </TouchableOpacity>
-          ))}
+                  <View style={styles(theme).serviceCardContent}>
+                    <View
+                      style={[
+                        styles(theme).serviceIconContainer,
+                        { backgroundColor: theme.colors.primary }
+                      ]}
+                    >
+                      <Ionicons
+                        name={service.icon}
+                        size={28}
+                        color={getTextColorForBackground(theme.colors.primary)}
+                      />
+                    </View>
+                    <View style={styles(theme).serviceTextContainer}>
+                      <Text style={styles(theme).serviceTitle}>
+                        {service.title}
+                      </Text>
+                      <Text style={styles(theme).serviceSubtitle}>
+                        {service.count} {service.count === 1 ? "item" : "items"}{" "}
+                        to handle
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles(theme).serviceCardAction}>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.colors.text.secondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ))}
+          </View>
+        </View>
+
+        {/* Tools Section */}
+        <View style={styles(theme).sectionContainer}>
+          <Text style={styles(theme).sectionHeader}>Tools</Text>
+          <Text style={styles(theme).sectionDescription}>
+            Send notifications and manage app features
+          </Text>
+          <View style={styles(theme).servicesContainer}>
+            {serviceSections
+              .filter((service) => service.category === "tools")
+              .map((service) => (
+                <TouchableOpacity
+                  key={service.route}
+                  style={styles(theme).serviceCard}
+                  onPress={() => navigateToService(service.route)}
+                >
+                  <View style={styles(theme).serviceCardContent}>
+                    <View
+                      style={[
+                        styles(theme).serviceIconContainer,
+                        { backgroundColor: theme.colors.primary }
+                      ]}
+                    >
+                      <Ionicons
+                        name={service.icon}
+                        size={28}
+                        color={getTextColorForBackground(theme.colors.primary)}
+                      />
+                    </View>
+                    <View style={styles(theme).serviceTextContainer}>
+                      <Text style={styles(theme).serviceTitle}>
+                        {service.title}
+                      </Text>
+                      <Text style={styles(theme).serviceSubtitle}>
+                        {service.route === "general-notifications" 
+                          ? "Send notifications to attendees"
+                          : "Control available app features"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles(theme).serviceCardAction}>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.colors.text.secondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ))}
+          </View>
+        </View>
+
+        {/* User Section */}
+        <View style={styles(theme).sectionContainer}>
+          <Text style={styles(theme).sectionHeader}>User</Text>
+          <Text style={styles(theme).sectionDescription}>
+            Personal schedule and account settings
+          </Text>
+          <View style={styles(theme).servicesContainer}>
+            {serviceSections
+              .filter((service) => service.category === "user")
+              .map((service) => (
+                <TouchableOpacity
+                  key={service.route}
+                  style={styles(theme).serviceCard}
+                  onPress={() => navigateToService(service.route)}
+                >
+                  <View style={styles(theme).serviceCardContent}>
+                    <View
+                      style={[
+                        styles(theme).serviceIconContainer,
+                        { backgroundColor: theme.colors.primary }
+                      ]}
+                    >
+                      <Ionicons
+                        name={service.icon}
+                        size={28}
+                        color={getTextColorForBackground(theme.colors.primary)}
+                      />
+                    </View>
+                    <View style={styles(theme).serviceTextContainer}>
+                      <Text style={styles(theme).serviceTitle}>
+                        {service.title}
+                      </Text>
+                      <Text style={styles(theme).serviceSubtitle}>
+                        View your chairperson responsibilities
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles(theme).serviceCardAction}>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.colors.text.secondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ))}
+          </View>
         </View>
 
         <TouchableOpacity
@@ -665,6 +745,20 @@ const styles = (theme: any) =>
       flex: 1,
       padding: theme.spacing.md
     },
+    sectionContainer: {
+      marginBottom: theme.spacing.xl
+    },
+    sectionHeader: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.xs
+    },
+    sectionDescription: {
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.md
+    },
     servicesContainer: {
       gap: theme.spacing.md
     },
@@ -705,20 +799,6 @@ const styles = (theme: any) =>
     },
     serviceCardAction: {
       marginLeft: theme.spacing.sm
-    },
-    countBadge: {
-      minWidth: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: theme.colors.error,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 6
-    },
-    countText: {
-      color: getTextColorForBackground(theme.colors.error),
-      fontSize: 12,
-      fontWeight: "bold"
     },
     logoutButton: {
       marginTop: theme.spacing.xl,

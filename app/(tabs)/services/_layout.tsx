@@ -2,11 +2,12 @@ import { Ionicons } from "@expo/vector-icons"
 import { Stack, useRouter } from "expo-router"
 import React from "react"
 import { TouchableOpacity } from "react-native"
-import { theme } from "../../../constants/theme"
+import { useTheme } from "../../../context/ThemeContext"
 
 // Back button component
 const BackButton = () => {
   const router = useRouter()
+  const { theme } = useTheme()
   return (
     <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
       <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
@@ -15,8 +16,21 @@ const BackButton = () => {
 }
 
 export default function ServicesLayout() {
+  const { theme } = useTheme()
+  
+  const screenOptions = {
+    headerStyle: {
+      backgroundColor: theme.colors.surface,
+    },
+    headerTintColor: theme.colors.text.primary,
+    headerTitleStyle: {
+      fontWeight: 'bold' as const,
+      color: theme.colors.text.primary,
+    },
+  }
+  
   return (
-    <Stack>
+    <Stack screenOptions={screenOptions}>
       <Stack.Screen
         name="index"
         options={{
@@ -31,14 +45,7 @@ export default function ServicesLayout() {
           headerShown: true
         }}
       />
-      <Stack.Screen
-        name="ride"
-        options={{
-          headerLeft: () => <BackButton />,
-          headerTitle: "Request a Ride",
-          headerShown: true
-        }}
-      />
+
       <Stack.Screen
         name="volunteer"
         options={{
@@ -60,6 +67,14 @@ export default function ServicesLayout() {
         options={{
           headerLeft: () => <BackButton />,
           headerTitle: "Support Chat",
+          headerShown: true
+        }}
+      />
+      <Stack.Screen
+        name="childcare"
+        options={{
+          headerLeft: () => <BackButton />,
+          headerTitle: "Childcare Request",
           headerShown: true
         }}
       />
