@@ -167,9 +167,12 @@ export default function RootLayout() {
         `RootLayout: Current route on auth change: ${currentRoute || "(root)"}`
       )
 
-      if (_event === "SIGNED_IN" && currentRoute === "(tabs)/host/login") {
+      // Handle sign in events (including TOKEN_REFRESHED which happens after setSession)
+      if ((_event === "SIGNED_IN" || _event === "TOKEN_REFRESHED" || _event === "USER_UPDATED") && 
+          currentSession && 
+          currentRoute === "(tabs)/host/login") {
         console.log(
-          "RootLayout: Redirecting from Login to Host Index on SIGNED_IN"
+          `RootLayout: Redirecting from Login to Host Index on ${_event}`
         )
         router.replace("/(tabs)/host" as Href)
       } else if (
@@ -227,7 +230,7 @@ export default function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (loaded && programLoaded && !authLoading) {
+    if (loaded && programLoaded) {
       SplashScreen.hideAsync()
 
       // Get device ID and update push token in user profile
@@ -306,7 +309,7 @@ export default function RootLayout() {
           Notifications.removeNotificationSubscription(responseListener.current)
       }
     }
-  }, [loaded, programLoaded, authLoading])
+  }, [loaded, programLoaded])
 
   // Log initial segments
   useEffect(() => {
@@ -409,7 +412,7 @@ export default function RootLayout() {
   // Setup schedule polling
   useEffect(() => {
     // Initial fetch
-    if (loaded && programLoaded && !authLoading) {
+    if (loaded && programLoaded) {
       fetchAndStoreUserSchedule()
     }
 
@@ -427,7 +430,7 @@ export default function RootLayout() {
     })
 
     // Start polling when component mounts
-    if (loaded && programLoaded && !authLoading) {
+    if (loaded && programLoaded) {
       schedulePollingInterval.current = setInterval(() => {
         if (appState.current === "active") {
           // console.log("Polling user schedule")
@@ -444,7 +447,7 @@ export default function RootLayout() {
         schedulePollingInterval.current = null
       }
     }
-  }, [loaded, programLoaded, authLoading])
+  }, [loaded, programLoaded])
 
   useEffect(() => {
     SentryLogger.init()
@@ -452,7 +455,7 @@ export default function RootLayout() {
     SentryLogger.captureError(error, { context: "RootLayout", error })
   }, [])
 
-  if (!loaded || !programLoaded || authLoading) {
+  if (!loaded || !programLoaded) {
     return null
   }
 

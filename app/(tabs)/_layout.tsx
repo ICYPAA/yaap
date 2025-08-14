@@ -3,6 +3,7 @@ import { Tabs } from "expo-router"
 import React, { useEffect, useState } from "react"
 import { useTheme } from "../../context/ThemeContext"
 import { supabase } from "../../lib/supabase"
+import { TutorialModal } from "../../components/TutorialModal"
 
 export default function TabLayout() {
   const { theme, isDarkMode } = useTheme()
@@ -38,7 +39,9 @@ export default function TabLayout() {
   }, [])
 
   return (
-    <Tabs
+    <>
+      <TutorialModal />
+      <Tabs
       initialRouteName="program"
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
@@ -102,5 +105,6 @@ export default function TabLayout() {
         href={isHostAuthenticated ? "/host" : null}
       />
     </Tabs>
+    </>
   )
 }

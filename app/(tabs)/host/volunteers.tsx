@@ -113,6 +113,28 @@ function VolunteerSignupsContent() {
             }
           }
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "volunteering_interest"
+          },
+          (payload) => {
+            const { eventType } = payload
+
+            // Handle different event types for volunteer interest
+            if (eventType === "INSERT" || eventType === "UPDATE" || eventType === "DELETE") {
+              console.log("Volunteer interest data changed, refreshing...")
+              // Refresh volunteer interest data
+              getVolunteerInterest().then(data => {
+                setVolunteerInterest(data)
+              }).catch(error => {
+                console.error("Error refreshing volunteer interest:", error)
+              })
+            }
+          }
+        )
         .subscribe()
 
       subscriptionRef.current = subscription

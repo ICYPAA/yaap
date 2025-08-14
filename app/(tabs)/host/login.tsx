@@ -209,7 +209,10 @@ export default function HostLogin() {
                   // } catch(memberError) {
                   //     console.error("Discord Login: Error fetching member details:", memberError);
                   // }
-                  // Navigation will be handled by onAuthStateChange listener
+                  
+                  // Navigate to host index immediately after successful login
+                  console.log("Discord Login: Navigating to host index page")
+                  router.replace("/(tabs)/host")
                 } else {
                   console.log(
                     "Discord Login: User is NOT a member of the host guild. Aborting login."
@@ -273,7 +276,13 @@ export default function HostLogin() {
       password: password
     })
 
-    if (error) Alert.alert("Sign In Error", error.message)
+    if (error) {
+      Alert.alert("Sign In Error", error.message)
+    } else {
+      // Navigate to host index after successful login
+      console.log("Email Login: Successful, navigating to host index")
+      router.replace("/(tabs)/host")
+    }
     setEmailLoading(false)
   }
 

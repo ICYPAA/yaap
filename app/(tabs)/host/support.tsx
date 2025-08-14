@@ -18,6 +18,11 @@ import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { makeRequest } from "../../../lib/requestHelper"
+import {
+  getCurrentUserWithRole,
+  hasPermission,
+  Permission
+} from "../../../lib/roleChecker"
 import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
@@ -49,6 +54,8 @@ export default function SupportChats() {
   const [selectedChat, setSelectedChat] = useState<SupportChat | null>(null)
   const [replyText, setReplyText] = useState("")
   const [drawerVisible, setDrawerVisible] = useState(true)
+  const [canReadSupport, setCanReadSupport] = useState(false)
+  const [canEditSupport, setCanEditSupport] = useState(false)
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
   const flatListRef = useRef<FlatList>(null)
 
@@ -56,6 +63,7 @@ export default function SupportChats() {
   const styles = React.useMemo(() => createStyles(theme), [theme])
 
   useEffect(() => {
+    checkPermissions()
     fetchChats()
     setupRealtimeSubscription()
 
@@ -66,6 +74,21 @@ export default function SupportChats() {
       }
     }
   }, [])
+  
+  const checkPermissions = async () => {
+    const userWithRole = await getCurrentUserWithRole()
+    if (userWithRole) {
+      const canRead = hasPermission(userWithRole.role, Permission.SUPPORT_READ)
+      const canEdit = hasPermission(userWithRole.role, Permission.SUPPORT_EDIT)
+      setCanReadSupport(canRead)
+      setCanEditSupport(canEdit)
+      
+      // If user doesn't have read permission, redirect them
+      if (!canRead) {
+        router.replace("/not-authorized" as any)
+      }
+    }
+  }
 
   // Refetch data when screen comes into focus
   useFocusEffect(
@@ -496,49 +519,65 @@ export default function SupportChats() {
               keyboardShouldPersistTaps="handled"
             />
 
-            <View
-              style={{
-                flexDirection: "row",
-                padding: 10,
-                borderTopWidth: 1,
-                borderTopColor: theme.colors.border,
-                backgroundColor: theme.colors.background
-              }}
-            >
-              <TextInput
+            {canEditSupport ? (
+              <View
                 style={{
-                  flex: 1,
-                  backgroundColor: theme.colors.surface,
-                  padding: 12,
-                  borderRadius: 20,
-                  marginRight: 10,
-                  color: theme.colors.text.primary
+                  flexDirection: "row",
+                  padding: 10,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.colors.border,
+                  backgroundColor: theme.colors.background
                 }}
-                value={replyText}
-                onChangeText={setReplyText}
-                placeholder="Type a message..."
-                placeholderTextColor={theme.colors.text.secondary}
-              />
-              <TouchableOpacity
-                style={{
-                  backgroundColor: theme.colors.primary,
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  opacity: !replyText.trim() ? 0.5 : 1
-                }}
-                onPress={handleReply}
-                disabled={!replyText.trim()}
               >
-                <Ionicons
-                  name="send"
-                  size={20}
-                  color={getTextColorForBackground(theme.colors.primary)}
+                <TextInput
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.surface,
+                    padding: 12,
+                    borderRadius: 20,
+                    marginRight: 10,
+                    color: theme.colors.text.primary
+                  }}
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  placeholder="Type a message..."
+                  placeholderTextColor={theme.colors.text.secondary}
                 />
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: theme.colors.primary,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    opacity: !replyText.trim() ? 0.5 : 1
+                  }}
+                  onPress={handleReply}
+                  disabled={!replyText.trim()}
+                >
+                  <Ionicons
+                    name="send"
+                    size={20}
+                    color={getTextColorForBackground(theme.colors.primary)}
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View
+                style={{
+                  padding: 10,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.colors.border,
+                  backgroundColor: theme.colors.surface,
+                  alignItems: "center"
+                }}
+              >
+                <Text style={{ color: theme.colors.text.secondary, fontSize: 14 }}>
+                  You have read-only access to support chats
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           <View style={styles.centered}>

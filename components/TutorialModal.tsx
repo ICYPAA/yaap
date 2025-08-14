@@ -1,0 +1,68 @@
+import React, { useEffect, useState } from "react"
+import { Modal, Platform } from "react-native"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import { TutorialCarousel } from "./TutorialCarousel"
+
+const TUTORIAL_SEEN_KEY = "tutorial_seen"
+
+interface TutorialModalProps {
+  visible?: boolean
+  onClose?: () => void
+}
+
+export const TutorialModal: React.FC<TutorialModalProps> = ({ 
+  visible: externalVisible, 
+  onClose: externalOnClose 
+}) => {
+  const [internalVisible, setInternalVisible] = useState(false)
+  const [hasCheckedTutorial, setHasCheckedTutorial] = useState(false)
+
+  // Check if tutorial has been seen before
+  useEffect(() => {
+    const checkTutorialSeen = async () => {
+      try {
+        const seen = await AsyncStorage.getItem(TUTORIAL_SEEN_KEY)
+        if (seen !== "true" && externalVisible === undefined) {
+          // First time opening the app
+          setInternalVisible(true)
+        }
+        setHasCheckedTutorial(true)
+      } catch (error) {
+        console.error("Error checking tutorial seen status:", error)
+        setHasCheckedTutorial(true)
+      }
+    }
+
+    if (!hasCheckedTutorial) {
+      checkTutorialSeen()
+    }
+  }, [hasCheckedTutorial, externalVisible])
+
+  const isVisible = externalVisible !== undefined ? externalVisible : internalVisible
+
+  const handleClose = () => {
+    setInternalVisible(false)
+    externalOnClose?.()
+  }
+
+  return (
+    <Modal
+      visible={isVisible}
+      animationType="slide"
+      presentationStyle={Platform.OS === "ios" ? "fullScreen" : "default"}
+      statusBarTranslucent
+    >
+      <TutorialCarousel onClose={handleClose} />
+    </Modal>
+  )
+}
+
+// Helper function to reset tutorial seen status (useful for testing)
+export const resetTutorialSeen = async () => {
+  try {
+    await AsyncStorage.removeItem(TUTORIAL_SEEN_KEY)
+    console.log("Tutorial seen status reset")
+  } catch (error) {
+    console.error("Error resetting tutorial seen status:", error)
+  }
+}

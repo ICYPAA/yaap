@@ -10,6 +10,7 @@ interface FeatureFlags {
   bid_schedule_enabled: boolean
   schedule_sharing_enabled: boolean
   push_notifications_enabled: boolean
+  language_option_enabled: boolean
 }
 
 interface FeatureContextType {
@@ -28,7 +29,8 @@ const defaultFeatures: FeatureFlags = {
   support_chat_enabled: true,
   bid_schedule_enabled: true,
   schedule_sharing_enabled: true,
-  push_notifications_enabled: true
+  push_notifications_enabled: true,
+  language_option_enabled: true
 }
 
 const FeatureContext = createContext<FeatureContextType>({

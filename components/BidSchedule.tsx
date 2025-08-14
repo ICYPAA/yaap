@@ -46,16 +46,26 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
 
       const supabaseWithDeviceId = await withDeviceId()
 
-      // Fetch bid schedule events from the program
+      // Fetch bid schedule events from the main events table
+      // Filter by category name matching "bid" or "bid committee" (case insensitive)
       const { data, error } = await makeRequest({
-        table: "pre-conf-events",
+        table: "events",
         isDebugMode: false,
         query: () =>
           supabaseWithDeviceId
-            .from("pre-conf-events")
-            .select("id, title, start_time, end_time, location, description")
+            .from("events")
+            .select(`
+              id,
+              title,
+              start_time,
+              end_time,
+              location,
+              description,
+              event_categories!inner (
+                title
+              )
+            `)
             .eq("program_id", programId)
-            .eq("event_type", "bid_meeting") // Assuming bid meetings have a specific type
             .order("start_time", { ascending: true })
       })
 
@@ -63,8 +73,36 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
         console.error("Error fetching bid schedule:", error)
         // Fall back to static schedule if fetch fails
         setBidEvents(DEFAULT_BID_SCHEDULE)
+      } else if (data) {
+        // Filter events to only include those with "bid" or "bid committee" in the category
+        const bidEvents = data.filter((event: any) => {
+          if (!event.event_categories?.title) return false
+          
+          // Normalize the category title for comparison
+          const normalizedCategory = event.event_categories.title
+            .toLowerCase()
+            .replace(/[^a-z\s]/g, '') // Remove special characters
+            .trim()
+          
+          // Check if it contains "bid" or "bid committee"
+          return normalizedCategory.includes('bid') || 
+                 normalizedCategory.includes('bid committee') ||
+                 normalizedCategory === 'bidcommittee'
+        })
+        
+        // Transform the data to match our BidEvent interface
+        const transformedEvents: BidEvent[] = bidEvents.map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          start_time: event.start_time,
+          end_time: event.end_time,
+          location: event.location || '',
+          description: event.description || undefined
+        }))
+        
+        setBidEvents(transformedEvents.length > 0 ? transformedEvents : DEFAULT_BID_SCHEDULE)
       } else {
-        setBidEvents(data || DEFAULT_BID_SCHEDULE)
+        setBidEvents(DEFAULT_BID_SCHEDULE)
       }
     } catch (error) {
       console.error("Error in fetchBidSchedule:", error)

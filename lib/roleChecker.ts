@@ -3,6 +3,7 @@ import { supabase } from "./supabase"
 // Define available roles and permissions
 export enum UserRole {
   SUPER_ADMIN = "super_admin",
+  STEERING = "steering",
   HOST_ADMIN = "host_admin",
   HOST_MEMBER = "host_member",
   VOLUNTEER_COORDINATOR = "volunteer_coordinator",
@@ -28,9 +29,12 @@ export enum Permission {
   // Support/Chat
   MANAGE_SUPPORT = "manage_support",
   VIEW_SUPPORT = "view_support",
+  SUPPORT_READ = "support:read",
+  SUPPORT_EDIT = "support:edit",
 
   // Notifications
   SEND_NOTIFICATIONS = "send_notifications",
+  NOTIFICATIONS_SEND = "notifications:send",
 
   // Admin functions
   MANAGE_USERS = "manage_users",
@@ -49,9 +53,27 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_HOSPITALITY,
     Permission.MANAGE_SUPPORT,
     Permission.VIEW_SUPPORT,
+    Permission.SUPPORT_READ,
+    Permission.SUPPORT_EDIT,
     Permission.SEND_NOTIFICATIONS,
+    Permission.NOTIFICATIONS_SEND,
     Permission.MANAGE_USERS,
     Permission.MANAGE_ROLES,
+    Permission.VIEW_ANALYTICS
+  ],
+  [UserRole.STEERING]: [
+    Permission.MANAGE_VOLUNTEERS,
+    Permission.VIEW_VOLUNTEERS,
+    Permission.MANAGE_ACCESSIBILITY,
+    Permission.VIEW_ACCESSIBILITY,
+    Permission.MANAGE_HOSPITALITY,
+    Permission.VIEW_HOSPITALITY,
+    Permission.MANAGE_SUPPORT,
+    Permission.VIEW_SUPPORT,
+    Permission.SUPPORT_READ,
+    Permission.SUPPORT_EDIT,
+    Permission.SEND_NOTIFICATIONS,
+    Permission.NOTIFICATIONS_SEND,
     Permission.VIEW_ANALYTICS
   ],
   [UserRole.HOST_ADMIN]: [
@@ -63,14 +85,18 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_HOSPITALITY,
     Permission.MANAGE_SUPPORT,
     Permission.VIEW_SUPPORT,
+    Permission.SUPPORT_READ,
+    Permission.SUPPORT_EDIT,
     Permission.SEND_NOTIFICATIONS,
+    Permission.NOTIFICATIONS_SEND,
     Permission.VIEW_ANALYTICS
   ],
   [UserRole.HOST_MEMBER]: [
     Permission.VIEW_VOLUNTEERS,
     Permission.VIEW_ACCESSIBILITY,
     Permission.VIEW_HOSPITALITY,
-    Permission.VIEW_SUPPORT
+    Permission.VIEW_SUPPORT,
+    Permission.SUPPORT_READ
   ],
   [UserRole.VOLUNTEER_COORDINATOR]: [
     Permission.MANAGE_VOLUNTEERS,
@@ -82,11 +108,14 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   [UserRole.HOSPITALITY_COORDINATOR]: [
     Permission.MANAGE_HOSPITALITY,
-    Permission.VIEW_HOSPITALITY
+    Permission.VIEW_HOSPITALITY,
+    Permission.NOTIFICATIONS_SEND
   ],
   [UserRole.SUPPORT_COORDINATOR]: [
     Permission.MANAGE_SUPPORT,
-    Permission.VIEW_SUPPORT
+    Permission.VIEW_SUPPORT,
+    Permission.SUPPORT_READ,
+    Permission.SUPPORT_EDIT
   ],
   [UserRole.USER]: []
 }
@@ -123,6 +152,9 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     switch(dbRole) {
       case "super_admin":
         mappedRole = UserRole.SUPER_ADMIN
+        break
+      case "steering":
+        mappedRole = UserRole.STEERING
         break
       case "host":
       case "host_admin":

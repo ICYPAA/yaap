@@ -110,6 +110,8 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
           setIsAuthenticated(false)
           setLoading(false)
         } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          // Keep loading true while we fetch the user role
+          setLoading(true)
           await loadUser()
         }
       }

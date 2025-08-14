@@ -21,6 +21,7 @@ import {
   View
 } from "react-native"
 import { LanguagePicker } from "../../components/LanguagePicker"
+import { TutorialModal } from "../../components/TutorialModal"
 import { useFeatures } from "../../context/FeatureContext"
 import { useI18n } from "../../context/I18nContext"
 import { useTheme } from "../../context/ThemeContext"
@@ -108,6 +109,9 @@ export default function Profile() {
 
   // Language picker state
   const [languagePickerVisible, setLanguagePickerVisible] = useState(false)
+  
+  // Tutorial modal state
+  const [tutorialVisible, setTutorialVisible] = useState(false)
   
   // Bid schedule toggle state
   const [showBidSchedule, setShowBidSchedule] = useState(true)
@@ -1353,24 +1357,26 @@ export default function Profile() {
           </View>
 
           {/* Language Picker */}
-          <TouchableOpacity
-            style={styles.settingRow}
-            onPress={() => setLanguagePickerVisible(true)}
-          >
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Language</Text>
-              <Text style={styles.settingDescription}>
-                {availableLanguages.find(
-                  (lang) => lang.code === currentLanguage
-                )?.name || "English"}
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={theme.colors.text.secondary}
-            />
-          </TouchableOpacity>
+          {isFeatureEnabled("language_option_enabled") && (
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => setLanguagePickerVisible(true)}
+            >
+              <View style={styles.settingTextContainer}>
+                <Text style={styles.settingLabel}>Language</Text>
+                <Text style={styles.settingDescription}>
+                  {availableLanguages.find(
+                    (lang) => lang.code === currentLanguage
+                  )?.name || "English"}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={theme.colors.text.secondary}
+              />
+            </TouchableOpacity>
+          )}
 
           {/* Notification Settings (Updated with direct updates) */}
           {isFeatureEnabled("push_notifications_enabled") && (
@@ -1786,6 +1792,27 @@ export default function Profile() {
         </View>
         )}
 
+        {/* Tutorial Section */}
+        <View style={styles.settingsContainer}>
+          <Text style={styles.sectionTitle}>Help</Text>
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => setTutorialVisible(true)}
+          >
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingLabel}>Feature Tutorial</Text>
+              <Text style={styles.settingDescription}>
+                Learn about all the features available in the app
+              </Text>
+            </View>
+            <Ionicons
+              name="help-circle-outline"
+              size={24}
+              color={theme.colors.primary}
+            />
+          </TouchableOpacity>
+        </View>
+
         {/* Danger Zone */}
         <View style={styles.dangerZoneContainer}>
           <Text style={styles.dangerZoneTitle}>Danger Zone</Text>
@@ -1812,6 +1839,12 @@ export default function Profile() {
         visible={languagePickerVisible}
         onClose={() => setLanguagePickerVisible(false)}
         changeLanguage={changeLanguage}
+      />
+      
+      {/* Tutorial Modal */}
+      <TutorialModal 
+        visible={tutorialVisible}
+        onClose={() => setTutorialVisible(false)}
       />
     </KeyboardAvoidingView>
   )
