@@ -13,9 +13,6 @@ import { supabase, withDeviceId } from "../lib/supabase"
 // Initialize Sentry
 SentryLogger.init()
 
-// ADD THIS LOG HERE
-SentryLogger.captureMessage("linking.tsx module loaded", "info")
-
 // Determine environment
 const isProduction = !__DEV__
 console.log(
@@ -25,7 +22,6 @@ console.log(
 // Create a reliable cross-platform alert function
 const showAlert = (title: string, message: string) => {
   console.log(`ALERT: ${title} - ${message}`)
-  SentryLogger.addBreadcrumb("alert", `${title}: ${message}`)
 
   // On Android, also show a Toast for better visibility
   if (Platform.OS === "android") {
@@ -46,15 +42,10 @@ console.log("App environment:", isProduction ? "Production" : "Development")
 // Listen for URL events with robust handling
 Linking.addEventListener("url", ({ url }) => {
   console.log("🔴 URL event received:", url)
-  SentryLogger.addBreadcrumb("deeplink", "URL event received", { url })
 
   if (url.includes("schedule_share=")) {
     console.log("🔴 URL event contains schedule_share")
-    SentryLogger.addBreadcrumb(
-      "schedule_share",
-      "Detected schedule_share in URL",
-      { url }
-    )
+    // Debug breadcrumb removed - routine operation
 
     try {
       const matches = url.match(/schedule_share=(\d+)/)
@@ -62,9 +53,7 @@ Linking.addEventListener("url", ({ url }) => {
       console.log("🔴 Extracted shared ID:", sharedUserId)
 
       if (sharedUserId) {
-        SentryLogger.addBreadcrumb("schedule_share", "Extracted user ID", {
-          sharedUserId
-        })
+        // Debug breadcrumb removed - routine operation
 
         AsyncStorage.getItem("device_id")
           .then((deviceId) => {
@@ -131,29 +120,17 @@ const linking: LinkingOptions<{}> = {
   // Custom URL parsing to extract query parameters
   getStateFromPath: (path, config) => {
     console.log("🔴 Parsing path:", path)
-    SentryLogger.addBreadcrumb("deeplink", "getStateFromPath called", { path })
+    // Debug breadcrumb removed - routine operation
 
     // Extract schedule_share parameter if present
-    SentryLogger.captureMessage(
-      "getStateFromPath: Attempting to match schedule_share in path",
-      "debug",
-      { path }
-    )
+    console.log("getStateFromPath: Attempting to match schedule_share in path")
 
     const matches = path.match(/schedule_share=(\d+)/)
     if (matches) {
       const sharedUserId = matches[1]
       console.log("🔴 Found schedule_share in path:", sharedUserId)
-      SentryLogger.addBreadcrumb(
-        "schedule_share",
-        "Found schedule_share in path",
-        { sharedUserId }
-      )
-      SentryLogger.captureMessage(
-        "getStateFromPath: schedule_share found in path",
-        "info",
-        { sharedUserId }
-      )
+      // Debug breadcrumb removed - routine operation
+      console.log("getStateFromPath: schedule_share found in path")
 
       // Process the share in background (without navigating)
       AsyncStorage.getItem("device_id")
@@ -181,10 +158,7 @@ const linking: LinkingOptions<{}> = {
         })
 
       // Direct to profile tab through deep linking system
-      SentryLogger.captureMessage(
-        "getStateFromPath: Returning custom state for profile tab",
-        "debug"
-      )
+      console.log("getStateFromPath: Returning custom state for profile tab")
       return {
         routes: [
           {
@@ -201,11 +175,7 @@ const linking: LinkingOptions<{}> = {
       }
     }
 
-    SentryLogger.captureMessage(
-      "getStateFromPath: schedule_share not found in path, using default handler",
-      "debug",
-      { path }
-    )
+    console.log("getStateFromPath: schedule_share not found in path, using default handler")
     console.log("🔴 Using default path handling")
     // Default handling by React Navigation
     return navGetStateFromPath(path, config)
@@ -214,12 +184,13 @@ const linking: LinkingOptions<{}> = {
   // Handle custom URL schemes for QR code scanning
   async getInitialURL() {
     console.log("🔴 Getting initial URL")
-    SentryLogger.addBreadcrumb("deeplink", "getInitialURL called")
+    // Debug breadcrumb removed - routine operation
     try {
       const url = await Linking.getInitialURL()
       console.log("🔴 Initial URL:", url)
-      SentryLogger.addBreadcrumb("deeplink", "Initial URL", { url })
-      SentryLogger.captureMessage("getInitialURL: Received URL", "debug", {
+      // Debug breadcrumb removed - routine operation
+      // Only log to console in development, not to Sentry
+      console.log("getInitialURL: Received URL", {
         url: url || "null"
       })
 
@@ -230,26 +201,14 @@ const linking: LinkingOptions<{}> = {
 
       if (url.includes("schedule_share=")) {
         console.log("🔴 Initial URL contains schedule_share")
-        SentryLogger.addBreadcrumb(
-          "schedule_share",
-          "Initial URL contains schedule_share",
-          { url }
-        )
-        SentryLogger.captureMessage(
-          "getInitialURL: schedule_share detected",
-          "info",
-          { url }
-        )
+        // Debug breadcrumb removed - routine operation
+        console.log("getInitialURL: schedule_share detected")
 
         // Extract ID for Sentry context
         try {
           const matches = url.match(/schedule_share=(\d+)/)
           if (matches && matches[1]) {
-            SentryLogger.addBreadcrumb(
-              "schedule_share",
-              "Extracted ID from initial URL",
-              { sharedUserId: matches[1] }
-            )
+            // Debug breadcrumb removed - routine operation
           }
         } catch (e) {
           SentryLogger.captureError(e, {
@@ -269,59 +228,36 @@ const linking: LinkingOptions<{}> = {
 
   subscribe(listener: (url: string) => void) {
     console.log("🔴 Setting up URL subscription")
-    SentryLogger.addBreadcrumb("deeplink", "subscribe called")
+    // Debug breadcrumb removed - routine operation
 
     const subscription = Linking.addEventListener("url", ({ url }) => {
       console.log("🔴 URL event in subscribe:", url)
-      SentryLogger.addBreadcrumb("deeplink", "URL event in subscribe", { url })
-      SentryLogger.captureMessage("subscribe: URL event received", "debug", {
+      // Debug breadcrumb removed - routine operation
+      // Only log to console in development, not to Sentry
+      console.log("subscribe: URL event received", {
         url
       })
 
       if (url.includes("schedule_share=")) {
         console.log("🔴 URL contains schedule_share")
-        SentryLogger.addBreadcrumb(
-          "schedule_share",
-          "URL in subscribe contains schedule_share",
-          { url }
-        )
-        SentryLogger.captureMessage(
-          "subscribe: schedule_share detected in URL event",
-          "info",
-          { url }
-        )
+        // Debug breadcrumb removed - routine operation
+        console.log("subscribe: schedule_share detected in URL event")
       }
 
-      SentryLogger.captureMessage(
-        "subscribe: Calling original listener",
-        "debug",
-        { url }
-      )
+      console.log("subscribe: Calling original listener")
       listener(url)
     })
 
-    SentryLogger.captureMessage(
-      "subscribe: Calling getInitialURL within subscribe",
-      "debug"
-    )
+    console.log("subscribe: Calling getInitialURL within subscribe")
     Linking.getInitialURL()
       .then((url) => {
         if (url) {
           console.log("🔴 Initial URL in subscribe:", url)
-          SentryLogger.addBreadcrumb("deeplink", "Initial URL in subscribe", {
-            url
-          })
-          SentryLogger.captureMessage(
-            "subscribe: Initial URL found, calling listener",
-            "debug",
-            { url }
-          )
+          // Debug breadcrumb removed - routine operation
+          console.log("subscribe: Initial URL found, calling listener")
           listener(url)
         } else {
-          SentryLogger.captureMessage(
-            "subscribe: No initial URL found",
-            "debug"
-          )
+          console.log("subscribe: No initial URL found")
         }
       })
       .catch((error) => {
@@ -331,7 +267,8 @@ const linking: LinkingOptions<{}> = {
 
     return () => {
       console.log("🔴 Removing URL subscription")
-      SentryLogger.captureMessage("subscribe: Unsubscribing listener", "debug")
+      // Only log to console in development, not to Sentry
+      console.log("subscribe: Unsubscribing listener")
       subscription.remove()
     }
   }
@@ -340,10 +277,7 @@ const linking: LinkingOptions<{}> = {
 // New function to process schedule share in background
 async function processScheduleShare(deviceId: string, sharedUserId: string) {
   console.log("🔴 Processing schedule share:", { deviceId, sharedUserId })
-  SentryLogger.addBreadcrumb("schedule_share", "Processing schedule share", {
-    deviceId,
-    sharedUserId
-  })
+  // Debug breadcrumb removed - routine operation
 
   try {
     // Get current user from Supabase
@@ -379,9 +313,7 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
       receiver: parseInt(sharedUserId)
     }
 
-    SentryLogger.addBreadcrumb("schedule_share", "Calling edge function", {
-      requestData
-    })
+    // Debug breadcrumb removed - routine operation
     console.log("🔴 Calling edge function with:", JSON.stringify(requestData))
 
     // Include explicit timeout and credentials
@@ -431,7 +363,7 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
       )
     } else {
       console.log("🔴 Schedule share successful")
-      SentryLogger.addBreadcrumb("schedule_share", "Share request successful")
+      // Debug breadcrumb removed - routine operation
       showAlert(
         "Schedule Shared",
         "Your schedule sharing request has been sent successfully."
@@ -453,10 +385,7 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
           }
         })
         console.log("🔴 Notification sent successfully")
-        SentryLogger.addBreadcrumb(
-          "schedule_share",
-          "Notification sent successfully"
-        )
+        // Debug breadcrumb removed - routine operation
       } catch (error) {
         console.error("🔴 Notification error:", error)
         SentryLogger.captureError(error, {

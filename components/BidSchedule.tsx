@@ -14,6 +14,7 @@ import { withDeviceId } from "../lib/supabase"
 interface BidEvent {
   id: string
   title: string
+  date: string
   start_time: string
   end_time: string
   location: string
@@ -39,15 +40,49 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
       setLoading(true)
 
       if (!programId) {
-        // If no program ID, show static schedule
-        setBidEvents(DEFAULT_BID_SCHEDULE)
+        console.log("No program ID provided for bid schedule")
+        setBidEvents([])
         return
       }
 
       const supabaseWithDeviceId = await withDeviceId()
 
-      // Fetch bid schedule events from the main events table
-      // Filter by category name matching "bid" or "bid committee" (case insensitive)
+      // First, fetch the bid-related category IDs
+      const { data: categories, error: catError } = await makeRequest({
+        table: "event_categories",
+        isDebugMode: false,
+        query: () =>
+          supabaseWithDeviceId
+            .from("event_categories")
+            .select("id, title")
+            .eq("program_id", programId)
+      })
+
+      if (catError) {
+        console.error("Error fetching event categories:", catError)
+        setBidEvents([])
+        return
+      }
+
+      // Find bid-related category IDs
+      const bidCategoryIds = categories?.filter((cat: any) => {
+        const normalizedTitle = cat.title
+          .toLowerCase()
+          .replace(/[^a-z\s]/g, '')
+          .trim()
+        
+        return normalizedTitle.includes('bid') || 
+               normalizedTitle === 'bidcommittee' ||
+               normalizedTitle === 'bid committee'
+      }).map((cat: any) => cat.id) || []
+
+      if (bidCategoryIds.length === 0) {
+        console.log("No bid categories found for program", programId)
+        setBidEvents([])
+        return
+      }
+
+      // Fetch events that have the bid category IDs
       const { data, error } = await makeRequest({
         table: "events",
         isDebugMode: false,
@@ -57,56 +92,42 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
             .select(`
               id,
               title,
+              date,
               start_time,
               end_time,
               location,
-              description,
-              event_categories!inner (
-                title
-              )
+              description
             `)
             .eq("program_id", programId)
+            .in("event_category_id", bidCategoryIds)
+            .order("date", { ascending: true })
             .order("start_time", { ascending: true })
       })
 
       if (error) {
         console.error("Error fetching bid schedule:", error)
-        // Fall back to static schedule if fetch fails
-        setBidEvents(DEFAULT_BID_SCHEDULE)
-      } else if (data) {
-        // Filter events to only include those with "bid" or "bid committee" in the category
-        const bidEvents = data.filter((event: any) => {
-          if (!event.event_categories?.title) return false
-          
-          // Normalize the category title for comparison
-          const normalizedCategory = event.event_categories.title
-            .toLowerCase()
-            .replace(/[^a-z\s]/g, '') // Remove special characters
-            .trim()
-          
-          // Check if it contains "bid" or "bid committee"
-          return normalizedCategory.includes('bid') || 
-                 normalizedCategory.includes('bid committee') ||
-                 normalizedCategory === 'bidcommittee'
-        })
-        
+        setBidEvents([])
+      } else if (data && data.length > 0) {
         // Transform the data to match our BidEvent interface
-        const transformedEvents: BidEvent[] = bidEvents.map((event: any) => ({
+        const transformedEvents: BidEvent[] = data.map((event: any) => ({
           id: event.id,
           title: event.title,
+          date: event.date || '',
           start_time: event.start_time,
           end_time: event.end_time,
           location: event.location || '',
           description: event.description || undefined
         }))
         
-        setBidEvents(transformedEvents.length > 0 ? transformedEvents : DEFAULT_BID_SCHEDULE)
+        console.log(`Found ${transformedEvents.length} bid events`)
+        setBidEvents(transformedEvents)
       } else {
-        setBidEvents(DEFAULT_BID_SCHEDULE)
+        console.log("No bid events found")
+        setBidEvents([])
       }
     } catch (error) {
       console.error("Error in fetchBidSchedule:", error)
-      setBidEvents(DEFAULT_BID_SCHEDULE)
+      setBidEvents([])
     } finally {
       setLoading(false)
     }
@@ -114,22 +135,82 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
 
   const formatTime = (timeString: string) => {
     try {
-      const date = new Date(timeString)
-      return date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true
-      })
-    } catch {
-      return timeString
+      if (!timeString) return "TBD"
+      
+      // Time is stored as HH:MM:SS format
+      const [hours, minutes] = timeString.split(':')
+      const hour = parseInt(hours)
+      const minute = parseInt(minutes)
+      
+      if (isNaN(hour) || isNaN(minute)) {
+        return "TBD"
+      }
+      
+      // Convert to 12-hour format
+      const period = hour >= 12 ? 'PM' : 'AM'
+      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+      const displayMinute = minute.toString().padStart(2, '0')
+      
+      return `${displayHour}:${displayMinute} ${period}`
+    } catch (error) {
+      console.error("Error formatting time:", error, timeString)
+      return "TBD"
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    try {
+      if (!dateString) return "Date TBD"
+      
+      // Date is stored as YYYY-MM-DD format
+      const [year, month, day] = dateString.split('-').map(num => parseInt(num))
+      
+      if (isNaN(year) || isNaN(month) || isNaN(day)) {
+        return "Date TBD"
+      }
+      
+      // Create date in local timezone (no conversion)
+      const date = new Date(year, month - 1, day) // month is 0-indexed in JS
+      
+      const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December']
+      
+      return `${weekdays[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`
+    } catch (error) {
+      console.error("Error formatting date:", error, dateString)
+      return "Date TBD"
     }
   }
 
   const formatTimeRange = (startTime: string, endTime: string) => {
     const start = formatTime(startTime)
     const end = formatTime(endTime)
+    if (start === "TBD" || end === "TBD") {
+      return "Time TBD"
+    }
     return `${start} - ${end}`
   }
+
+  // Group events by date
+  const groupedEvents = bidEvents.reduce((groups: { [key: string]: BidEvent[] }, event) => {
+    const dateKey = formatDate(event.date)
+    if (!groups[dateKey]) {
+      groups[dateKey] = []
+    }
+    groups[dateKey].push(event)
+    return groups
+  }, {})
+
+  // Sort groups by date and sort events within each group by time
+  const sortedGroupKeys = Object.keys(groupedEvents).sort((a, b) => {
+    if (a === "Date TBD") return 1
+    if (b === "Date TBD") return -1
+    // Compare the date strings directly (YYYY-MM-DD format sorts correctly as strings)
+    const dateA = groupedEvents[a][0]?.date || ''
+    const dateB = groupedEvents[b][0]?.date || ''
+    return dateA.localeCompare(dateB)
+  })
 
   const renderBidEvent = ({ item }: { item: BidEvent }) => (
     <View style={styles.eventCard}>
@@ -195,13 +276,23 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
       </View>
 
       {bidEvents.length > 0 ? (
-        <FlatList
-          data={bidEvents}
-          renderItem={renderBidEvent}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-          showsVerticalScrollIndicator={false}
-        />
+        <View>
+          {sortedGroupKeys.map((dateKey) => (
+            <View key={dateKey}>
+              <Text style={styles.dateHeader}>{dateKey}</Text>
+              {groupedEvents[dateKey]
+                .sort((a, b) => {
+                  // Sort by start_time string (HH:MM:SS format sorts correctly as strings)
+                  return (a.start_time || '').localeCompare(b.start_time || '')
+                })
+                .map((event) => (
+                  <View key={event.id}>
+                    {renderBidEvent({ item: event })}
+                  </View>
+                ))}
+            </View>
+          ))}
+        </View>
       ) : (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No bid schedule available</Text>
@@ -211,41 +302,6 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
   )
 }
 
-// Default/static bid schedule fallback
-const DEFAULT_BID_SCHEDULE: BidEvent[] = [
-  {
-    id: "1",
-    title: "Bid Committee Meeting",
-    start_time: "2024-08-01T09:00:00Z",
-    end_time: "2024-08-01T10:30:00Z",
-    location: "Conference Room A",
-    description: "Review bid proposals and guidelines"
-  },
-  {
-    id: "2",
-    title: "Bid Presentations",
-    start_time: "2024-08-01T14:00:00Z",
-    end_time: "2024-08-01T16:00:00Z",
-    location: "Main Ballroom",
-    description: "Cities present their bids for hosting next year"
-  },
-  {
-    id: "3",
-    title: "Bid Voting",
-    start_time: "2024-08-01T19:00:00Z",
-    end_time: "2024-08-01T20:00:00Z",
-    location: "Main Ballroom",
-    description: "Official voting for next year's host city"
-  },
-  {
-    id: "4",
-    title: "Results Announcement",
-    start_time: "2024-08-01T20:30:00Z",
-    end_time: "2024-08-01T21:00:00Z",
-    location: "Main Ballroom",
-    description: "Announcement of winning bid and celebration"
-  }
-]
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
@@ -267,6 +323,14 @@ const createStyles = (theme: any) =>
       fontWeight: "600",
       color: theme.colors.text.primary,
       marginLeft: 8
+    },
+    dateHeader: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.primary,
+      marginTop: 12,
+      marginBottom: 8,
+      paddingVertical: 4
     },
     loadingContainer: {
       flexDirection: "row",

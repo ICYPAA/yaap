@@ -1,6 +1,7 @@
-import { Ionicons } from "@expo/vector-icons"
+import { Ionicons, FontAwesome6 } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import BidCommitteeSchedule from "../../components/BidCommitteeSchedule"
+import { BidSchedule } from "../../components/BidSchedule"
+import { EventDetailsModal } from "../../components/EventDetailsModal"
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import * as Application from "expo-application"
 import * as Linking from "expo-linking"
@@ -302,7 +303,7 @@ const getEventPosition = (startTime: string, endTime?: string) => {
   const startMinutes = parseTimeToMinutes(startTime)
 
   // Calculate height based on duration (if we have an end time)
-  let height = 50 // Default minimum height to fit content
+  let height = 65 // Default minimum height to fit content with icons
 
   if (endTime) {
     const endMinutes = parseTimeToMinutes(endTime)
@@ -436,6 +437,10 @@ const TimelineView = ({
   const [expandedEvents, setExpandedEvents] = useState<Record<number, boolean>>(
     {}
   )
+  
+  // State for event details modal
+  const [eventDetailsModalVisible, setEventDetailsModalVisible] = useState(false)
+  const [selectedPromotedEvent, setSelectedPromotedEvent] = useState<Event | null>(null)
 
   const HEADER_HEIGHT = 37 // Define a constant for the header height
 
@@ -451,16 +456,17 @@ const TimelineView = ({
     },
     mainMeetingCard: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       backgroundColor: theme.colors.primary,
       padding: 16,
       borderRadius: 8,
       marginBottom: 16,
-      marginHorizontal: 16
+      marginHorizontal: 16,
+      flexWrap: "wrap"
     },
-    mainMeetingContent: { marginLeft: 12, flex: 1 },
-    mainMeetingTitle: { fontSize: 18, fontWeight: "bold", color: "#ffffff" },
-    mainMeetingTime: { fontSize: 14, color: "#ffffff", opacity: 0.9 },
+    mainMeetingContent: { marginLeft: 12, flex: 1, minWidth: 200 },
+    mainMeetingTitle: { fontSize: 18, fontWeight: "bold", color: "#ffffff", flexWrap: "wrap" },
+    mainMeetingTime: { fontSize: 14, color: "#ffffff", opacity: 0.9, flexWrap: "wrap" },
     timelineWrapper: {
       flex: 1,
       borderWidth: 1,
@@ -550,7 +556,7 @@ const TimelineView = ({
       borderLeftWidth: 1,
       borderLeftColor: theme.colors.border
     },
-    eventsContainer: { position: "relative", minHeight: 24 * 60 },
+    eventsContainer: { position: "relative", minHeight: 24 * 60, overflow: "visible" },
     timelineEvent: {
       position: "absolute",
       left: 2,
@@ -884,7 +890,7 @@ const TimelineView = ({
 
       {/* Promoted events highlight boxes */}
       {promotedEvents.map((event) => (
-        <TouchableOpacity
+        <View
           key={`promoted-${event.id}`}
           style={[
             timelineStyles.mainMeetingCard,
@@ -896,16 +902,29 @@ const TimelineView = ({
               )
             }
           ]}
-          onPress={() => onToggleSave(event.id)}
         >
           {event.can_save !== false && (
-            <Ionicons
-              name={savedItems.includes(event.id) ? "star" : "star-outline"}
-              size={24}
-              color="#ffffff" // Use white for better contrast on primary color background
-            />
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation()
+                onToggleSave(event.id)
+              }}
+              style={{ padding: 4 }}
+            >
+              <Ionicons
+                name={savedItems.includes(event.id) ? "star" : "star-outline"}
+                size={24}
+                color="#ffffff" // Use white for better contrast on primary color background
+              />
+            </TouchableOpacity>
           )}
-          <View style={timelineStyles.mainMeetingContent}>
+          <TouchableOpacity 
+            style={timelineStyles.mainMeetingContent}
+            onPress={() => {
+              setSelectedPromotedEvent(event)
+              setEventDetailsModalVisible(true)
+            }}
+          >
             <Text
               style={[
                 timelineStyles.mainMeetingTitle,
@@ -939,8 +958,55 @@ const TimelineView = ({
               {formatTime(event.start_time)} - {formatTime(event.end_time)} •{" "}
               {event.location}
             </Text>
-          </View>
-        </TouchableOpacity>
+            
+            {/* Service Icons on promoted cards */}
+            {(event.asl || event.hybrid || (event.languages && event.languages.length > 0)) && (
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6, gap: 8 }}>
+                {event.asl && (
+                  <FontAwesome6
+                    name="hands-asl-interpreting"
+                    size={14}
+                    color="#ffffff"
+                  />
+                )}
+                {event.hybrid && (
+                  <Ionicons
+                    name="videocam"
+                    size={14}
+                    color="#ffffff"
+                  />
+                )}
+                {event.languages && event.languages.map((lang) => {
+                  const langMap: { [key: string]: string } = {
+                    'spanish': 'ES',
+                    'somali': 'SOM',
+                    'hmong': 'HMN',
+                    'french': 'FR'
+                  };
+                  const abbrev = langMap[lang.toLowerCase()] || lang.toUpperCase().slice(0, 3);
+                  return (
+                    <Text
+                      key={lang}
+                      style={{
+                        fontSize: 9,
+                        fontWeight: "bold",
+                        color: "#ffffff",
+                        backgroundColor: "rgba(255,255,255,0.2)",
+                        paddingHorizontal: 4,
+                        paddingVertical: 2,
+                        borderRadius: 3,
+                        borderWidth: 1,
+                        borderColor: "rgba(255,255,255,0.3)"
+                      }}
+                    >
+                      {abbrev}
+                    </Text>
+                  );
+                })}
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       ))}
 
       {/* Timeline with sticky headers and columns */}
@@ -1033,7 +1099,7 @@ const TimelineView = ({
                   <View key={room} style={timelineStyles.roomColumn}>
                     {/* Event blocks */}
                     <View style={timelineStyles.eventsContainer}>
-                      {eventsByRoom[room]?.map((event) => {
+                      {eventsByRoom[room]?.map((event, index) => {
                         // Use end_time if available in the original event data
                         const endTime = events.find(
                           (e: Event) => e.id === event.id
@@ -1046,8 +1112,9 @@ const TimelineView = ({
                           formattedEndTime
                         )
 
-                        // Determine if this is a short event (less than 1 hour)
-                        const isShortEvent = height < 60
+                        // Determine event size based on duration
+                        const isShortEvent = height < 60  // Less than 1 hour
+                        const isLongEvent = height >= 120  // 2+ hours
                         // Use default height (no expansion for clicking)
                         const adjustedHeight = height
 
@@ -1065,28 +1132,47 @@ const TimelineView = ({
                         const hasPassed = eventEndDateTime
                           ? eventEndDateTime < now
                           : false
-                        // --- DEBUG LOG ---
-                        // Removed event.id < 5 condition to log all relevant events
-                        // console.log(
-                        //   `Timeline Event ID: ${event.id}, Date: ${
-                        //     event.date
-                        //   }, TimeStrToParse: ${endTimeForCheck}, ParsedEnd: ${
-                        //     eventEndDateTime?.toISOString() || "null"
-                        //   }, Now: ${now.toISOString()}, HasPassed: ${hasPassed}`
-                        // )
-                        // --- END DEBUG LOG ---
+
+                        // Check if this event overlaps or is adjacent to a previous event in same room
+                        const shouldShowTopBorder = (() => {
+                          if (index === 0) return false // First event in room never needs border
+                          
+                          const prevEvent = eventsByRoom[room][index - 1]
+                          const prevEndTime = events.find((e: Event) => e.id === prevEvent.id)?.end_time
+                          const prevFormattedEndTime = prevEndTime ? formatTime(prevEndTime) : prevEvent.time
+                          const { top: prevTop, height: prevHeight } = getEventPosition(prevEvent.time, prevFormattedEndTime)
+                          
+                          const prevEventBottom = prevTop + prevHeight
+                          const currentEventTop = top
+                          
+                          // Check if events overlap or are adjacent (within 2 pixels for rounding tolerance)
+                          return Math.abs(prevEventBottom - currentEventTop) <= 2
+                        })()
 
                         return (
                           <TouchableOpacity
                             key={event.id}
                             style={[
                               timelineStyles.timelineEvent,
+                              shouldShowTopBorder && {
+                                borderTopWidth: 2,
+                                borderTopColor: "rgba(0,0,0,0.2)",
+                                shadowColor: "#000",
+                                shadowOffset: {
+                                  width: 0,
+                                  height: -4
+                                },
+                                shadowOpacity: 0.5,
+                                shadowRadius: 4,
+                                elevation: 8
+                              },
                               {
                                 top,
                                 height: adjustedHeight,
                                 backgroundColor: eventColor,
-                                minHeight: isShortEvent ? 30 : 40, // Lower minimum height for short events
-                                opacity: hasPassed ? 0.5 : 1 // Grey out past events
+                                minHeight: isShortEvent ? 50 : 65, // Increased for better content fit
+                                opacity: hasPassed ? 0.5 : 1, // Grey out past events
+                                overflow: "visible" // Allow content to be visible
                               }
                             ]}
                             onPress={() => toggleEventExpanded(event.id)}
@@ -1129,9 +1215,11 @@ const TimelineView = ({
                               <>
                                 <Text
                                   style={[
-                                    timelineStyles.timelineEventTitle,
+                                    isShortEvent ? timelineStyles.timelineEventTitleCompact : timelineStyles.timelineEventTitle,
                                     { color: textColor }
                                   ]}
+                                  numberOfLines={isLongEvent ? undefined : (isShortEvent ? 1 : 2)}
+                                  ellipsizeMode={isLongEvent ? undefined : "tail"}
                                 >
                                   {event.title}
                                 </Text>
@@ -1141,6 +1229,8 @@ const TimelineView = ({
                                       timelineStyles.timelineEventTime,
                                       { color: textColor }
                                     ]}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
                                   >
                                     {event.time}
                                     {formattedEndTime
@@ -1148,6 +1238,57 @@ const TimelineView = ({
                                       : ""}
                                   </Text>
                                 </View>
+                                
+                                {/* Service Icons - show for events 1+ hours */}
+                                {!isShortEvent && (() => {
+                                  const eventDetails = events.find((e) => e.id === event.id)
+                                  if (!eventDetails?.asl && !eventDetails?.hybrid && (!eventDetails?.languages || eventDetails.languages.length === 0)) {
+                                    return null
+                                  }
+                                  return (
+                                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 4, paddingHorizontal: 4 }}>
+                                      {eventDetails.asl && (
+                                        <FontAwesome6
+                                          name="hands-asl-interpreting"
+                                          size={10}
+                                          color={textColor}
+                                        />
+                                      )}
+                                      {eventDetails.hybrid && (
+                                        <Ionicons
+                                          name="videocam"
+                                          size={10}
+                                          color={textColor}
+                                        />
+                                      )}
+                                      {eventDetails.languages && eventDetails.languages.map((lang) => {
+                                        const langMap: { [key: string]: string } = {
+                                          'spanish': 'ES',
+                                          'somali': 'SOM',
+                                          'hmong': 'HMN',
+                                          'french': 'FR'
+                                        };
+                                        const abbrev = langMap[lang.toLowerCase()] || lang.toUpperCase().slice(0, 3);
+                                        return (
+                                          <Text
+                                            key={lang}
+                                            style={{
+                                              fontSize: 7,
+                                              fontWeight: "bold",
+                                              color: textColor,
+                                              backgroundColor: `${textColor}20`,
+                                              paddingHorizontal: 2,
+                                              paddingVertical: 1,
+                                              borderRadius: 2
+                                            }}
+                                          >
+                                            {abbrev}
+                                          </Text>
+                                        );
+                                      })}
+                                    </View>
+                                  )
+                                })()}
 
                                 {event.can_save !== false && (
                                   <TouchableOpacity
@@ -1405,6 +1546,19 @@ const TimelineView = ({
           </View>
         )}
       </Modal>
+      
+      {/* Event Details Modal for promoted events */}
+      <EventDetailsModal
+        visible={eventDetailsModalVisible}
+        event={selectedPromotedEvent}
+        onClose={() => {
+          setEventDetailsModalVisible(false)
+          setSelectedPromotedEvent(null)
+        }}
+        onToggleSave={onToggleSave}
+        isSaved={selectedPromotedEvent ? savedItems.includes(selectedPromotedEvent.id) : false}
+        programColor={getProgramColorUtil(programDetails, "primary", theme)}
+      />
     </View>
   )
 }
@@ -1446,6 +1600,10 @@ const DayScheduleCard = ({
     Record<string, boolean>
   >({})
   const { isDarkMode } = useTheme()
+  
+  // State for event details modal
+  const [eventDetailsModalVisible, setEventDetailsModalVisible] = useState(false)
+  const [selectedPromotedEvent, setSelectedPromotedEvent] = useState<Event | null>(null)
 
   // Define styles function
   const styles = (theme: any) =>
@@ -1832,30 +1990,37 @@ const DayScheduleCard = ({
               const textColor = getTextColorForBgUtil(primaryColor)
 
               return (
-                <TouchableOpacity
+                <View
                   key={`promoted-${event.id}`}
                   style={[
                     styles(theme).mainMeetingCard,
                     { backgroundColor: primaryColor }
                   ]}
-                  onPress={() => {
-                    if (event.link) {
-                      Linking.openURL(event.link)
-                    } else {
-                      onToggleSave(event.id)
-                    }
-                  }}
                 >
                   {event.can_save !== false && (
-                    <Ionicons
-                      name={
-                        savedItems.includes(event.id) ? "star" : "star-outline"
-                      }
-                      size={24}
-                      color={textColor}
-                    />
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation()
+                        onToggleSave(event.id)
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons
+                        name={
+                          savedItems.includes(event.id) ? "star" : "star-outline"
+                        }
+                        size={24}
+                        color={textColor}
+                      />
+                    </TouchableOpacity>
                   )}
-                  <View style={styles(theme).mainMeetingContent}>
+                  <TouchableOpacity 
+                    style={styles(theme).mainMeetingContent}
+                    onPress={() => {
+                      setSelectedPromotedEvent(event)
+                      setEventDetailsModalVisible(true)
+                    }}
+                  >
                     <Text
                       style={[
                         styles(theme).mainMeetingTitle,
@@ -1873,8 +2038,55 @@ const DayScheduleCard = ({
                       {formatTimeDisplay(event.start_time)} -{" "}
                       {formatTimeDisplay(event.end_time)} • {event.location}
                     </Text>
-                  </View>
-                </TouchableOpacity>
+                    
+                    {/* Service Icons on promoted cards */}
+                    {(event.asl || event.hybrid || (event.languages && event.languages.length > 0)) && (
+                      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6, gap: 8 }}>
+                        {event.asl && (
+                          <FontAwesome6
+                            name="hands-asl-interpreting"
+                            size={14}
+                            color={textColor}
+                          />
+                        )}
+                        {event.hybrid && (
+                          <Ionicons
+                            name="videocam"
+                            size={14}
+                            color={textColor}
+                          />
+                        )}
+                        {event.languages && event.languages.map((lang) => {
+                          const langMap: { [key: string]: string } = {
+                            'spanish': 'ES',
+                            'somali': 'SOM',
+                            'hmong': 'HMN',
+                            'french': 'FR'
+                          };
+                          const abbrev = langMap[lang.toLowerCase()] || lang.toUpperCase().slice(0, 3);
+                          return (
+                            <Text
+                              key={lang}
+                              style={{
+                                fontSize: 9,
+                                fontWeight: "bold",
+                                color: textColor,
+                                backgroundColor: `${textColor}20`,
+                                paddingHorizontal: 4,
+                                paddingVertical: 2,
+                                borderRadius: 3,
+                                borderWidth: 1,
+                                borderColor: `${textColor}30`
+                              }}
+                            >
+                              {abbrev}
+                            </Text>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
               )
             })}
           </View>
@@ -2003,6 +2215,53 @@ const DayScheduleCard = ({
                       <Text style={styles(theme).itemLocation}>
                         {item.location}
                       </Text>
+                      
+                      {/* Service Icons - Collapsed View */}
+                      {!expandedItems[item.id] && (eventDetails?.asl || eventDetails?.hybrid || (eventDetails?.languages && eventDetails.languages.length > 0)) && (
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8, gap: 10 }}>
+                          {eventDetails.asl && (
+                            <FontAwesome6
+                              name="hands-asl-interpreting"
+                              size={16}
+                              color={getProgramColorUtil(programDetails, "text.secondary", theme)}
+                            />
+                          )}
+                          {eventDetails.hybrid && (
+                            <Ionicons
+                              name="videocam"
+                              size={16}
+                              color={getProgramColorUtil(programDetails, "text.secondary", theme)}
+                            />
+                          )}
+                          {eventDetails.languages && eventDetails.languages.map((lang) => {
+                            const langMap: { [key: string]: string } = {
+                              'spanish': 'ES',
+                              'somali': 'SOM',
+                              'hmong': 'HMN',
+                              'french': 'FR'
+                            };
+                            const abbrev = langMap[lang.toLowerCase()] || lang.toUpperCase().slice(0, 3);
+                            return (
+                              <Text
+                                key={lang}
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: "bold",
+                                  color: getProgramColorUtil(programDetails, "text.secondary", theme),
+                                  backgroundColor: theme.colors.surface,
+                                  paddingHorizontal: 4,
+                                  paddingVertical: 2,
+                                  borderRadius: 4,
+                                  borderWidth: 1,
+                                  borderColor: theme.colors.border
+                                }}
+                              >
+                                {abbrev}
+                              </Text>
+                            );
+                          })}
+                        </View>
+                      )}
 
                       {expandedItems[item.id] &&
                         !hasPassed && ( // Only show expanded if not passed
@@ -2025,6 +2284,77 @@ const DayScheduleCard = ({
                                 {item.description}
                               </Text>
                             )}
+                            
+                            {/* Accessibility Services in expanded view - Stacked */}
+                            {(eventDetails?.asl || eventDetails?.hybrid || (eventDetails?.languages && eventDetails.languages.length > 0)) && (
+                              <View style={{ marginTop: 12 }}>
+                                {eventDetails.asl && (
+                                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                                    <FontAwesome6
+                                      name="hands-asl-interpreting"
+                                      size={16}
+                                      color={getProgramColorUtil(programDetails, "text.secondary", theme)}
+                                      style={{ marginRight: 10 }}
+                                    />
+                                    <Text style={{ color: getProgramColorUtil(programDetails, "text.primary", theme), fontSize: 14 }}>
+                                      ASL Interpretation
+                                    </Text>
+                                  </View>
+                                )}
+                                {eventDetails.hybrid && (
+                                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                                    <Ionicons
+                                      name="videocam"
+                                      size={16}
+                                      color={getProgramColorUtil(programDetails, "text.secondary", theme)}
+                                      style={{ marginRight: 10 }}
+                                    />
+                                    <Text style={{ color: getProgramColorUtil(programDetails, "text.primary", theme), fontSize: 14 }}>
+                                      Hybrid Meeting
+                                    </Text>
+                                  </View>
+                                )}
+                                {eventDetails.languages && eventDetails.languages.map((lang) => {
+                                  const langMap: { [key: string]: string } = {
+                                    'spanish': 'ES',
+                                    'somali': 'SOM',
+                                    'hmong': 'HMN',
+                                    'french': 'FR'
+                                  };
+                                  const langNames: { [key: string]: string } = {
+                                    'spanish': 'Spanish',
+                                    'somali': 'Somali',
+                                    'hmong': 'Hmong',
+                                    'french': 'French'
+                                  };
+                                  const abbrev = langMap[lang.toLowerCase()] || lang.toUpperCase().slice(0, 3);
+                                  const fullName = langNames[lang.toLowerCase()] || lang;
+                                  return (
+                                    <View key={lang} style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                                      <Text style={{
+                                        fontSize: 10,
+                                        fontWeight: "bold",
+                                        color: getProgramColorUtil(programDetails, "text.secondary", theme),
+                                        backgroundColor: theme.colors.surface,
+                                        paddingHorizontal: 4,
+                                        paddingVertical: 2,
+                                        borderRadius: 4,
+                                        borderWidth: 1,
+                                        borderColor: theme.colors.border,
+                                        marginRight: 10,
+                                        minWidth: 32,
+                                        textAlign: 'center'
+                                      }}>
+                                        {abbrev}
+                                      </Text>
+                                      <Text style={{ color: getProgramColorUtil(programDetails, "text.primary", theme), fontSize: 14 }}>
+                                        {fullName} Translation
+                                      </Text>
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                            )}
 
                             {/* Show shared event users */}
                             <SharedEventUsers
@@ -2044,6 +2374,19 @@ const DayScheduleCard = ({
           ))
         )}
       </View>
+      
+      {/* Event Details Modal for promoted events */}
+      <EventDetailsModal
+        visible={eventDetailsModalVisible}
+        event={selectedPromotedEvent}
+        onClose={() => {
+          setEventDetailsModalVisible(false)
+          setSelectedPromotedEvent(null)
+        }}
+        onToggleSave={onToggleSave}
+        isSaved={selectedPromotedEvent ? savedItems.includes(selectedPromotedEvent.id) : false}
+        programColor={getProgramColorUtil(programDetails, "primary", theme)}
+      />
     </View>
   )
 }
@@ -2053,6 +2396,9 @@ export default function Program() {
   const { isFeatureEnabled } = useFeatures()
   const shadowStyles = getShadowStyles(isDarkMode)
   const navigation = useNavigation()
+  
+  // Program ID - hardcoded for now
+  const programId = 3
 
   // State for tabs
   const [activeTab, setActiveTab] = useState(0)
@@ -2328,9 +2674,6 @@ export default function Program() {
       setLoading(true)
       setError(null)
       try {
-        // Assume program ID 3 for now
-        const programId = 3
-
         const supabaseWithDeviceId = await withDeviceId()
         const [programRes, eventsRes, categoriesRes, activitiesRes] =
           await Promise.all([
@@ -3812,7 +4155,7 @@ export default function Program() {
             {/* Bid Committee Schedule */}
             {isFeatureEnabled("bid_schedule_enabled") && showBidSchedule && (
               <View style={{ marginVertical: 16 }}>
-                <BidCommitteeSchedule showAll={false} />
+                <BidSchedule programId={programId} />
               </View>
             )}
 

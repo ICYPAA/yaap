@@ -16,6 +16,7 @@ import {
   View
 } from "react-native"
 import RNIImageViewer from "react-native-image-zoom-viewer"
+import { HospitalitySlots } from "../../components/HospitalitySlots"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
 import { withDeviceId } from "../../lib/supabase"
@@ -679,6 +680,9 @@ export default function Maps() {
                 </Text>
               </View>
             ))}
+            
+            {/* Add HospitalitySlots component */}
+            <HospitalitySlots programId={programId} />
           </View>
         </View>
       )}

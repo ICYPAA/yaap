@@ -72,8 +72,11 @@ export const ProtectedComponent: React.FC<ProtectedComponentProps> = ({
     )
   }
 
-  // If not authenticated, show fallback
-  if (!isAuthenticated) {
+  // Only check authentication if roles or permissions are required
+  const needsAuth = requiredPermissions.length > 0 || requiredRoles.length > 0
+  
+  // If authentication is needed but user is not authenticated, show fallback
+  if (needsAuth && !isAuthenticated) {
     return (
       fallbackComponent || (
         <View style={styles.fallbackContainer}>

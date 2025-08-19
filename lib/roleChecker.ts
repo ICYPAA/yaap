@@ -131,25 +131,35 @@ export interface UserWithRole {
 // Function to get user role from database
 export async function getUserRole(userId: string): Promise<UserRole> {
   try {
-    console.log("Fetching role for user:", userId)
-    
+    console.log("getUserRole: Fetching role for user:", userId)
+    const startTime = Date.now()
+
+    // Just do the query directly
     const { data, error } = await supabase
-      .from("roles")  // Use existing 'roles' table
+      .from("roles") // Use existing 'roles' table
       .select("role")
       .eq("user_id", userId)
       .maybeSingle() // Use maybeSingle instead of single to avoid error if no row exists
 
+    const queryTime = Date.now() - startTime
+    console.log(`getUserRole: Query completed in ${queryTime}ms`)
+
     if (error) {
-      console.error("Error fetching user role:", error)
+      console.error("getUserRole: Error fetching user role (THIS SHOULD NOT HAPPEN):", error)
       return UserRole.HOST_ADMIN // Default to HOST_ADMIN for Discord-authenticated users
     }
 
+    // If no role found in database, default to HOST_ADMIN for Discord users
+    if (!data?.role) {
+      console.log("getUserRole: No role found in database, using default HOST_ADMIN")
+      return UserRole.HOST_ADMIN
+    }
+
     // Map the role from database to our UserRole enum
-    // The existing table uses 'host' as the default role
-    const dbRole = data?.role || "host"
+    const dbRole = data.role
     let mappedRole: UserRole
-    
-    switch(dbRole) {
+
+    switch (dbRole) {
       case "super_admin":
         mappedRole = UserRole.SUPER_ADMIN
         break
@@ -164,13 +174,14 @@ export async function getUserRole(userId: string): Promise<UserRole> {
         mappedRole = UserRole.HOST_MEMBER
         break
       default:
-        mappedRole = UserRole.HOST_ADMIN // Default to HOST_ADMIN for host users
+        console.warn(`getUserRole: Unknown role '${dbRole}', defaulting to HOST_ADMIN`)
+        mappedRole = UserRole.HOST_ADMIN // Default to HOST_ADMIN for unknown roles
     }
-    
-    console.log("User role retrieved:", mappedRole)
+
+    console.log("getUserRole: User role retrieved:", mappedRole)
     return mappedRole
-  } catch (error) {
-    console.error("Error in getUserRole:", error)
+  } catch (error: any) {
+    console.error("getUserRole: Unexpected error (THIS SHOULD NOT HAPPEN):", error)
     return UserRole.HOST_ADMIN // Default to HOST_ADMIN for Discord-authenticated users
   }
 }
@@ -210,24 +221,50 @@ export function hasAnyPermission(
 // Function to get current authenticated user with role
 export async function getCurrentUserWithRole(): Promise<UserWithRole | null> {
   try {
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
+    console.log("getCurrentUserWithRole: Starting...")
 
-    if (!user) return null
+    // Get session directly without any timeout nonsense
+    console.log("getCurrentUserWithRole: Getting session...")
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+    if (sessionError) {
+      console.error("getCurrentUserWithRole: Session error:", sessionError)
+      return null
+    }
+
+    console.log(
+      "getCurrentUserWithRole: Session retrieved:",
+      !!session?.user,
+      "User ID:",
+      session?.user?.id
+    )
+
+    if (!session?.user) {
+      console.log("getCurrentUserWithRole: No user in session")
+      return null
+    }
 
     // Get role from database, defaults to HOST_ADMIN if not found
-    const role = await getUserRole(user.id)
+    console.log(
+      "getCurrentUserWithRole: About to call getUserRole for:",
+      session.user.id
+    )
+    const role = await getUserRole(session.user.id)
+    console.log("getCurrentUserWithRole: Role retrieved:", role)
+
     const permissions = getUserPermissions(role)
+    console.log(
+      "getCurrentUserWithRole: Permissions calculated, returning user"
+    )
 
     return {
-      id: user.id,
-      email: user.email || "",
+      id: session.user.id,
+      email: session.user.email || "",
       role,
       permissions
     }
   } catch (error) {
-    console.error("Error getting current user with role:", error)
+    console.error("getCurrentUserWithRole: Caught error:", error)
     return null
   }
 }

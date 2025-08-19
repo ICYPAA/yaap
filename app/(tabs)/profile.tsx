@@ -22,12 +22,14 @@ import {
 } from "react-native"
 import { LanguagePicker } from "../../components/LanguagePicker"
 import { TutorialModal } from "../../components/TutorialModal"
+import { SafetyModal } from "../../components/SafetyModal"
 import { useFeatures } from "../../context/FeatureContext"
 import { useI18n } from "../../context/I18nContext"
 import { useTheme } from "../../context/ThemeContext"
 import { sendNotification } from "../../lib/notificationHelper"
 import { clearImageCache, uploadProfilePicture } from "../../lib/profilePicture"
 import { supabase, withDeviceId } from "../../lib/supabase"
+import { sanitizeName, sanitizeLastInitial } from "../../lib/security"
 import { getTextColorForBackground } from "../../lib/theme"
 import { Schedule, User } from "../../types/user"
 
@@ -112,6 +114,9 @@ export default function Profile() {
   
   // Tutorial modal state
   const [tutorialVisible, setTutorialVisible] = useState(false)
+  
+  // Safety modal state
+  const [safetyVisible, setSafetyVisible] = useState(false)
   
   // Bid schedule toggle state
   const [showBidSchedule, setShowBidSchedule] = useState(true)
@@ -437,16 +442,17 @@ export default function Profile() {
       // No need to upload image here anymore as it's handled by the uploadProfilePicture function
       // Just use the current profileImage value which is already the URL from Supabase
 
+      // Sanitize user input before saving
       const profileDataToSave = {
-        first_name: firstName,
-        last_initial: lastInitial,
+        first_name: sanitizeName(firstName),
+        last_initial: sanitizeLastInitial(lastInitial),
         profile_image: profileImage || "", // Ensure it's never null
         expo_push_token: pushToken,
         user_id: userId // This will be string | undefined, not string | null
       }
       console.log("Saving Profile Info:", profileDataToSave)
 
-      const supabaseWithDeviceId = await withDeviceId()
+      const supabaseWithDeviceId = await withDeviceId(supabase, '/profile/update')
       const { error } = await supabaseWithDeviceId
         .from("users")
         .update(profileDataToSave)
@@ -1356,8 +1362,8 @@ export default function Profile() {
             />
           </View>
 
-          {/* Language Picker */}
-          {isFeatureEnabled("language_option_enabled") && (
+          {/* Language Picker - Hidden for now */}
+          {/* {isFeatureEnabled("language_option_enabled") && (
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => setLanguagePickerVisible(true)}
@@ -1376,7 +1382,7 @@ export default function Profile() {
                 color={theme.colors.text.secondary}
               />
             </TouchableOpacity>
-          )}
+          )} */}
 
           {/* Notification Settings (Updated with direct updates) */}
           {isFeatureEnabled("push_notifications_enabled") && (
@@ -1792,9 +1798,9 @@ export default function Profile() {
         </View>
         )}
 
-        {/* Tutorial Section */}
+        {/* Help & Safety Section */}
         <View style={styles.settingsContainer}>
-          <Text style={styles.sectionTitle}>Help</Text>
+          <Text style={styles.sectionTitle}>Help & Safety</Text>
           <TouchableOpacity
             style={styles.settingRow}
             onPress={() => setTutorialVisible(true)}
@@ -1807,6 +1813,23 @@ export default function Profile() {
             </View>
             <Ionicons
               name="help-circle-outline"
+              size={24}
+              color={theme.colors.primary}
+            />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => setSafetyVisible(true)}
+          >
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingLabel}>Safety & Anonymity</Text>
+              <Text style={styles.settingDescription}>
+                Read our safety statement and policies
+              </Text>
+            </View>
+            <Ionicons
+              name="shield-checkmark-outline"
               size={24}
               color={theme.colors.primary}
             />
@@ -1834,17 +1857,23 @@ export default function Profile() {
         </View>
       </ScrollView>
       
-      {/* Language Picker Modal */}
-      <LanguagePicker 
+      {/* Language Picker Modal - Hidden for now */}
+      {/* <LanguagePicker 
         visible={languagePickerVisible}
         onClose={() => setLanguagePickerVisible(false)}
         changeLanguage={changeLanguage}
-      />
+      /> */}
       
       {/* Tutorial Modal */}
       <TutorialModal 
         visible={tutorialVisible}
         onClose={() => setTutorialVisible(false)}
+      />
+      
+      {/* Safety Modal */}
+      <SafetyModal
+        visible={safetyVisible}
+        onClose={() => setSafetyVisible(false)}
       />
     </KeyboardAvoidingView>
   )

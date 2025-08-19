@@ -1,16 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { createClient } from "@supabase/supabase-js"
 import "react-native-url-polyfill/auto"
+import { getOrCreateDeviceId } from "./security/deviceId"
+import { withRateLimit } from "./security/rateLimiter"
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || ""
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || ""
 
 /**
  * Helper function to get device ID from AsyncStorage
+ * Now uses secure device ID generation from security module
  */
 export async function getDeviceId(): Promise<string | null> {
   try {
-    return await AsyncStorage.getItem("device_id")
+    return await getOrCreateDeviceId()
   } catch (error) {
     console.error("Error retrieving device ID:", error)
     return null
@@ -19,6 +22,7 @@ export async function getDeviceId(): Promise<string | null> {
 
 /**
  * Store device ID in AsyncStorage
+ * @deprecated Use getOrCreateDeviceId() instead - it handles storage automatically
  */
 export async function storeDeviceId(deviceId: string): Promise<void> {
   try {
@@ -47,6 +51,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 /**
  * A middleware function that adds the device ID to the request headers.
+ * Now includes rate limiting for API protection.
  * Call this before making requests to Supabase that need the device ID.
  *
  * Example:
@@ -54,13 +59,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
  * const { data, error } = await supabaseWithDeviceId
  *   .from('users')
  *   .select('*')
+ * 
+ * With rate limiting for specific endpoints:
+ * const supabaseWithDeviceId = await withDeviceId(supabase, '/schedule/share')
  */
-export async function withDeviceId(supabaseClient = supabase) {
-  // Get device ID directly from AsyncStorage to avoid circular dependency
+export async function withDeviceId(supabaseClient = supabase, endpoint?: string) {
+  // Get secure device ID
   let deviceId: string | null = null
   try {
-    deviceId = await AsyncStorage.getItem("device_id")
-    // console.log("withDeviceId: Got device ID:", deviceId)
+    deviceId = await getOrCreateDeviceId()
   } catch (error) {
     console.error("Error retrieving device ID:", error)
   }
@@ -70,12 +77,8 @@ export async function withDeviceId(supabaseClient = supabase) {
     return supabaseClient
   }
 
-  // Create a new client with the device ID header for this request
-  // console.log(
-  //   "withDeviceId: Creating new Supabase client with device ID header:",
-  //   deviceId
-  // )
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  // Create a new client with the device ID header
+  const clientWithDeviceId = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       storage: AsyncStorage,
       autoRefreshToken: true,
@@ -88,4 +91,16 @@ export async function withDeviceId(supabaseClient = supabase) {
       }
     }
   })
+
+  // Apply rate limiting if endpoint is specified
+  if (endpoint) {
+    return withRateLimit(endpoint, async () => clientWithDeviceId, deviceId)
+      .then(client => client)
+      .catch(error => {
+        console.error(`Rate limit exceeded for ${endpoint}:`, error)
+        throw error
+      })
+  }
+
+  return clientWithDeviceId
 }

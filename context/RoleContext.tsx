@@ -4,6 +4,7 @@ import {
   UserRole,
   UserWithRole,
   getCurrentUserWithRole,
+  getUserPermissions,
   hasAllPermissions,
   hasAnyPermission,
   hasPermission
@@ -70,54 +71,104 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   const loadUser = async () => {
     try {
       setLoading(true)
+      console.log("RoleContext: Starting to load user role...")
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise<null>((resolve) => {
-        setTimeout(() => {
-          console.warn("User role fetch timed out after 5 seconds")
-          resolve(null)
-        }, 5000)
-      })
+      // Simpler approach - just try to get the user role
+      const userWithRole = await getCurrentUserWithRole()
       
-      // Race between getting user role and timeout
-      const userWithRole = await Promise.race([
-        getCurrentUserWithRole(),
-        timeoutPromise
-      ])
-      
-      setUser(userWithRole)
-      setIsAuthenticated(!!userWithRole)
+      if (userWithRole) {
+        console.log("RoleContext: User role loaded successfully:", userWithRole.role)
+        setUser(userWithRole)
+        setIsAuthenticated(true)
+      } else {
+        console.warn("RoleContext: No user role found, using default authentication state")
+        // If we have a session but no role, still treat as authenticated
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          console.log("RoleContext: Session exists, creating default user")
+          setUser({
+            id: session.user.id,
+            email: session.user.email || "",
+            role: UserRole.HOST_ADMIN,
+            permissions: getUserPermissions(UserRole.HOST_ADMIN)
+          })
+          setIsAuthenticated(true)
+        } else {
+          setUser(null)
+          setIsAuthenticated(false)
+        }
+      }
     } catch (error) {
-      console.error("Error loading user with role:", error)
-      setUser(null)
-      setIsAuthenticated(false)
+      console.error("RoleContext: Error loading user with role:", error)
+      // On error, check if we at least have a session
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          console.log("RoleContext: Error loading role, but session exists, using default")
+          setUser({
+            id: session.user.id,
+            email: session.user.email || "",
+            role: UserRole.HOST_ADMIN,
+            permissions: getUserPermissions(UserRole.HOST_ADMIN)
+          })
+          setIsAuthenticated(true)
+        } else {
+          setUser(null)
+          setIsAuthenticated(false)
+        }
+      } catch (fallbackError) {
+        console.error("RoleContext: Fallback error:", fallbackError)
+        setUser(null)
+        setIsAuthenticated(false)
+      }
     } finally {
+      console.log("RoleContext: Setting loading to false")
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    // Initial load
-    loadUser()
+    let mounted = true
+    
+    // Check initial session
+    const checkInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session && mounted) {
+        console.log("RoleContext: Initial session found, loading user")
+        setIsAuthenticated(true)
+        await loadUser()
+      } else if (mounted) {
+        console.log("RoleContext: No initial session")
+        setLoading(false)
+      }
+    }
+    
+    checkInitialSession()
 
     // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log("Auth state changed:", event, !!session)
+        if (!mounted) return
+        
+        console.log("RoleContext: Auth state changed:", event, !!session)
 
         if (event === "SIGNED_OUT" || !session) {
           setUser(null)
           setIsAuthenticated(false)
           setLoading(false)
-        } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          // Keep loading true while we fetch the user role
-          setLoading(true)
+        } else if (event === "SIGNED_IN" && session) {
+          console.log("RoleContext: User signed in, loading role")
+          setIsAuthenticated(true)
+          await loadUser()
+        } else if ((event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session && user) {
+          console.log("RoleContext: Token refreshed or user updated, reloading role")
           await loadUser()
         }
       }
     )
 
     return () => {
+      mounted = false
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe()
       }

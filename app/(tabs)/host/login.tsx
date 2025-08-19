@@ -17,6 +17,7 @@ import {
 } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
+import { authenticateWithDiscord, authenticateWithEmail } from "../../../lib/authService"
 import { supabase } from "../../../lib/supabase"
 
 export default function HostLogin() {
@@ -90,152 +91,20 @@ export default function HostLogin() {
           const provider_token = params.get("provider_token")
 
           if (access_token && refresh_token && provider_token) {
-            const { error: setSessionError } = await supabase.auth.setSession({
+            console.log("Discord Login: Running authentication flow...")
+            
+            const authResult = await authenticateWithDiscord(
               access_token,
-              refresh_token
-            })
-
-            if (setSessionError) {
-              console.error(
-                "Discord Login: Error setting session",
-                setSessionError
-              )
-              Alert.alert("Login Error", "Failed to set session after login.")
+              refresh_token,
+              provider_token
+            )
+            
+            if (authResult.success) {
+              console.log("Discord Login: Authentication successful, navigating to host")
+              router.replace("/(tabs)/host")
             } else {
-              console.log(
-                "Discord Login: Session set successfully. Verifying guild membership..."
-              )
-
-              // Get user from the now established session
-              const { data: sessionData, error: sessionError } =
-                await supabase.auth.getSession()
-
-              if (
-                sessionError ||
-                !sessionData.session ||
-                !sessionData.session.user
-              ) {
-                console.error(
-                  "Discord Login: Error retrieving user session after setting it",
-                  sessionError
-                )
-                Alert.alert(
-                  "Login Error",
-                  `Could not verify user session after login.\n${sessionError}`
-                )
-                await supabase.auth.signOut() // Clean up potentially partial session
-                return // Stop further execution in this block
-              }
-
-              // Now use the provider_token extracted from the URL fragment
-              if (!provider_token) {
-                // This check is now theoretically redundant if the outer check passed,
-                // but kept for safety.
-                console.error(
-                  "Discord Login: Provider token was not extracted from URL."
-                )
-                Alert.alert(
-                  "Login Error",
-                  "Missing Discord token for verification."
-                )
-                await supabase.auth.signOut()
-                return
-              }
-
-              // Use user.user_metadata.iss for the Discord API base URL if available,
-              // otherwise fall back to a default.
-              const discordApiBase = "https://discord.com/api/v10"
-              console.log(`Using Discord API Base: ${discordApiBase}`)
-
-              const discordHostServerId =
-                process.env.EXPO_PUBLIC_DISCORD_HOST_SERVER ??
-                "1282888358502334575"
-
-              if (!discordHostServerId) {
-                console.error(
-                  "Discord Login: EXPO_PUBLIC_DISCORD_HOST_SERVER environment variable is not set."
-                )
-                Alert.alert(
-                  "Configuration Error",
-                  "Host server ID is not configured. Please contact support."
-                )
-                await supabase.auth.signOut()
-                return
-              }
-
-              try {
-                const guildsResponse = await fetch(
-                  `${discordApiBase}/users/@me/guilds`,
-                  {
-                    headers: {
-                      Authorization: `Bearer ${provider_token}`
-                    }
-                  }
-                )
-
-                if (!guildsResponse.ok) {
-                  const errorText = await guildsResponse.text()
-                  throw new Error(
-                    `Failed to fetch guilds: ${guildsResponse.status} ${errorText}`
-                  )
-                  Alert.alert(
-                    "Discord Login Error",
-                    `Failed to fetch guilds: ${guildsResponse.status} ${errorText}`
-                  )
-                }
-
-                const guilds = await guildsResponse.json()
-                const isMember = guilds.some(
-                  (guild: any) => guild.id === discordHostServerId
-                )
-
-                if (isMember) {
-                  console.log(
-                    "Discord Login: User is a member of the host guild. Login approved."
-                  )
-                  // Optional: Fetch member details and update profile
-                  // try {
-                  //     const memberResponse = await fetch(`${discordApiBase}/users/@me/guilds/${discordHostServerId}/member`, {
-                  //         headers: { Authorization: `Bearer ${provider_token}` }
-                  //     });
-                  //     if (memberResponse.ok) {
-                  //         const memberDetails = await memberResponse.json();
-                  //         console.log("Discord Login: Fetched member details:", memberDetails.nick, memberDetails.roles);
-                  //         // Update Supabase profile here if needed
-                  //         // await supabase.from("profiles").update({ discord_roles: memberDetails.roles, discord_nickname: memberDetails.nick }).eq('id', user.id);
-                  //     } else {
-                  //          console.warn("Discord Login: Could not fetch member details.", memberResponse.status);
-                  //     }
-                  // } catch(memberError) {
-                  //     console.error("Discord Login: Error fetching member details:", memberError);
-                  // }
-                  
-                  // Navigate to host index immediately after successful login
-                  console.log("Discord Login: Navigating to host index page")
-                  router.replace("/(tabs)/host")
-                } else {
-                  console.log(
-                    "Discord Login: User is NOT a member of the host guild. Aborting login."
-                  )
-                  Alert.alert(
-                    "Access Denied",
-                    `You must be a member of the ICYPAA Host Discord server to log in here.\nServer ID: ${discordHostServerId}\nYour Servers: ${JSON.stringify(
-                      guilds
-                    )}`
-                  )
-                  await supabase.auth.signOut() // Sign out the user
-                }
-              } catch (guildError) {
-                console.error(
-                  "Discord Login: Error checking guild membership:",
-                  guildError
-                )
-                Alert.alert(
-                  "Verification Error",
-                  `Could not verify your Discord server membership. Please try again.\n${guildError}`
-                )
-                await supabase.auth.signOut() // Sign out on error
-              }
+              console.error("Discord Login: Authentication failed:", authResult.error)
+              Alert.alert("Login Error", authResult.error || "Authentication failed")
             }
           } else {
             console.warn(
@@ -271,18 +140,18 @@ export default function HostLogin() {
   // Sign in with Email/Password
   async function handleSignInWithEmail() {
     setEmailLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password
-    })
-
-    if (error) {
-      Alert.alert("Sign In Error", error.message)
-    } else {
-      // Navigate to host index after successful login
-      console.log("Email Login: Successful, navigating to host index")
+    console.log("Email Login: Running authentication flow...")
+    
+    const authResult = await authenticateWithEmail(email, password)
+    
+    if (authResult.success) {
+      console.log("Email Login: Authentication successful, navigating to host")
       router.replace("/(tabs)/host")
+    } else {
+      console.error("Email Login: Authentication failed:", authResult.error)
+      Alert.alert("Sign In Error", authResult.error || "Authentication failed")
     }
+    
     setEmailLoading(false)
   }
 

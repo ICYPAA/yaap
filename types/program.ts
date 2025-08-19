@@ -79,17 +79,12 @@ export type Event = {
   } | null
   // Optional link for promoted events
   link?: string
+  // Optional CTA link for event details modal
+  cta_link?: string
   // Accessibility and service features
-  services?: {
-    asl?: boolean // American Sign Language interpretation
-    spanish?: boolean // Spanish translation
-    french?: boolean // French translation
-    hmong?: boolean // Hmong translation
-    somali?: boolean // Somali translation
-    hybrid?: boolean // Hybrid meeting (in-person + virtual)
-    childcare?: boolean // Childcare available
-    wheelchair?: boolean // Wheelchair accessible
-  }
+  asl?: boolean // American Sign Language interpretation
+  hybrid?: boolean // Hybrid meeting (in-person + virtual)
+  languages?: string[] // Language translations available (e.g., ["ES", "SOM", "HMN"])
 }
 
 export type EventCategory = {

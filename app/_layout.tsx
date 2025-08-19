@@ -17,7 +17,12 @@ import { FeatureProvider } from "../context/FeatureContext"
 import { I18nProvider } from "../context/I18nContext"
 import { RoleProvider } from "../context/RoleContext"
 import { ThemeProvider, useTheme } from "../context/ThemeContext"
+import { TutorialModal } from "../components/TutorialModal"
+import { SafetyModal, useSafetyModal } from "../components/SafetyModal"
 import { supabase, withDeviceId } from "../lib/supabase"
+import { getOrCreateDeviceId } from "../lib/security/deviceId"
+import { checkAppIntegrity } from "../lib/security/integrity"
+import { getSessionManager } from "../lib/security/session"
 import { storeProgramDesign } from "../lib/theme"
 import { Program } from "../types/program"
 import linking from "./linking"
@@ -72,19 +77,41 @@ async function registerForPushNotificationsAsync() {
 
 function RootLayoutNav() {
   const { theme, isDarkMode } = useTheme()
+  const { shouldShow: shouldShowSafety, markAsViewed: markSafetyAsViewed } = useSafetyModal()
+  const [tutorialClosed, setTutorialClosed] = useState(false)
+  const [showSafetyModal, setShowSafetyModal] = useState(false)
+  
+  // Show safety modal after tutorial is closed (if needed)
+  useEffect(() => {
+    if (tutorialClosed && shouldShowSafety) {
+      // Small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        setShowSafetyModal(true)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [tutorialClosed, shouldShowSafety])
+  
+  const handleTutorialClose = () => {
+    setTutorialClosed(true)
+  }
+  
+  const handleSafetyClose = () => {
+    setShowSafetyModal(false)
+    markSafetyAsViewed()
+  }
 
-  // Log that we are attempting to use the linking config again
-  SentryLogger.captureMessage(
-    "RootLayoutNav: Attempting to pass linking config to Stack",
-    "debug",
-    {
+  // Debug logging removed - not needed in production
+  if (__DEV__) {
+    console.log("RootLayoutNav: Attempting to pass linking config to Stack", {
       hasLinkingConfig: !!linking,
       configKeys: linking ? Object.keys(linking) : null
-    }
-  )
+    })
+  }
 
   return (
-    <SafeAreaProvider>
+    <>
+      <SafeAreaProvider>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
       <Stack
         linking={linking}
@@ -106,7 +133,17 @@ function RootLayoutNav() {
         <Stack.Screen name="+not-found" options={{ title: "Oops!" }} />
       </Stack>
     </SafeAreaProvider>
-  )
+    
+    {/* Tutorial Modal - shows first on first app open */}
+    <TutorialModal onClose={handleTutorialClose} />
+    
+    {/* Safety Modal - shows after tutorial on first app open */}
+    <SafetyModal 
+      visible={showSafetyModal}
+      onClose={handleSafetyClose}
+      isInitialView={true}
+    />
+  </>)
 }
 
 export default function RootLayout() {
@@ -127,19 +164,9 @@ export default function RootLayout() {
     if (error) throw error
   }, [error])
 
-  // Function to get device identifier based on platform
+  // Function to get device identifier - now uses secure device ID
   const getIdentifier = async () => {
-    if (Platform.OS === "ios") {
-      let idfv = await Application.getIosIdForVendorAsync()
-      //console.log("iOS IDFV:", idfv)
-      return idfv
-    }
-    if (Platform.OS === "android") {
-      let androidId = Application.getAndroidId()
-      // console.log("Android ID:", androidId)
-      return androidId
-    }
-    return null
+    return await getOrCreateDeviceId()
   }
 
   useEffect(() => {
@@ -160,33 +187,8 @@ export default function RootLayout() {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       console.log(`RootLayout: Auth state changed: ${_event}`, !!currentSession)
-      const currentSegments = segments as string[]
-      const currentRoute =
-        currentSegments.length > 0 ? currentSegments.join("/") : ""
-      console.log(
-        `RootLayout: Current route on auth change: ${currentRoute || "(root)"}`
-      )
-
-      // Handle sign in events (including TOKEN_REFRESHED which happens after setSession)
-      if ((_event === "SIGNED_IN" || _event === "TOKEN_REFRESHED" || _event === "USER_UPDATED") && 
-          currentSession && 
-          currentRoute === "(tabs)/host/login") {
-        console.log(
-          `RootLayout: Redirecting from Login to Host Index on ${_event}`
-        )
-        router.replace("/(tabs)/host" as Href)
-      } else if (
-        _event === "SIGNED_OUT" &&
-        currentSegments[0] === "(tabs)" &&
-        currentSegments[1] === "host" &&
-        currentRoute !== "(tabs)/host/login"
-      ) {
-        console.log(
-          "RootLayout: Redirecting from Host Area to Login on SIGNED_OUT"
-        )
-        router.replace("/(tabs)/host/login" as Href)
-      }
-
+      
+      // Just update the session state, let individual layouts handle their own navigation
       setSession(currentSession)
     })
 
@@ -231,6 +233,20 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded && programLoaded) {
+      // Initialize security features
+      const initSecurity = async () => {
+        const sessionManager = getSessionManager()
+        await sessionManager.initialize()
+        
+        // Check app integrity (non-blocking)
+        checkAppIntegrity().then(result => {
+          if (!result.isValid && result.riskLevel === 'high') {
+            console.warn('App integrity check failed:', result.issues)
+          }
+        })
+      }
+      
+      initSecurity()
       SplashScreen.hideAsync()
 
       // Get device ID and update push token in user profile
@@ -313,9 +329,10 @@ export default function RootLayout() {
 
   // Log initial segments
   useEffect(() => {
-    SentryLogger.captureMessage("RootLayout: Initial segments", "debug", {
-      segments
-    })
+    // Debug logging removed - not needed in production
+    if (__DEV__) {
+      console.log("RootLayout: Initial segments", { segments })
+    }
   }, []) // Log only on initial mount
 
   // Initialize URL handler
@@ -325,11 +342,10 @@ export default function RootLayout() {
       // Log initial URL here as well for confirmation
       try {
         const initialUrl = await Linking.getInitialURL()
-        SentryLogger.captureMessage(
-          "RootLayout: initializeUrlHandler initial URL",
-          "debug",
-          { initialUrl: initialUrl || "null" }
-        )
+        // Debug logging removed - not needed in production
+        if (__DEV__) {
+          console.log("RootLayout: initializeUrlHandler initial URL", { initialUrl: initialUrl || "null" })
+        }
         if (initialUrl) {
           console.log("App opened with URL:", initialUrl)
           // Process the URL (our linking.tsx SHOULD handle this now)
@@ -451,8 +467,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     SentryLogger.init()
-    SentryLogger.captureMessage("App loaded", "info")
-    SentryLogger.captureError(error, { context: "RootLayout", error })
+    // Info message removed - not needed in production
+    console.log("App loaded")
   }, [])
 
   if (!loaded || !programLoaded) {

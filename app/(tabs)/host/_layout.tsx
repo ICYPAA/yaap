@@ -1,21 +1,46 @@
 import { Redirect, Stack, usePathname } from "expo-router"
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useRole } from "../../../context/RoleContext"
 import { useTheme } from "../../../context/ThemeContext"
+import { supabase } from "../../../lib/supabase"
 
 export default function HostLayout() {
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
   const { loading, isAuthenticated, canAccessHostTools } = useRole()
   const pathname = usePathname()
+  const [sessionChecked, setSessionChecked] = useState(false)
+  const [hasSession, setHasSession] = useState(false)
 
   // Check if current route is the login page
-  const isLoginPage = pathname === "/host/login"
+  const isLoginPage = pathname?.includes("/host/login")
 
-  // Show loading while checking authentication and roles
+  // Check session directly as a fallback
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setHasSession(!!session)
+      setSessionChecked(true)
+    })
+  }, [])
+
+  // Listen for auth changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasSession(!!session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Log the current state
+  console.log(`HostLayout: loading=${loading}, isAuthenticated=${isAuthenticated}, isLoginPage=${isLoginPage}, pathname=${pathname}`)
+
+  // Always show loading while checking roles for authenticated users
+  // This ensures we have the role data before showing any host content
   if (loading) {
+    console.log("HostLayout: Showing loading screen")
     return (
       <View style={styles(theme).loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -24,13 +49,23 @@ export default function HostLayout() {
     )
   }
 
+  // After loading is complete, we know the authentication and role state
+  const isAuthed = isAuthenticated
+
   // If in debug mode, we don't redirect to login
   if (isDebugMode) {
+    console.log("HostLayout: Debug mode, allowing access")
     // Allow access in debug mode
-  } else if (!isAuthenticated && !isLoginPage) {
+  } else if (!isAuthed && !isLoginPage) {
+    console.log("HostLayout: Not authenticated, redirecting to login")
     // Redirect to login if not authenticated and not already on login page
     return <Redirect href="/host/login" />
-  } else if (isAuthenticated && !canAccessHostTools() && !isLoginPage) {
+  } else if (isAuthed && isLoginPage) {
+    console.log("HostLayout: Authenticated and on login page, redirecting to host index")
+    // If authenticated and on login page, redirect to host index
+    return <Redirect href="/host" />
+  } else if (isAuthed && !canAccessHostTools() && !isLoginPage) {
+    console.log("HostLayout: Authenticated but no host access, redirecting to not-authorized")
     // Redirect to unauthorized if authenticated but doesn't have host access
     return <Redirect href="/not-authorized" />
   }
