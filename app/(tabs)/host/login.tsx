@@ -17,13 +17,18 @@ import {
 } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
-import { authenticateWithDiscord, authenticateWithEmail } from "../../../lib/authService"
+import { useRole } from "../../../context/RoleContext"
+import {
+  authenticateWithDiscord,
+  authenticateWithEmail
+} from "../../../lib/authService"
 import { supabase } from "../../../lib/supabase"
 
 export default function HostLogin() {
   const router = useRouter()
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
+  const { setUserFromLogin } = useRole()
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -59,9 +64,12 @@ export default function HostLogin() {
   const handleDiscordLogin = async () => {
     try {
       setLoading(true)
-      console.log("Discord Login: Starting...")
-      console.log(`Discord Login: Redirect URI: ${redirectUri}`)
+      console.log("=== Discord Login Process Started ===")
+      console.log("Timestamp:", new Date().toISOString())
+      console.log("Platform:", Platform.OS)
+      console.log("Redirect URI:", redirectUri)
 
+      console.log("Step 1: Initiating OAuth with Supabase...")
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "discord",
         options: {
@@ -70,49 +78,96 @@ export default function HostLogin() {
         }
       })
 
-      if (error) throw error
-      console.log(`Discord Login: OAuth URL: ${data?.url}`)
+      if (error) {
+        console.error("OAuth initiation error:", error)
+        throw error
+      }
+
+      console.log("Step 2: OAuth URL received:", data?.url ? "Yes" : "No")
+      if (data?.url) {
+        console.log("OAuth URL length:", data.url.length)
+        console.log("OAuth URL domain:", new URL(data.url).hostname)
+      }
 
       if (data?.url) {
+        console.log("Step 3: Opening WebBrowser for authentication...")
         const result = await WebBrowser.openAuthSessionAsync(
           data.url,
           redirectUri
         )
-        console.log("Discord Login: Auth result:", JSON.stringify(result))
+        console.log("Step 4: WebBrowser result received")
+        console.log("Result type:", result.type)
+        console.log(
+          "Result URL present:",
+          result.type === "success" && result.url ? "Yes" : "No"
+        )
 
         if (result.type === "success") {
-          console.log(
-            "Discord Login: WebBrowser success, attempting to set session..."
-          )
-          // Extract tokens from the URL fragment
-          const params = new URLSearchParams(result.url.split("#")[1])
-          const access_token = params.get("access_token")
-          const refresh_token = params.get("refresh_token")
-          const provider_token = params.get("provider_token")
+          console.log("Step 5: Processing success response...")
+          console.log("Full URL:", result.url)
 
-          if (access_token && refresh_token && provider_token) {
-            console.log("Discord Login: Running authentication flow...")
-            
-            const authResult = await authenticateWithDiscord(
-              access_token,
-              refresh_token,
-              provider_token
+          // Extract tokens from the URL fragment
+          const urlParts = result.url.split("#")
+          console.log("URL has fragment:", urlParts.length > 1 ? "Yes" : "No")
+
+          if (urlParts.length > 1) {
+            const params = new URLSearchParams(urlParts[1])
+            const access_token = params.get("access_token")
+            const refresh_token = params.get("refresh_token")
+            const provider_token = params.get("provider_token")
+
+            console.log("Step 6: Token extraction results:")
+            console.log("- Access token:", access_token ? "Found" : "Missing")
+            console.log("- Refresh token:", refresh_token ? "Found" : "Missing")
+            console.log(
+              "- Provider token:",
+              provider_token ? "Found" : "Missing"
             )
-            
-            if (authResult.success) {
-              console.log("Discord Login: Authentication successful, navigating to host")
-              router.replace("/(tabs)/host")
+
+            if (access_token && refresh_token && provider_token) {
+              console.log(
+                "Step 7: All tokens found, running authentication flow..."
+              )
+
+              const authResult = await authenticateWithDiscord(
+                access_token,
+                refresh_token,
+                provider_token
+              )
+
+              console.log(
+                "Step 8: Authentication result:",
+                authResult.success ? "SUCCESS" : "FAILED"
+              )
+
+              if (authResult.success && authResult.user) {
+                console.log("Step 9: Setting user in RoleContext...")
+                setUserFromLogin(authResult.user)
+                console.log("Step 10: Navigation to host screen...")
+                router.replace("/(tabs)/host")
+              } else {
+                console.error(
+                  "Authentication failed with error:",
+                  authResult.error
+                )
+                Alert.alert(
+                  "Login Error",
+                  authResult.error || "Authentication failed"
+                )
+              }
             } else {
-              console.error("Discord Login: Authentication failed:", authResult.error)
-              Alert.alert("Login Error", authResult.error || "Authentication failed")
+              console.error("Step 6 FAILED: Missing required tokens")
+              console.error("URL fragment content:", urlParts[1])
+              Alert.alert(
+                "Login Error",
+                "Could not retrieve all required login tokens from Discord response."
+              )
             }
           } else {
-            console.warn(
-              "Discord Login: Tokens (access, refresh, or provider) not found in redirect URL."
-            )
+            console.error("Step 5 FAILED: No URL fragment found in response")
             Alert.alert(
               "Login Error",
-              "Could not retrieve all required login tokens."
+              "Invalid response format from Discord authentication."
             )
           }
         } else if (result.type === "cancel" || result.type === "dismiss") {
@@ -141,17 +196,19 @@ export default function HostLogin() {
   async function handleSignInWithEmail() {
     setEmailLoading(true)
     console.log("Email Login: Running authentication flow...")
-    
+
     const authResult = await authenticateWithEmail(email, password)
-    
-    if (authResult.success) {
-      console.log("Email Login: Authentication successful, navigating to host")
+
+    if (authResult.success && authResult.user) {
+      console.log("Email Login: Authentication successful, setting user in RoleContext")
+      setUserFromLogin(authResult.user)
+      console.log("Email Login: Navigating to host")
       router.replace("/(tabs)/host")
     } else {
       console.error("Email Login: Authentication failed:", authResult.error)
       Alert.alert("Sign In Error", authResult.error || "Authentication failed")
     }
-    
+
     setEmailLoading(false)
   }
 

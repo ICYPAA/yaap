@@ -46,6 +46,7 @@ yarn-error.log*
 .vscode
 
 ios/
+android/
 
 yaap-59126-firebase-*
 @the-mindful-pug__icypaa.jks

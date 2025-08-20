@@ -6,7 +6,9 @@ import {
   Dimensions,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView
+  SafeAreaView,
+  Platform,
+  StatusBar
 } from "react-native"
 import { useTheme } from "../context/ThemeContext"
 import { useFeatures } from "../context/FeatureContext"
@@ -132,9 +134,19 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({ onClose }) =
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
+      <View style={[
+        styles.header,
+        Platform.OS === 'android' && { marginTop: StatusBar.currentHeight || 0 }
+      ]}>
         {!isLastPage && (
-          <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+          <TouchableOpacity 
+            onPress={handleSkip} 
+            style={[
+              styles.skipButton,
+              Platform.OS === 'android' && styles.skipButtonAndroid
+            ]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Text style={[styles.skipText, { color: theme.colors.text.secondary }]}>
               Skip
             </Text>
@@ -217,6 +229,11 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     padding: 10
+  },
+  skipButtonAndroid: {
+    padding: 15,
+    position: 'relative',
+    zIndex: 10
   },
   skipText: {
     fontSize: 16,

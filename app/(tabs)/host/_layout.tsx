@@ -1,6 +1,6 @@
 import { Redirect, Stack, usePathname } from "expo-router"
 import React, { useEffect, useState } from "react"
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, View, Text, ActivityIndicator } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useRole } from "../../../context/RoleContext"
 import { useTheme } from "../../../context/ThemeContext"
@@ -27,7 +27,9 @@ export default function HostLayout() {
 
   // Listen for auth changes
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setHasSession(!!session)
     })
 
@@ -35,11 +37,13 @@ export default function HostLayout() {
   }, [])
 
   // Log the current state
-  console.log(`HostLayout: loading=${loading}, isAuthenticated=${isAuthenticated}, isLoginPage=${isLoginPage}, pathname=${pathname}`)
+  console.log(
+    `HostLayout: loading=${loading}, isAuthenticated=${isAuthenticated}, isLoginPage=${isLoginPage}, pathname=${pathname}`
+  )
 
   // Always show loading while checking roles for authenticated users
   // This ensures we have the role data before showing any host content
-  if (loading) {
+  if (loading && !isLoginPage) {
     console.log("HostLayout: Showing loading screen")
     return (
       <View style={styles(theme).loadingContainer}>
@@ -61,11 +65,15 @@ export default function HostLayout() {
     // Redirect to login if not authenticated and not already on login page
     return <Redirect href="/host/login" />
   } else if (isAuthed && isLoginPage) {
-    console.log("HostLayout: Authenticated and on login page, redirecting to host index")
+    console.log(
+      "HostLayout: Authenticated and on login page, redirecting to host index"
+    )
     // If authenticated and on login page, redirect to host index
     return <Redirect href="/host" />
   } else if (isAuthed && !canAccessHostTools() && !isLoginPage) {
-    console.log("HostLayout: Authenticated but no host access, redirecting to not-authorized")
+    console.log(
+      "HostLayout: Authenticated but no host access, redirecting to not-authorized"
+    )
     // Redirect to unauthorized if authenticated but doesn't have host access
     return <Redirect href="/not-authorized" />
   }

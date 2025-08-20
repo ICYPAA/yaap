@@ -33,6 +33,9 @@ interface RoleContextType {
 
   // Refresh user data
   refreshUser: () => Promise<void>
+  
+  // Set user from login flow
+  setUserFromLogin: (user: UserWithRole) => void
 }
 
 const RoleContext = createContext<RoleContextType>({
@@ -48,7 +51,8 @@ const RoleContext = createContext<RoleContextType>({
   isHostAdmin: () => false,
   isHostMember: () => false,
   canAccessHostTools: () => false,
-  refreshUser: async () => {}
+  refreshUser: async () => {},
+  setUserFromLogin: () => {}
 })
 
 export const useRole = () => {
@@ -73,7 +77,6 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
       setLoading(true)
       console.log("RoleContext: Starting to load user role...")
       
-      // Simpler approach - just try to get the user role
       const userWithRole = await getCurrentUserWithRole()
       
       if (userWithRole) {
@@ -81,61 +84,36 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
         setUser(userWithRole)
         setIsAuthenticated(true)
       } else {
-        console.warn("RoleContext: No user role found, using default authentication state")
-        // If we have a session but no role, still treat as authenticated
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          console.log("RoleContext: Session exists, creating default user")
-          setUser({
-            id: session.user.id,
-            email: session.user.email || "",
-            role: UserRole.HOST_ADMIN,
-            permissions: getUserPermissions(UserRole.HOST_ADMIN)
-          })
-          setIsAuthenticated(true)
-        } else {
-          setUser(null)
-          setIsAuthenticated(false)
-        }
-      }
-    } catch (error) {
-      console.error("RoleContext: Error loading user with role:", error)
-      // On error, check if we at least have a session
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          console.log("RoleContext: Error loading role, but session exists, using default")
-          setUser({
-            id: session.user.id,
-            email: session.user.email || "",
-            role: UserRole.HOST_ADMIN,
-            permissions: getUserPermissions(UserRole.HOST_ADMIN)
-          })
-          setIsAuthenticated(true)
-        } else {
-          setUser(null)
-          setIsAuthenticated(false)
-        }
-      } catch (fallbackError) {
-        console.error("RoleContext: Fallback error:", fallbackError)
+        console.log("RoleContext: No user role found")
         setUser(null)
         setIsAuthenticated(false)
       }
+    } catch (error) {
+      console.error("RoleContext: Error loading user with role:", error)
+      setUser(null)
+      setIsAuthenticated(false)
     } finally {
-      console.log("RoleContext: Setting loading to false")
+      console.log("RoleContext: Setting loading to false - COMPLETE")
       setLoading(false)
     }
+  }
+
+  // Add a method to set user directly from login flow
+  const setUserFromLogin = (userWithRole: UserWithRole) => {
+    console.log("RoleContext: Setting user from login:", userWithRole.role)
+    setUser(userWithRole)
+    setIsAuthenticated(true)
+    setLoading(false)
   }
 
   useEffect(() => {
     let mounted = true
     
-    // Check initial session
+    // Check initial session on mount
     const checkInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session && mounted) {
         console.log("RoleContext: Initial session found, loading user")
-        setIsAuthenticated(true)
         await loadUser()
       } else if (mounted) {
         console.log("RoleContext: No initial session")
@@ -145,7 +123,8 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     
     checkInitialSession()
 
-    // Listen for auth state changes
+    // Listen for auth state changes - but DON'T reload on SIGNED_IN
+    // The login flow will handle setting the user
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
@@ -157,9 +136,9 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
           setIsAuthenticated(false)
           setLoading(false)
         } else if (event === "SIGNED_IN" && session) {
-          console.log("RoleContext: User signed in, loading role")
+          // DON'T load user here - let the login flow handle it
+          console.log("RoleContext: SIGNED_IN event - waiting for login flow to complete")
           setIsAuthenticated(true)
-          await loadUser()
         } else if ((event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session && user) {
           console.log("RoleContext: Token refreshed or user updated, reloading role")
           await loadUser()
@@ -202,19 +181,17 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   }
 
   // Shortcut functions
-  const isSuperAdmin = (): boolean => isRole(UserRole.SUPER_ADMIN)
-  const isHostAdmin = (): boolean => isRole(UserRole.HOST_ADMIN)
-  const isHostMember = (): boolean => isRole(UserRole.HOST_MEMBER)
+  const isSuperAdmin = (): boolean => isRole(UserRole.ADMIN)
+  const isHostAdmin = (): boolean => isRole(UserRole.ADMIN) || isRole(UserRole.STEERING) || isRole(UserRole.ADVISORY)
+  const isHostMember = (): boolean => isRole(UserRole.HOST)
 
   const canAccessHostTools = (): boolean => {
+    // All authenticated users with a role can access host tools
     return isAnyRole([
-      UserRole.SUPER_ADMIN,
-      UserRole.HOST_ADMIN,
-      UserRole.HOST_MEMBER,
-      UserRole.VOLUNTEER_COORDINATOR,
-      UserRole.ACCESSIBILITY_COORDINATOR,
-      UserRole.HOSPITALITY_COORDINATOR,
-      UserRole.SUPPORT_COORDINATOR
+      UserRole.ADMIN,
+      UserRole.STEERING,
+      UserRole.ADVISORY,
+      UserRole.HOST
     ])
   }
 
@@ -235,7 +212,8 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     isHostAdmin,
     isHostMember,
     canAccessHostTools,
-    refreshUser
+    refreshUser,
+    setUserFromLogin
   }
 
   return (

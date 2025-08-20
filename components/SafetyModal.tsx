@@ -8,7 +8,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Platform,
+  KeyboardAvoidingView
 } from "react-native"
 import { useTheme } from "../context/ThemeContext"
 
@@ -69,7 +71,7 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
       backgroundColor: theme.colors.surface,
       borderRadius: 16,
       margin: 20,
-      maxHeight: "85%",
+      maxHeight: Platform.OS === 'android' ? "80%" : "85%",
       width: "90%",
       shadowColor: "#000",
       shadowOffset: {
@@ -79,6 +81,11 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
       shadowOpacity: 0.25,
       shadowRadius: 4,
       elevation: 5
+    },
+    modalContentAndroid: {
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column'
     },
     header: {
       flexDirection: "row",
@@ -98,7 +105,12 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
       padding: 4
     },
     scrollContent: {
-      padding: 20
+      flex: Platform.OS === 'android' ? 1 : undefined
+    },
+    scrollContentInner: {
+      padding: 20,
+      paddingBottom: Platform.OS === 'android' ? 30 : 20,
+      flexGrow: Platform.OS === 'ios' ? 1 : undefined
     },
     sectionTitle: {
       fontSize: 18,
@@ -135,7 +147,11 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
       padding: 20,
       borderTopWidth: 1,
       borderTopColor: theme.colors.border,
-      alignItems: "center"
+      alignItems: "center",
+      backgroundColor: theme.colors.surface,
+      position: Platform.OS === 'android' ? 'relative' : undefined,
+      borderBottomLeftRadius: 16,
+      borderBottomRightRadius: 16
     },
     acknowledgeButton: {
       backgroundColor: theme.colors.primary,
@@ -162,8 +178,11 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
       visible={visible}
       onRequestClose={handleClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+      <KeyboardAvoidingView 
+        style={styles.modalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={[styles.modalContent, Platform.OS === 'android' && styles.modalContentAndroid]}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Safety & Anonymity</Text>
             {!isInitialView && (
@@ -180,7 +199,11 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
             )}
           </View>
 
-          <ScrollView style={styles.scrollContent}>
+          <ScrollView 
+            style={styles.scrollContent}
+            showsVerticalScrollIndicator={Platform.OS === 'android'}
+            contentContainerStyle={styles.scrollContentInner}
+          >
             <View style={styles.safetyIcon}>
               <Ionicons
                 name="shield-checkmark"
@@ -257,7 +280,7 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
             <Text style={styles.bodyText}>
               If you need assistance or need to report a safety concern:
             </Text>
-            <View style={{ marginLeft: 16 }}>
+            <View style={{ marginLeft: 16, marginBottom: 12 }}>
               <Text style={[styles.bodyText, { marginBottom: 8 }]}>
                 • Use the{" "}
                 <Text style={{ fontWeight: "600" }}>Support Chat</Text> in the
@@ -273,7 +296,7 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
                 authorities
               </Text>
             </View>
-            <Text style={[styles.bodyText, { fontStyle: "italic" }]}>
+            <Text style={[styles.bodyText, { fontStyle: "italic", marginBottom: Platform.OS === 'android' ? 20 : 12 }]}>
               Remember: Your safety is our priority. Speaking up about safety
               concerns is encouraged and supported.
             </Text>
@@ -290,7 +313,7 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }

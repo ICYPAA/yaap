@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons"
 import React, { useState } from "react"
 import {
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -43,13 +44,20 @@ export const LanguagePicker: React.FC<LanguagePickerProps> = ({
     }
   }
 
+  // Workaround for React Native 0.76.9 Modal crash on Android
+  const modalProps: any = {
+    visible: visible,
+    animationType: "slide",
+    onRequestClose: onClose
+  }
+  
+  // Only add presentationStyle on iOS
+  if (Platform.OS === "ios") {
+    modalProps.presentationStyle = "pageSheet"
+  }
+
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
+    <Modal {...modalProps}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Select Language</Text>

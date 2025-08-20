@@ -1,28 +1,27 @@
 import SentryLogger from "@/lib/sentryLogging"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Session } from "@supabase/supabase-js"
-import * as Application from "expo-application"
 import { useFonts } from "expo-font"
 import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
-import { Href, Stack, useRouter, useSegments } from "expo-router"
+import { Stack, useRouter, useSegments } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { StatusBar } from "expo-status-bar"
 import React, { useEffect, useRef, useState } from "react"
 import { AppState, Platform } from "react-native"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
+import { SafetyModal, useSafetyModal } from "../components/SafetyModal"
+import { TutorialModal } from "../components/TutorialModal"
 import { DebugProvider } from "../context/DebugContext"
 import { FeatureProvider } from "../context/FeatureContext"
 import { I18nProvider } from "../context/I18nContext"
 import { RoleProvider } from "../context/RoleContext"
 import { ThemeProvider, useTheme } from "../context/ThemeContext"
-import { TutorialModal } from "../components/TutorialModal"
-import { SafetyModal, useSafetyModal } from "../components/SafetyModal"
-import { supabase, withDeviceId } from "../lib/supabase"
 import { getOrCreateDeviceId } from "../lib/security/deviceId"
 import { checkAppIntegrity } from "../lib/security/integrity"
 import { getSessionManager } from "../lib/security/session"
+import { supabase, withDeviceId } from "../lib/supabase"
 import { storeProgramDesign } from "../lib/theme"
 import { Program } from "../types/program"
 import linking from "./linking"
@@ -52,15 +51,38 @@ function handleRegistrationError(errorMessage: string) {
 async function registerForPushNotificationsAsync() {
   let token
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#FF231F7C" // Consider using theme color
-    })
+    try {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C" // Consider using theme color
+      })
+    } catch (channelError) {
+      console.error(
+        "Error setting up Android notification channel:",
+        channelError
+      )
+      // Continue execution even if channel setup fails
+    }
   }
 
   try {
+    // Check if we have permissions first
+    const { status: existingStatus } = await Notifications.getPermissionsAsync()
+    let finalStatus = existingStatus
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync()
+      finalStatus = status
+    }
+
+    if (finalStatus !== "granted") {
+      console.log("Push notification permissions not granted")
+      alert(`Push notification permissions not granted`)
+      return null
+    }
+
     token = (
       await Notifications.getExpoPushTokenAsync({
         projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
@@ -77,10 +99,11 @@ async function registerForPushNotificationsAsync() {
 
 function RootLayoutNav() {
   const { theme, isDarkMode } = useTheme()
-  const { shouldShow: shouldShowSafety, markAsViewed: markSafetyAsViewed } = useSafetyModal()
+  const { shouldShow: shouldShowSafety, markAsViewed: markSafetyAsViewed } =
+    useSafetyModal()
   const [tutorialClosed, setTutorialClosed] = useState(false)
   const [showSafetyModal, setShowSafetyModal] = useState(false)
-  
+
   // Show safety modal after tutorial is closed (if needed)
   useEffect(() => {
     if (tutorialClosed && shouldShowSafety) {
@@ -91,11 +114,11 @@ function RootLayoutNav() {
       return () => clearTimeout(timer)
     }
   }, [tutorialClosed, shouldShowSafety])
-  
+
   const handleTutorialClose = () => {
     setTutorialClosed(true)
   }
-  
+
   const handleSafetyClose = () => {
     setShowSafetyModal(false)
     markSafetyAsViewed()
@@ -112,38 +135,39 @@ function RootLayoutNav() {
   return (
     <>
       <SafeAreaProvider>
-      <StatusBar style={isDarkMode ? "light" : "dark"} />
-      <Stack
-        linking={linking}
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: theme.colors.background
-          },
-          headerTintColor: theme.colors.text.primary,
-          headerTitleStyle: {
-            fontWeight: "bold"
-          },
-          contentStyle: {
-            backgroundColor: theme.colors.background
-          }
-        }}
-      >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" options={{ title: "Oops!" }} />
-      </Stack>
-    </SafeAreaProvider>
-    
-    {/* Tutorial Modal - shows first on first app open */}
-    <TutorialModal onClose={handleTutorialClose} />
-    
-    {/* Safety Modal - shows after tutorial on first app open */}
-    <SafetyModal 
-      visible={showSafetyModal}
-      onClose={handleSafetyClose}
-      isInitialView={true}
-    />
-  </>)
+        <StatusBar style={isDarkMode ? "light" : "dark"} />
+        <Stack
+          linking={linking}
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: theme.colors.background
+            },
+            headerTintColor: theme.colors.text.primary,
+            headerTitleStyle: {
+              fontWeight: "bold"
+            },
+            contentStyle: {
+              backgroundColor: theme.colors.background
+            }
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" options={{ title: "Oops!" }} />
+        </Stack>
+      </SafeAreaProvider>
+
+      {/* Tutorial Modal - shows first on first app open */}
+      <TutorialModal onClose={handleTutorialClose} />
+
+      {/* Safety Modal - shows after tutorial on first app open */}
+      <SafetyModal
+        visible={showSafetyModal}
+        onClose={handleSafetyClose}
+        isInitialView={true}
+      />
+    </>
+  )
 }
 
 export default function RootLayout() {
@@ -187,7 +211,7 @@ export default function RootLayout() {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       console.log(`RootLayout: Auth state changed: ${_event}`, !!currentSession)
-      
+
       // Just update the session state, let individual layouts handle their own navigation
       setSession(currentSession)
     })
@@ -213,6 +237,7 @@ export default function RootLayout() {
 
         if (error) {
           console.error("Error fetching program data:", error)
+          setProgramLoaded(true)
           return
         }
 
@@ -237,15 +262,15 @@ export default function RootLayout() {
       const initSecurity = async () => {
         const sessionManager = getSessionManager()
         await sessionManager.initialize()
-        
+
         // Check app integrity (non-blocking)
-        checkAppIntegrity().then(result => {
-          if (!result.isValid && result.riskLevel === 'high') {
-            console.warn('App integrity check failed:', result.issues)
+        checkAppIntegrity().then((result) => {
+          if (!result.isValid && result.riskLevel === "high") {
+            console.warn("App integrity check failed:", result.issues)
           }
         })
       }
-      
+
       initSecurity()
       SplashScreen.hideAsync()
 
@@ -344,7 +369,9 @@ export default function RootLayout() {
         const initialUrl = await Linking.getInitialURL()
         // Debug logging removed - not needed in production
         if (__DEV__) {
-          console.log("RootLayout: initializeUrlHandler initial URL", { initialUrl: initialUrl || "null" })
+          console.log("RootLayout: initializeUrlHandler initial URL", {
+            initialUrl: initialUrl || "null"
+          })
         }
         if (initialUrl) {
           console.log("App opened with URL:", initialUrl)
@@ -427,10 +454,10 @@ export default function RootLayout() {
 
   // Setup schedule polling
   useEffect(() => {
+    if (!loaded || !programLoaded) return
+
     // Initial fetch
-    if (loaded && programLoaded) {
-      fetchAndStoreUserSchedule()
-    }
+    fetchAndStoreUserSchedule()
 
     // Setup AppState listener to handle app going to background/foreground
     const subscription = AppState.addEventListener("change", (nextAppState) => {
@@ -446,14 +473,12 @@ export default function RootLayout() {
     })
 
     // Start polling when component mounts
-    if (loaded && programLoaded) {
-      schedulePollingInterval.current = setInterval(() => {
-        if (appState.current === "active") {
-          // console.log("Polling user schedule")
-          fetchAndStoreUserSchedule()
-        }
-      }, 5000) // Poll every 5 seconds
-    }
+    schedulePollingInterval.current = setInterval(() => {
+      if (appState.current === "active") {
+        // console.log("Polling user schedule")
+        fetchAndStoreUserSchedule()
+      }
+    }, 5000) // Poll every 5 seconds
 
     // Cleanup function
     return () => {

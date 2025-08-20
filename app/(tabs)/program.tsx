@@ -1817,18 +1817,31 @@ const DayScheduleCard = ({
     setCollapsedCategories((prev) => ({ ...prev, [category]: !prev[category] }))
   }
 
-  // Filter based on the category title (item.type)
+  // Filter based on the category title (item.type) or featured status
   const filteredItems = useMemo(() => {
-    return items.filter(
-      (item) =>
-        activeFilter === "all" ||
-        item.type.toLowerCase() === activeFilter.toLowerCase()
-    )
-  }, [items, activeFilter])
+    if (activeFilter === "all") {
+      return items
+    } else if (activeFilter === "featured") {
+      // Filter for featured/promoted events
+      return items.filter(item => promoteIds?.includes(item.id))
+    } else {
+      // Filter by category type
+      return items.filter(
+        (item) => item.type.toLowerCase() === activeFilter.toLowerCase()
+      )
+    }
+  }, [items, activeFilter, promoteIds])
 
   // Group filtered items by category
   const groupedByCategory = useMemo(() => {
-    // First, group by category
+    // If showing featured items, group them under "Featured Events"
+    if (activeFilter === "featured") {
+      return filteredItems.length > 0 
+        ? { "Featured Events": filteredItems }
+        : {}
+    }
+    
+    // Otherwise, group by category as normal
     const grouped = filteredItems.reduce((acc, item) => {
       const category = item.type
       if (!acc[category]) {
@@ -1841,8 +1854,8 @@ const DayScheduleCard = ({
     // Sort categories in the specified order
     const orderedCategories: Record<string, DisplayScheduleItem[]> = {}
 
-    // Priority categories in order
-    const priorityOrder = ["Main Meeting", "Speaker", "Panel", "Entertainment", "Marathon"]
+    // Priority categories in order (Featured first if it exists)
+    const priorityOrder = ["Featured Events", "Main Meeting", "Speaker", "Panel", "Entertainment", "Marathon"]
 
     // First add priority categories if they exist
     priorityOrder.forEach((category) => {
@@ -1860,7 +1873,7 @@ const DayScheduleCard = ({
       })
 
     return orderedCategories
-  }, [filteredItems])
+  }, [filteredItems, activeFilter])
 
   // Sort each category's items by time
   Object.keys(groupedByCategory).forEach((category) => {
@@ -3089,9 +3102,10 @@ export default function Program() {
   // Generate dynamic filter options from categories
   const filterOptions = useMemo(() => {
     const defaultOption = { id: "all", label: "All Events" }
+    const featuredOption = { id: "featured", label: "Featured" }
 
     if (!categories || categories.length === 0) {
-      return [defaultOption]
+      return [defaultOption, featuredOption]
     }
 
     // Create filter options from actual categories
@@ -3100,7 +3114,7 @@ export default function Program() {
       label: cat.title
     }))
 
-    return [defaultOption, ...categoryOptions]
+    return [defaultOption, featuredOption, ...categoryOptions]
   }, [categories])
 
   // Add onScroll handler for collapsible header

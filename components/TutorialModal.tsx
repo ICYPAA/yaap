@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import { Modal, Platform } from "react-native"
+import { Modal, Platform, View } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { TutorialCarousel } from "./TutorialCarousel"
 
@@ -16,14 +16,17 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
 }) => {
   const [internalVisible, setInternalVisible] = useState(false)
   const [hasCheckedTutorial, setHasCheckedTutorial] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
 
   // Check if tutorial has been seen before
   useEffect(() => {
     const checkTutorialSeen = async () => {
       try {
         const seen = await AsyncStorage.getItem(TUTORIAL_SEEN_KEY)
-        if (seen !== "true" && externalVisible === undefined) {
+        console.log("Tutorial seen status:", seen)
+        if (seen !== "true" && externalVisible === undefined && !isClosing) {
           // First time opening the app
+          console.log("Showing tutorial for first time")
           setInternalVisible(true)
         }
         setHasCheckedTutorial(true)
@@ -33,25 +36,48 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       }
     }
 
-    if (!hasCheckedTutorial) {
+    if (!hasCheckedTutorial && !isClosing) {
       checkTutorialSeen()
     }
-  }, [hasCheckedTutorial, externalVisible])
+  }, [hasCheckedTutorial, externalVisible, isClosing])
 
   const isVisible = externalVisible !== undefined ? externalVisible : internalVisible
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    // Prevent double triggering
+    if (isClosing) return
+    
+    setIsClosing(true)
     setInternalVisible(false)
+    
+    // Ensure the tutorial is marked as seen
+    try {
+      await AsyncStorage.setItem(TUTORIAL_SEEN_KEY, "true")
+      console.log("Tutorial marked as seen in modal close handler")
+    } catch (error) {
+      console.error("Error marking tutorial as seen:", error)
+    }
+    
     externalOnClose?.()
   }
 
+  // Workaround for React Native 0.76.9 Modal crash on Android
+  // Using transparent prop and avoiding presentationStyle on Android
+  const modalProps: any = {
+    visible: isVisible,
+    animationType: "slide",
+    statusBarTranslucent: true,
+    transparent: false,
+    onRequestClose: handleClose // Required for Android
+  }
+  
+  // Only add presentationStyle on iOS
+  if (Platform.OS === "ios") {
+    modalProps.presentationStyle = "fullScreen"
+  }
+
   return (
-    <Modal
-      visible={isVisible}
-      animationType="slide"
-      presentationStyle={Platform.OS === "ios" ? "fullScreen" : "default"}
-      statusBarTranslucent
-    >
+    <Modal {...modalProps}>
       <TutorialCarousel onClose={handleClose} />
     </Modal>
   )

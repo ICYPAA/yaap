@@ -2,14 +2,10 @@ import { supabase } from "./supabase"
 
 // Define available roles and permissions
 export enum UserRole {
-  SUPER_ADMIN = "super_admin",
+  ADMIN = "admin",
   STEERING = "steering",
-  HOST_ADMIN = "host_admin",
-  HOST_MEMBER = "host_member",
-  VOLUNTEER_COORDINATOR = "volunteer_coordinator",
-  ACCESSIBILITY_COORDINATOR = "accessibility_coordinator",
-  HOSPITALITY_COORDINATOR = "hospitality_coordinator",
-  SUPPORT_COORDINATOR = "support_coordinator",
+  ADVISORY = "advisory",
+  HOST = "host",
   USER = "user"
 }
 
@@ -42,83 +38,33 @@ export enum Permission {
   VIEW_ANALYTICS = "view_analytics"
 }
 
-// Role to permissions mapping
-const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  [UserRole.SUPER_ADMIN]: [
-    Permission.MANAGE_VOLUNTEERS,
-    Permission.VIEW_VOLUNTEERS,
-    Permission.MANAGE_ACCESSIBILITY,
-    Permission.VIEW_ACCESSIBILITY,
-    Permission.MANAGE_HOSPITALITY,
-    Permission.VIEW_HOSPITALITY,
-    Permission.MANAGE_SUPPORT,
-    Permission.VIEW_SUPPORT,
-    Permission.SUPPORT_READ,
-    Permission.SUPPORT_EDIT,
-    Permission.SEND_NOTIFICATIONS,
-    Permission.NOTIFICATIONS_SEND,
-    Permission.MANAGE_USERS,
-    Permission.MANAGE_ROLES,
-    Permission.VIEW_ANALYTICS
-  ],
-  [UserRole.STEERING]: [
-    Permission.MANAGE_VOLUNTEERS,
-    Permission.VIEW_VOLUNTEERS,
-    Permission.MANAGE_ACCESSIBILITY,
-    Permission.VIEW_ACCESSIBILITY,
-    Permission.MANAGE_HOSPITALITY,
-    Permission.VIEW_HOSPITALITY,
-    Permission.MANAGE_SUPPORT,
-    Permission.VIEW_SUPPORT,
-    Permission.SUPPORT_READ,
-    Permission.SUPPORT_EDIT,
-    Permission.SEND_NOTIFICATIONS,
-    Permission.NOTIFICATIONS_SEND,
-    Permission.VIEW_ANALYTICS
-  ],
-  [UserRole.HOST_ADMIN]: [
-    Permission.MANAGE_VOLUNTEERS,
-    Permission.VIEW_VOLUNTEERS,
-    Permission.MANAGE_ACCESSIBILITY,
-    Permission.VIEW_ACCESSIBILITY,
-    Permission.MANAGE_HOSPITALITY,
-    Permission.VIEW_HOSPITALITY,
-    Permission.MANAGE_SUPPORT,
-    Permission.VIEW_SUPPORT,
-    Permission.SUPPORT_READ,
-    Permission.SUPPORT_EDIT,
-    Permission.SEND_NOTIFICATIONS,
-    Permission.NOTIFICATIONS_SEND,
-    Permission.VIEW_ANALYTICS
-  ],
-  [UserRole.HOST_MEMBER]: [
-    Permission.VIEW_VOLUNTEERS,
-    Permission.VIEW_ACCESSIBILITY,
-    Permission.VIEW_HOSPITALITY,
-    Permission.VIEW_SUPPORT,
-    Permission.SUPPORT_READ
-  ],
-  [UserRole.VOLUNTEER_COORDINATOR]: [
-    Permission.MANAGE_VOLUNTEERS,
-    Permission.VIEW_VOLUNTEERS
-  ],
-  [UserRole.ACCESSIBILITY_COORDINATOR]: [
-    Permission.MANAGE_ACCESSIBILITY,
-    Permission.VIEW_ACCESSIBILITY
-  ],
-  [UserRole.HOSPITALITY_COORDINATOR]: [
-    Permission.MANAGE_HOSPITALITY,
-    Permission.VIEW_HOSPITALITY,
-    Permission.NOTIFICATIONS_SEND
-  ],
-  [UserRole.SUPPORT_COORDINATOR]: [
-    Permission.MANAGE_SUPPORT,
-    Permission.VIEW_SUPPORT,
-    Permission.SUPPORT_READ,
-    Permission.SUPPORT_EDIT
-  ],
-  [UserRole.USER]: []
-}
+// All available permissions for admin/steering/advisory roles
+const ALL_PERMISSIONS: Permission[] = [
+  Permission.MANAGE_VOLUNTEERS,
+  Permission.VIEW_VOLUNTEERS,
+  Permission.MANAGE_ACCESSIBILITY,
+  Permission.VIEW_ACCESSIBILITY,
+  Permission.MANAGE_HOSPITALITY,
+  Permission.VIEW_HOSPITALITY,
+  Permission.MANAGE_SUPPORT,
+  Permission.VIEW_SUPPORT,
+  Permission.SUPPORT_READ,
+  Permission.SUPPORT_EDIT,
+  Permission.SEND_NOTIFICATIONS,
+  Permission.NOTIFICATIONS_SEND,
+  Permission.MANAGE_USERS,
+  Permission.MANAGE_ROLES,
+  Permission.VIEW_ANALYTICS
+]
+
+// Basic permissions for HOST role (when no specific permissions are defined)
+const BASIC_HOST_PERMISSIONS: Permission[] = [
+  Permission.VIEW_VOLUNTEERS,
+  Permission.VIEW_ACCESSIBILITY,
+  Permission.VIEW_HOSPITALITY,
+  Permission.VIEW_SUPPORT,
+  Permission.SUPPORT_READ
+]
 
 // Interface for user with role information
 export interface UserWithRole {
@@ -126,33 +72,86 @@ export interface UserWithRole {
   email: string
   role: UserRole
   permissions: Permission[]
+  dbPermissions?: string[] // Raw permissions from database
 }
 
-// Function to get user role from database
-export async function getUserRole(userId: string): Promise<UserRole> {
+// Function to get user role and permissions from database
+export async function getUserRoleAndPermissions(userId: string): Promise<{ role: UserRole, permissions: string[] }> {
   try {
-    console.log("getUserRole: Fetching role for user:", userId)
+    console.log("getUserRoleAndPermissions: Fetching role for user:", userId)
     const startTime = Date.now()
 
-    // Just do the query directly
+    // First verify we have a session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    console.log("=== SESSION CHECK BEFORE ROLE QUERY ===")
+    console.log("Session exists:", !!session)
+    console.log("Session user ID:", session?.user?.id)
+    console.log("Session access token exists:", !!session?.access_token)
+    console.log("Session error:", sessionError)
+    console.log("=== END SESSION CHECK ===")
+
+    // Try multiple query approaches to debug
+    console.log("Attempting query 1: Standard select with user_id filter")
     const { data, error } = await supabase
-      .from("roles") // Use existing 'roles' table
-      .select("role")
+      .from("roles")
+      .select("role, permissions")
       .eq("user_id", userId)
-      .maybeSingle() // Use maybeSingle instead of single to avoid error if no row exists
+      .maybeSingle()
 
     const queryTime = Date.now() - startTime
-    console.log(`getUserRole: Query completed in ${queryTime}ms`)
+    console.log(`getUserRoleAndPermissions: Query completed in ${queryTime}ms`)
+    
+    // DETAILED ROLE QUERY DATA
+    console.log("=== getUserRoleAndPermissions DATABASE QUERY RESULT ===")
+    console.log("Query data:", JSON.stringify(data, null, 2))
+    console.log("Query error:", error)
+    console.log("=== END getUserRoleAndPermissions QUERY ===")
 
-    if (error) {
-      console.error("getUserRole: Error fetching user role (THIS SHOULD NOT HAPPEN):", error)
-      return UserRole.HOST_ADMIN // Default to HOST_ADMIN for Discord-authenticated users
+    // If first query returns null, try with explicit select all
+    if (!data && !error) {
+      console.log("First query returned null, trying select * query...")
+      const { data: allData, error: allError } = await supabase
+        .from("roles")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle()
+      
+      console.log("=== SECOND QUERY ATTEMPT (select *) ===")
+      console.log("Query data:", JSON.stringify(allData, null, 2))
+      console.log("Query error:", allError)
+      console.log("=== END SECOND QUERY ===")
+
+      // Also try without maybeSingle to see if there are multiple rows
+      const { data: multiData, error: multiError } = await supabase
+        .from("roles")
+        .select("*")
+        .eq("user_id", userId)
+      
+      console.log("=== THIRD QUERY ATTEMPT (no maybeSingle) ===")
+      console.log("Query data:", JSON.stringify(multiData, null, 2))
+      console.log("Number of rows:", multiData?.length || 0)
+      console.log("Query error:", multiError)
+      console.log("=== END THIRD QUERY ===")
     }
 
-    // If no role found in database, default to HOST_ADMIN for Discord users
+    if (error) {
+      console.error("getUserRoleAndPermissions: Error fetching user role:", error)
+      console.error("Error details:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      return { role: UserRole.HOST, permissions: [] }
+    }
+
+    // If no role found in database, default to HOST
     if (!data?.role) {
-      console.log("getUserRole: No role found in database, using default HOST_ADMIN")
-      return UserRole.HOST_ADMIN
+      console.log("getUserRoleAndPermissions: No role found in database, using default HOST")
+      console.log("Returning to check: Is data null?", data === null)
+      console.log("Is data undefined?", data === undefined)
+      console.log("Raw data value:", data)
+      return { role: UserRole.HOST, permissions: [] }
     }
 
     // Map the role from database to our UserRole enum
@@ -160,35 +159,89 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     let mappedRole: UserRole
 
     switch (dbRole) {
-      case "super_admin":
-        mappedRole = UserRole.SUPER_ADMIN
+      case "admin":
+        mappedRole = UserRole.ADMIN
         break
       case "steering":
         mappedRole = UserRole.STEERING
         break
-      case "host":
-      case "host_admin":
-        mappedRole = UserRole.HOST_ADMIN
+      case "advisory":
+        mappedRole = UserRole.ADVISORY
         break
-      case "host_member":
-        mappedRole = UserRole.HOST_MEMBER
+      case "host":
+        mappedRole = UserRole.HOST
         break
       default:
-        console.warn(`getUserRole: Unknown role '${dbRole}', defaulting to HOST_ADMIN`)
-        mappedRole = UserRole.HOST_ADMIN // Default to HOST_ADMIN for unknown roles
+        console.warn(`getUserRoleAndPermissions: Unknown role '${dbRole}', defaulting to HOST`)
+        mappedRole = UserRole.HOST
     }
 
-    console.log("getUserRole: User role retrieved:", mappedRole)
-    return mappedRole
+    console.log("getUserRoleAndPermissions: User role retrieved:", mappedRole)
+    console.log("getUserRoleAndPermissions: User permissions:", data.permissions || [])
+    
+    return {
+      role: mappedRole,
+      permissions: data.permissions || []
+    }
   } catch (error: any) {
-    console.error("getUserRole: Unexpected error (THIS SHOULD NOT HAPPEN):", error)
-    return UserRole.HOST_ADMIN // Default to HOST_ADMIN for Discord-authenticated users
+    console.error("getUserRoleAndPermissions: Unexpected error:", error)
+    return { role: UserRole.HOST, permissions: [] }
   }
 }
 
-// Function to get user permissions based on role
-export function getUserPermissions(role: UserRole): Permission[] {
-  return ROLE_PERMISSIONS[role] || []
+// Backward compatibility function
+export async function getUserRole(userId: string): Promise<UserRole> {
+  const { role } = await getUserRoleAndPermissions(userId)
+  return role
+}
+
+// Function to get user permissions based on role and database permissions
+export function getUserPermissions(role: UserRole, dbPermissions?: string[]): Permission[] {
+  // Admin, Steering, and Advisory get all permissions
+  if (role === UserRole.ADMIN || role === UserRole.STEERING || role === UserRole.ADVISORY) {
+    return ALL_PERMISSIONS
+  }
+  
+  // Host role gets permissions from database or basic permissions
+  if (role === UserRole.HOST) {
+    if (dbPermissions && dbPermissions.length > 0) {
+      // Map database permission strings to Permission enum
+      // For now, return basic permissions plus any matching permissions
+      const mappedPermissions: Permission[] = [...BASIC_HOST_PERMISSIONS]
+      
+      // Map common database permissions to our enum
+      dbPermissions.forEach(perm => {
+        switch(perm) {
+          case "volunteers:manage":
+            mappedPermissions.push(Permission.MANAGE_VOLUNTEERS)
+            break
+          case "accessibility:manage":
+            mappedPermissions.push(Permission.MANAGE_ACCESSIBILITY)
+            break
+          case "hospitality:manage":
+            mappedPermissions.push(Permission.MANAGE_HOSPITALITY)
+            break
+          case "support:manage":
+            mappedPermissions.push(Permission.MANAGE_SUPPORT)
+            break
+          case "support:edit":
+            mappedPermissions.push(Permission.SUPPORT_EDIT)
+            break
+          case "notifications:send":
+            mappedPermissions.push(Permission.SEND_NOTIFICATIONS)
+            mappedPermissions.push(Permission.NOTIFICATIONS_SEND)
+            break
+        }
+      })
+      
+      // Remove duplicates
+      return [...new Set(mappedPermissions)]
+    }
+    return BASIC_HOST_PERMISSIONS
+  }
+  
+  // User role gets no permissions
+  return []
 }
 
 // Function to check if user has specific permission
@@ -222,9 +275,7 @@ export function hasAnyPermission(
 export async function getCurrentUserWithRole(): Promise<UserWithRole | null> {
   try {
     console.log("getCurrentUserWithRole: Starting...")
-
-    // Get session directly without any timeout nonsense
-    console.log("getCurrentUserWithRole: Getting session...")
+    
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
     if (sessionError) {
@@ -244,15 +295,17 @@ export async function getCurrentUserWithRole(): Promise<UserWithRole | null> {
       return null
     }
 
-    // Get role from database, defaults to HOST_ADMIN if not found
+    // Get role and permissions from database
     console.log(
-      "getCurrentUserWithRole: About to call getUserRole for:",
+      "getCurrentUserWithRole: About to call getUserRoleAndPermissions for:",
       session.user.id
     )
-    const role = await getUserRole(session.user.id)
+    
+    const { role, permissions: dbPermissions } = await getUserRoleAndPermissions(session.user.id)
     console.log("getCurrentUserWithRole: Role retrieved:", role)
+    console.log("getCurrentUserWithRole: DB Permissions:", dbPermissions)
 
-    const permissions = getUserPermissions(role)
+    const permissions = getUserPermissions(role, dbPermissions)
     console.log(
       "getCurrentUserWithRole: Permissions calculated, returning user"
     )
@@ -261,7 +314,8 @@ export async function getCurrentUserWithRole(): Promise<UserWithRole | null> {
       id: session.user.id,
       email: session.user.email || "",
       role,
-      permissions
+      permissions,
+      dbPermissions
     }
   } catch (error) {
     console.error("getCurrentUserWithRole: Caught error:", error)

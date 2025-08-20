@@ -11,9 +11,15 @@ export default function NotAuthorizedScreen() {
 
   const handleLogout = async () => {
     try {
+      console.log("Logging out...")
       const { error } = await supabase.auth.signOut()
-      if (error) throw error
-      router.replace("/" as any)
+      if (error) {
+        console.error("Logout error:", error)
+        throw error
+      }
+      console.log("Logout successful, navigating to login")
+      // Navigate to the host login page
+      router.replace("/host/login")
     } catch (error) {
       console.error("Logout error:", error)
       Alert.alert(
