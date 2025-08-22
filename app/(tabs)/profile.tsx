@@ -118,8 +118,8 @@ export default function Profile() {
   // Safety modal state
   const [safetyVisible, setSafetyVisible] = useState(false)
   
-  // Bid schedule toggle state
-  const [showBidSchedule, setShowBidSchedule] = useState(true)
+  // Bid schedule toggle state - defaults to false (user must opt-in)
+  const [showBidSchedule, setShowBidSchedule] = useState(false)
   
   // Load bid schedule preference
   useEffect(() => {

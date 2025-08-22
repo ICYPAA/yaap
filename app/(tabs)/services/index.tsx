@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
-import { Link } from "expo-router"
+import { Link, useRouter } from "expo-router"
 import React, { useEffect, useMemo, useState } from "react"
 import {
   ScrollView,
@@ -12,6 +12,7 @@ import { useFeatures } from "../../../context/FeatureContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { getStoredProgram } from "../../../lib/theme"
 import { Program } from "../../../types/program"
+import { supabase } from "../../../lib/supabase"
 
 // Service section type
 type ServiceSection = {
@@ -26,7 +27,9 @@ export default function Services() {
   const { theme } = useTheme()
   const { isFeatureEnabled } = useFeatures()
   const styles = createStyles(theme)
+  const router = useRouter()
   const [program, setProgram] = useState<Program | null>(null)
+  const [isHostAuthenticated, setIsHostAuthenticated] = useState(false)
 
   useEffect(() => {
     const loadProgram = async () => {
@@ -36,7 +39,31 @@ export default function Services() {
       }
     }
 
+    const checkAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        setIsHostAuthenticated(!!data.session)
+      } catch (error) {
+        console.error("Error checking auth:", error)
+        setIsHostAuthenticated(false)
+      }
+    }
+
     loadProgram()
+    checkAuth()
+
+    // Set up auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setIsHostAuthenticated(!!session)
+      }
+    )
+
+    return () => {
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe()
+      }
+    }
   }, [])
 
   // Service sections data with dynamic content from program if available
@@ -54,11 +81,8 @@ export default function Services() {
     }] : []),
     ...(isFeatureEnabled("child_care_enabled") ? [{
       id: "childcare",
-      title:
-        program?.content?.services?.childcare?.title ||
-        "Request Childcare Services",
+      title: "Request Childcare Services",
       description:
-        program?.content?.services?.childcare?.description ||
         "Need childcare during conference events? Submit a request and we'll help coordinate safe, supervised care for your children.",
       icon: "heart-outline" as const,
       route: "/(tabs)/services/childcare"
@@ -167,6 +191,29 @@ export default function Services() {
             <Text style={styles.faqAnswer}>{item.answer}</Text>
           </View>
         ))}
+      </View>
+
+      {/* Host Committee Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Host Committee</Text>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push(isHostAuthenticated ? "/host" : "/host/login")}
+        >
+          <View style={styles.cardHeader}>
+            <Ionicons
+              name="shield"
+              size={24}
+              color={theme.colors.primary}
+            />
+            <Text style={styles.cardTitle}>Host Dashboard</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            {isHostAuthenticated 
+              ? "Access host committee tools, service requests, and manage conference operations."
+              : "Sign in to access host committee tools and manage conference operations."}
+          </Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   )

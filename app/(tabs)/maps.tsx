@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -105,6 +106,110 @@ const openMaps = (address: string) => {
 // Fallback image URLs (using placeholder service with better visibility)
 const FALLBACK_IMAGE =
   "https://placehold.co/600x400/CC0000/white/png?text=Image+Unavailable"
+
+// Animated carousel wrapper component
+const AnimatedCarousel = ({ 
+  children, 
+  triggerOnView = false,
+  parentScrollView,
+  ...props 
+}: { 
+  children: React.ReactNode
+  triggerOnView?: boolean
+  parentScrollView?: React.RefObject<ScrollView>
+  [key: string]: any 
+}) => {
+  const scrollViewRef = useRef<FlatList>(null)
+  const translateX = useRef(new Animated.Value(0)).current
+  const viewRef = useRef<View>(null)
+  const hasAnimated = useRef(false)
+  const [isInView, setIsInView] = useState(false)
+
+  const runWiggleAnimation = () => {
+    if (hasAnimated.current) return
+    hasAnimated.current = true
+    
+    const wiggleAnimation = Animated.sequence([
+      Animated.timing(translateX, {
+        toValue: -20,
+        duration: 300,
+        useNativeDriver: true
+      }),
+      Animated.timing(translateX, {
+        toValue: 20,
+        duration: 300,
+        useNativeDriver: true
+      }),
+      Animated.timing(translateX, {
+        toValue: -10,
+        duration: 200,
+        useNativeDriver: true
+      }),
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true
+      })
+    ])
+
+    wiggleAnimation.start()
+  }
+
+  useEffect(() => {
+    if (!triggerOnView) {
+      // For Venue Maps - animate immediately after a short delay
+      const timer = setTimeout(() => {
+        runWiggleAnimation()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [triggerOnView])
+
+  // Check if component is in view when it's scrolled
+  const checkInView = () => {
+    if (!triggerOnView || !viewRef.current || hasAnimated.current) return
+
+    viewRef.current.measureInWindow((x, y, width, height) => {
+      const screenHeight = Dimensions.get('window').height
+      // Check if at least 50% of the component is visible
+      const visibleHeight = Math.min(screenHeight - y, height)
+      const isVisible = visibleHeight > height * 0.5 && y < screenHeight
+      
+      if (isVisible && !hasAnimated.current) {
+        setIsInView(true)
+        setTimeout(() => {
+          runWiggleAnimation()
+        }, 300)
+      }
+    })
+  }
+
+  // Set up scroll listener for parent ScrollView
+  useEffect(() => {
+    if (!triggerOnView) return
+
+    // Check visibility on mount after a delay
+    const initialCheck = setTimeout(checkInView, 100)
+
+    // Also check on any scroll event (will be triggered by parent)
+    const scrollCheckInterval = setInterval(checkInView, 200)
+
+    return () => {
+      clearTimeout(initialCheck)
+      clearInterval(scrollCheckInterval)
+    }
+  }, [triggerOnView])
+
+  return (
+    <Animated.View 
+      ref={viewRef}
+      style={{ transform: [{ translateX }] }}
+      onLayout={checkInView}
+    >
+      <FlatList ref={scrollViewRef} {...props} />
+    </Animated.View>
+  )
+}
 
 // Map carousel item component
 const MapItem = ({
@@ -613,7 +718,7 @@ export default function Maps() {
       <View style={styles(theme).section}>
         <Text style={styles(theme).sectionTitle}>Venue Maps</Text>
         {venueData && venueData.floors && venueData.floors.length > 0 ? (
-          <FlatList
+          <AnimatedCarousel
             data={venueData.floors}
             renderItem={({ item }) => {
               // Use the URL directly from the database
@@ -691,7 +796,8 @@ export default function Maps() {
       <View style={styles(theme).section}>
         <Text style={styles(theme).sectionTitle}>Food Options</Text>
         {foodData.length > 0 ? (
-          <FlatList
+          <AnimatedCarousel
+            triggerOnView={true}
             data={foodData}
             renderItem={({ item }) => (
               <View style={styles(theme).activityCard}>
@@ -839,7 +945,8 @@ export default function Maps() {
       <View style={styles(theme).section}>
         <Text style={styles(theme).sectionTitle}>Local Activities</Text>
         {activitiesData.length > 0 ? (
-          <FlatList
+          <AnimatedCarousel
+            triggerOnView={true}
             data={activitiesData}
             renderItem={({ item }) => (
               <View style={styles(theme).activityCard}>

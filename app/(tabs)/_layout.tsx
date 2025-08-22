@@ -1,42 +1,11 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Tabs } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React from "react"
 import { useTheme } from "../../context/ThemeContext"
-import { supabase } from "../../lib/supabase"
 import { TutorialModal } from "../../components/TutorialModal"
 
 export default function TabLayout() {
   const { theme, isDarkMode } = useTheme()
-  const [isHostAuthenticated, setIsHostAuthenticated] = useState(false)
-
-  useEffect(() => {
-    // Check if user is authenticated
-    const checkAuth = async () => {
-      try {
-        const { data } = await supabase.auth.getSession()
-        setIsHostAuthenticated(!!data.session)
-      } catch (error) {
-        console.error("Error checking auth in tab layout:", error)
-        setIsHostAuthenticated(false)
-      }
-    }
-
-    checkAuth()
-
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setIsHostAuthenticated(!!session)
-      }
-    )
-
-    return () => {
-      // Clean up the subscription
-      if (authListener && authListener.subscription) {
-        authListener.subscription.unsubscribe()
-      }
-    }
-  }, [])
 
   return (
     <>
@@ -95,14 +64,20 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="host"
+        name="safety"
         options={{
-          title: "Host",
+          title: "Safety",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="shield" size={size} color={color} />
+            <Ionicons name="shield-checkmark" size={size} color={color} />
           )
         }}
-        href={isHostAuthenticated ? "/host" : null}
+      />
+      
+      <Tabs.Screen
+        name="host"
+        options={{
+          href: null
+        }}
       />
     </Tabs>
     </>
