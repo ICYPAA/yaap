@@ -33,7 +33,7 @@ export default function Safety() {
   const styles = createStyles(theme)
   const [ndahContent, setNdahContent] = useState<NDAHContent | null>(null)
   const [loading, setLoading] = useState(true)
-  const [policyExpanded, setPolicyExpanded] = useState(false)
+  const [policyExpanded, setPolicyExpanded] = useState(true)
 
   useEffect(() => {
     fetchNDAHContent()
@@ -94,7 +94,7 @@ export default function Safety() {
           size={64}
           color={theme.colors.primary}
         />
-        <Text style={styles.title}>Safety & Anonymity</Text>
+        <Text style={styles.title}>Safety</Text>
       </View>
 
       {/* Collapsible Policy Section */}
@@ -103,7 +103,9 @@ export default function Safety() {
         onPress={() => setPolicyExpanded(!policyExpanded)}
         activeOpacity={0.7}
       >
-        <Text style={styles.collapsibleTitle}>NDAH Policies</Text>
+        <Text style={styles.collapsibleTitle}>
+          Non-Discrimination and Anti-Harassment Policies
+        </Text>
         <Ionicons
           name={policyExpanded ? "chevron-up" : "chevron-down"}
           size={24}
@@ -213,7 +215,9 @@ export default function Safety() {
         (ndahContent.committee_contact.info ||
           ndahContent.committee_contact.contact) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>File a Formal Complaint</Text>
+            <Text style={styles.sectionTitle}>
+              Report a violation of ICYPAA's NDAH Policy
+            </Text>
             {ndahContent.committee_contact.info && (
               <Text style={styles.bodyText}>
                 {ndahContent.committee_contact.info}
