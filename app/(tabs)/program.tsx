@@ -1,7 +1,6 @@
 import { FontAwesome6, Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
-import * as Application from "expo-application"
 import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
@@ -25,6 +24,7 @@ import { EventDetailsModal } from "../../components/EventDetailsModal"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
 import { supabase, withDeviceId } from "../../lib/supabase"
+import { getOrCreateDeviceId } from "../../lib/security/deviceId"
 import {
   getProgramColor as getProgramColorUtil,
   getTextColorForBackground as getTextColorForBgUtil
@@ -2714,20 +2714,8 @@ export default function Program() {
   // Store the last known shared events data to compare for changes
   const lastSharedEventsRef = useRef<string>("")
 
-  // Function to get device identifier based on platform
-  async function getIdentifier() {
-    if (Platform.OS === "ios") {
-      let idfv = await Application.getIosIdForVendorAsync()
-      // console.log("iOS IDFV:", idfv)
-      return idfv // Example: T563P9YS-856G-473X-H1J2-FC94L0T37IC6 or null
-    }
-    if (Platform.OS === "android") {
-      let androidId = Application.getAndroidId()
-      // console.log("Android ID:", androidId)
-      return androidId // Example: '9774d56d682e549c' or null
-    }
-    return null
-  }
+  // Use the unified device ID system from lib/security/deviceId
+  // This ensures consistency with the withDeviceId function
 
   // Load bid schedule preference when screen comes into focus
   useFocusEffect(
@@ -2744,22 +2732,17 @@ export default function Program() {
   useEffect(() => {
     const loadSavedItems = async () => {
       try {
-        // Try to get device ID
-        let storedDeviceId = await AsyncStorage.getItem("device_id")
+        // Use the unified device ID system
+        const storedDeviceId = await getOrCreateDeviceId()
+        
         if (!storedDeviceId) {
-          // Use Application info to get a reliable device identifier
-          storedDeviceId = await getIdentifier()
-
-          if (!storedDeviceId) {
-            console.error("Could not get device ID from expo-application")
-            return
-          }
-
-          // Save the device ID to AsyncStorage for future use
-          await AsyncStorage.setItem("device_id", storedDeviceId)
+          console.error("Could not get or create device ID")
+          setCheckingProfile(false) // Make sure we're not stuck in checking state
+          return
         }
+
         setDeviceId(storedDeviceId)
-        console.log("Using device ID:", storedDeviceId)
+        console.log("Initial mount - using device ID:", storedDeviceId)
 
         // Load shared events from AsyncStorage
         const sharedEventsJson = await AsyncStorage.getItem("sharedEvents")
@@ -2853,7 +2836,10 @@ export default function Program() {
   // Check if user has a profile in Supabase
   useEffect(() => {
     const checkUserProfile = async () => {
-      if (!deviceId) return
+      if (!deviceId) {
+        console.log("No device ID available for profile check")
+        return
+      }
       console.log("Checking user profile for device ID:", deviceId)
 
       setCheckingProfile(true)
@@ -2890,10 +2876,16 @@ export default function Program() {
           }
         } else {
           // No profile
-          console.log("No user profile found")
+          console.log("No user profile found for device ID:", deviceId)
           setHasProfile(false)
           setUserId(null)
-          setSavedItems([]) // Clear saved items if no profile
+          // Don't clear saved items here - let them load from AsyncStorage
+          // Load from AsyncStorage even without profile
+          const savedScheduleJson = await AsyncStorage.getItem("user_schedule")
+          if (savedScheduleJson) {
+            const savedSchedule: Schedule = JSON.parse(savedScheduleJson)
+            setSavedItems(savedSchedule.saved_events || [])
+          }
         }
       } catch (error) {
         console.error("Error checking user profile:", error)
@@ -2904,6 +2896,8 @@ export default function Program() {
 
     if (deviceId) {
       checkUserProfile()
+    } else {
+      setCheckingProfile(false)
     }
   }, [deviceId])
 
@@ -2911,16 +2905,29 @@ export default function Program() {
   useEffect(() => {
     // Function to check user profile
     const checkUserProfileOnFocus = async () => {
-      if (!deviceId) return
+      // Always get device ID first to ensure we have it
+      let currentDeviceId = deviceId
+      if (!currentDeviceId) {
+        // Use the unified device ID system
+        currentDeviceId = await getOrCreateDeviceId()
+        if (currentDeviceId) {
+          setDeviceId(currentDeviceId)
+        }
+      }
 
-      console.log("Screen focused, rechecking user profile")
+      if (!currentDeviceId) {
+        console.log("Still no device ID available on focus")
+        return
+      }
+
+      console.log("Screen focused, rechecking user profile with device ID:", currentDeviceId)
 
       try {
         const supabaseWithDeviceId = await withDeviceId()
         const { data, error } = await supabaseWithDeviceId
           .from("users")
           .select("id, first_name, last_initial, schedule")
-          .eq("device_id", deviceId)
+          .eq("device_id", currentDeviceId)
           .single()
 
         if (error && error.code !== "PGRST116") {
@@ -2930,6 +2937,7 @@ export default function Program() {
 
         if (data) {
           // User profile exists now
+          console.log("Profile found on focus check:", data.first_name)
           setHasProfile(true)
           setUserId(data.id)
 
@@ -2940,6 +2948,10 @@ export default function Program() {
 
           // Also check for updated shared events
           await checkForSharedEventsUpdates()
+        } else {
+          console.log("No profile found on focus check for device ID:", currentDeviceId)
+          setHasProfile(false)
+          setUserId(null)
         }
       } catch (error) {
         console.error("Error checking user profile on focus:", error)
