@@ -38,7 +38,8 @@
       "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "compileSdkVersion": 35,
-      "targetSdkVersion": 35
+      "targetSdkVersion": 35,
+      "buildToolsVersion": "35.0.0"
     },
     "web": {
       "bundler": "metro",

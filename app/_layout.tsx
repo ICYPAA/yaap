@@ -7,6 +7,7 @@ import * as Notifications from "expo-notifications"
 import { Stack, useRouter, useSegments } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { StatusBar } from "expo-status-bar"
+import * as Updates from "expo-updates"
 import React, { useEffect, useRef, useState } from "react"
 import { AppState, Platform } from "react-native"
 import "react-native-reanimated"
@@ -272,6 +273,27 @@ export default function RootLayout() {
       }
 
       initSecurity()
+      
+      // Check for OTA updates
+      const checkForUpdates = async () => {
+        try {
+          if (!__DEV__) {
+            const update = await Updates.checkForUpdateAsync()
+            if (update.isAvailable) {
+              console.log("OTA update available, downloading...")
+              await Updates.fetchUpdateAsync()
+              console.log("OTA update downloaded, reloading app...")
+              await Updates.reloadAsync()
+            } else {
+              console.log("No OTA updates available")
+            }
+          }
+        } catch (error) {
+          console.error("Error checking for OTA updates:", error)
+        }
+      }
+      
+      checkForUpdates()
       SplashScreen.hideAsync()
 
       // Get device ID and update push token in user profile
@@ -460,13 +482,28 @@ export default function RootLayout() {
     fetchAndStoreUserSchedule()
 
     // Setup AppState listener to handle app going to background/foreground
-    const subscription = AppState.addEventListener("change", (nextAppState) => {
+    const subscription = AppState.addEventListener("change", async (nextAppState) => {
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === "active"
       ) {
         console.log("App has come to the foreground, fetching schedule")
         fetchAndStoreUserSchedule()
+        
+        // Check for OTA updates when app becomes active
+        if (!__DEV__) {
+          try {
+            const update = await Updates.checkForUpdateAsync()
+            if (update.isAvailable) {
+              console.log("OTA update available on app resume, downloading...")
+              await Updates.fetchUpdateAsync()
+              console.log("OTA update downloaded, reloading app...")
+              await Updates.reloadAsync()
+            }
+          } catch (error) {
+            console.error("Error checking for OTA updates on resume:", error)
+          }
+        }
       }
 
       appState.current = nextAppState
