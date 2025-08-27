@@ -27,8 +27,8 @@ type VolunteerInterestFormData = {
     greeter: boolean
     security: boolean
     cleanup: boolean
-    setup: boolean
-    hostCommittee: boolean
+    merch: boolean
+    registration: boolean
     wherever: boolean
   }
   timeSlots: {
@@ -73,8 +73,8 @@ export default function VolunteerSignup() {
       greeter: false,
       security: false,
       cleanup: false,
-      setup: false,
-      hostCommittee: false,
+      merch: false,
+      registration: false,
       wherever: false
     },
     timeSlots: {
@@ -220,8 +220,8 @@ export default function VolunteerSignup() {
               greeter: formData.interests.greeter,
               security: formData.interests.security,
               cleanup: formData.interests.cleanup,
-              setup: formData.interests.setup,
-              host_committee: formData.interests.hostCommittee,
+              merch: formData.interests.merch,
+              registration: formData.interests.registration,
               wherever_needed: formData.interests.wherever
             },
             time_slots: {
@@ -745,20 +745,20 @@ export default function VolunteerSignup() {
                 label="Cleanup"
               />
               <Checkbox
-                id="setup"
-                checked={formData.interests.setup}
+                id="merch"
+                checked={formData.interests.merch}
                 onCheckedChange={(checked) =>
-                  handleInterestChange("setup", checked)
+                  handleInterestChange("merch", checked)
                 }
-                label="Setup"
+                label="Merchandise"
               />
               <Checkbox
-                id="hostCommittee"
-                checked={formData.interests.hostCommittee}
+                id="registration"
+                checked={formData.interests.registration}
                 onCheckedChange={(checked) =>
-                  handleInterestChange("hostCommittee", checked)
+                  handleInterestChange("registration", checked)
                 }
-                label="Host Committee (Pre-Conference Planning)"
+                label="Registration"
               />
               <Checkbox
                 id="wherever"

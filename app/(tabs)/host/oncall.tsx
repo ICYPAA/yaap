@@ -2,7 +2,9 @@ import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
+  ActivityIndicator,
   Alert,
+  Modal,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -21,11 +23,7 @@ interface OnCallAssignment {
   id: number
   service_type: string
   user_id: string
-  user?: {
-    id: string
-    email: string
-    full_name?: string
-  }
+  user_name?: string  // Will be populated with the actual user name
 }
 
 const SERVICE_TYPES = [
@@ -43,6 +41,9 @@ export default function OnCallManagement() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [availableUsers, setAvailableUsers] = useState<any[]>([])
+  const [selectedService, setSelectedService] = useState<string | null>(null)
+  const [modalVisible, setModalVisible] = useState(false)
+  const [assigningUser, setAssigningUser] = useState(false)
   const programId = 3
 
   useEffect(() => {
@@ -60,7 +61,36 @@ export default function OnCallManagement() {
         .eq("is_active", true)
 
       if (error) throw error
-      setAssignments(data || [])
+
+      if (data && data.length > 0) {
+        // Get user names for the assigned users
+        const assignedUserIds = data.map(a => a.user_id)
+        const { data: authUsers, error: authError } = await supabaseWithDeviceId
+          .rpc("get_auth_user_names", {
+            user_ids: assignedUserIds
+          })
+
+        // Create a map for easy lookup
+        const authUsersMap = new Map()
+        if (authUsers) {
+          authUsers.forEach(u => {
+            authUsersMap.set(u.id, u)
+          })
+        }
+
+        // Add user names to assignments
+        const assignmentsWithNames = data.map(assignment => {
+          const authUser = authUsersMap.get(assignment.user_id)
+          return {
+            ...assignment,
+            user_name: authUser?.full_name || authUser?.email || `User ID: ${assignment.user_id.slice(0, 8)}...`
+          }
+        })
+
+        setAssignments(assignmentsWithNames)
+      } else {
+        setAssignments([])
+      }
     } catch (error) {
       console.error("Error fetching on-call assignments:", error)
       Alert.alert("Error", "Failed to load on-call assignments")
@@ -73,21 +103,58 @@ export default function OnCallManagement() {
   const fetchAvailableUsers = async () => {
     try {
       const supabaseWithDeviceId = await withDeviceId()
-      // Get users with roles from the roles table
-      const { data, error } = await supabaseWithDeviceId
+      
+      // First get users with roles from the roles table
+      const { data: rolesData, error: rolesError } = await supabaseWithDeviceId
         .from("roles")
         .select("user_id, role")
         .in("role", ["host", "admin", "steering", "advisory"])
 
-      if (error) throw error
+      if (rolesError) throw rolesError
 
-      // For now, just use user IDs as we don't have a proper profiles table
-      // In production, you'd join with a profiles/users table
-      const users = (data || []).map(r => ({
-        id: r.user_id,
-        email: `User (${r.role})`, // Placeholder - would get from profiles table
-        role: r.role
-      }))
+      if (!rolesData || rolesData.length === 0) {
+        setAvailableUsers([])
+        return
+      }
+
+      // Get user IDs to fetch their names
+      const userIds = rolesData.map(r => r.user_id)
+      
+      // Get user names from auth.users using the RPC function
+      const { data: authUsers, error: authError } = await supabaseWithDeviceId
+        .rpc("get_auth_user_names", {
+          user_ids: userIds
+        })
+
+      if (authError) {
+        console.error("Error fetching auth user names:", authError)
+        // Fall back to showing role if RPC fails
+      }
+
+      // Create a map for easy lookup
+      const authUsersMap = new Map()
+      if (authUsers) {
+        authUsers.forEach(u => {
+          authUsersMap.set(u.id, u)
+        })
+      }
+
+      // Combine the data
+      const users = rolesData.map(r => {
+        const authUser = authUsersMap.get(r.user_id)
+        let displayName = authUser?.full_name || authUser?.email || `${r.role.charAt(0).toUpperCase() + r.role.slice(1)} User`
+        
+        // Add role to the name for clarity
+        if (authUser?.full_name || authUser?.email) {
+          displayName = `${displayName} (${r.role})`
+        }
+        
+        return {
+          id: r.user_id,
+          email: displayName,
+          role: r.role
+        }
+      })
       
       setAvailableUsers(users)
     } catch (error) {
@@ -161,19 +228,18 @@ export default function OnCallManagement() {
   }
 
   const showAssignmentDialog = (serviceType: string) => {
-    const currentAssignment = assignments.find(a => a.service_type === serviceType)
+    setSelectedService(serviceType)
+    setModalVisible(true)
+  }
+
+  const handleUserSelection = async (userId: string) => {
+    if (!selectedService) return
     
-    Alert.alert(
-      "Assign On-Call",
-      `Select a user to be on-call for ${SERVICE_TYPES.find(s => s.key === serviceType)?.label}`,
-      [
-        ...availableUsers.map(user => ({
-          text: user.email || `User ${user.id.slice(0, 8)}`,
-          onPress: () => assignOnCall(serviceType, user.id)
-        })),
-        { text: "Cancel", style: "cancel" }
-      ]
-    )
+    setAssigningUser(true)
+    await assignOnCall(selectedService, userId)
+    setAssigningUser(false)
+    setModalVisible(false)
+    setSelectedService(null)
   }
 
   const styles = createStyles(theme)
@@ -226,7 +292,7 @@ export default function OnCallManagement() {
                   {assignment ? (
                     <View style={styles.assignedUser}>
                       <Text style={styles.assignedText}>
-                        User ID: {assignment.user_id.slice(0, 8)}...
+                        {assignment.user_name}
                       </Text>
                       {isAdmin && (
                         <TouchableOpacity
@@ -266,6 +332,74 @@ export default function OnCallManagement() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* User Selection Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setModalVisible(false)
+          setSelectedService(null)
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Assign On-Call for {SERVICE_TYPES.find(s => s.key === selectedService)?.label}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setModalVisible(false)
+                  setSelectedService(null)
+                }}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalUserList}>
+              {availableUsers.length > 0 ? (
+                availableUsers.map(user => (
+                  <TouchableOpacity
+                    key={user.id}
+                    style={styles.modalUserItem}
+                    onPress={() => handleUserSelection(user.id)}
+                    disabled={assigningUser}
+                  >
+                    <View style={styles.modalUserInfo}>
+                      <Ionicons 
+                        name="person-circle" 
+                        size={32} 
+                        color={theme.colors.primary} 
+                      />
+                      <View style={styles.modalUserText}>
+                        <Text style={styles.modalUserName}>
+                          {user.email}
+                        </Text>
+                        <Text style={styles.modalUserRole}>
+                          {user.role}
+                        </Text>
+                      </View>
+                    </View>
+                    {assigningUser && (
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.modalEmptyState}>
+                  <Text style={styles.modalEmptyText}>
+                    No users available
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -386,5 +520,73 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       color: theme.colors.text.primary,
       lineHeight: 20
+    },
+    // Modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    modalContent: {
+      backgroundColor: theme.colors.background,
+      borderRadius: theme.borderRadius.lg,
+      width: '90%',
+      maxHeight: '70%',
+      padding: theme.spacing.lg
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.lg
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+      flex: 1
+    },
+    modalCloseButton: {
+      padding: theme.spacing.xs
+    },
+    modalUserList: {
+      maxHeight: 400
+    },
+    modalUserItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border
+    },
+    modalUserInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1
+    },
+    modalUserText: {
+      marginLeft: theme.spacing.md,
+      flex: 1
+    },
+    modalUserName: {
+      fontSize: 16,
+      color: theme.colors.text.primary,
+      fontWeight: '500'
+    },
+    modalUserRole: {
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      marginTop: 2
+    },
+    modalEmptyState: {
+      padding: theme.spacing.xl,
+      alignItems: 'center'
+    },
+    modalEmptyText: {
+      fontSize: 16,
+      color: theme.colors.text.secondary
     }
   })

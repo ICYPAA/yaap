@@ -9,7 +9,7 @@ import { supabase } from "../../../lib/supabase"
 export default function HostLayout() {
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
-  const { loading, isAuthenticated, canAccessHostTools } = useRole()
+  const { loading, isAuthenticated, canAccessHostTools, isLoggingIn } = useRole()
   const pathname = usePathname()
   const [sessionChecked, setSessionChecked] = useState(false)
   const [hasSession, setHasSession] = useState(false)
@@ -38,17 +38,19 @@ export default function HostLayout() {
 
   // Log the current state
   console.log(
-    `HostLayout: loading=${loading}, isAuthenticated=${isAuthenticated}, isLoginPage=${isLoginPage}, pathname=${pathname}`
+    `HostLayout: loading=${loading}, isAuthenticated=${isAuthenticated}, isLoggingIn=${isLoggingIn}, isLoginPage=${isLoginPage}, pathname=${pathname}`
   )
 
-  // Always show loading while checking roles for authenticated users
+  // Always show loading while checking roles for authenticated users OR during login
   // This ensures we have the role data before showing any host content
-  if (loading && !isLoginPage) {
-    console.log("HostLayout: Showing loading screen")
+  if ((loading || isLoggingIn) && !isLoginPage) {
+    console.log("HostLayout: Showing loading screen (loading or logging in)")
     return (
       <View style={styles(theme).loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles(theme).loadingText}>Checking permissions...</Text>
+        <Text style={styles(theme).loadingText}>
+          {isLoggingIn ? "Logging in..." : "Checking permissions..."}
+        </Text>
       </View>
     )
   }

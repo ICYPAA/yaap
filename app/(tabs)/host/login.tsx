@@ -28,7 +28,7 @@ export default function HostLogin() {
   const router = useRouter()
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
-  const { setUserFromLogin } = useRole()
+  const { setUserFromLogin, setIsLoggingIn } = useRole()
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -64,6 +64,7 @@ export default function HostLogin() {
   const handleDiscordLogin = async () => {
     try {
       setLoading(true)
+      setIsLoggingIn(true)
       console.log("=== Discord Login Process Started ===")
       console.log("Timestamp:", new Date().toISOString())
       console.log("Platform:", Platform.OS)
@@ -154,6 +155,7 @@ export default function HostLogin() {
                   "Login Error",
                   authResult.error || "Authentication failed"
                 )
+                setIsLoggingIn(false)
               }
             } else {
               console.error("Step 6 FAILED: Missing required tokens")
@@ -162,6 +164,7 @@ export default function HostLogin() {
                 "Login Error",
                 "Could not retrieve all required login tokens from Discord response."
               )
+              setIsLoggingIn(false)
             }
           } else {
             console.error("Step 5 FAILED: No URL fragment found in response")
@@ -169,14 +172,17 @@ export default function HostLogin() {
               "Login Error",
               "Invalid response format from Discord authentication."
             )
+            setIsLoggingIn(false)
           }
         } else if (result.type === "cancel" || result.type === "dismiss") {
           console.log("Discord Login: User cancelled or dismissed.")
+          setIsLoggingIn(false)
         } else {
           console.warn(
             "Discord Login: WebBrowser returned non-success result:",
             result.type
           )
+          setIsLoggingIn(false)
         }
       }
     } catch (error) {
@@ -187,6 +193,7 @@ export default function HostLogin() {
           ? error.message
           : "An unknown error occurred during login. Please try again."
       )
+      setIsLoggingIn(false)
     } finally {
       setLoading(false)
     }
@@ -195,6 +202,7 @@ export default function HostLogin() {
   // Sign in with Email/Password
   async function handleSignInWithEmail() {
     setEmailLoading(true)
+    setIsLoggingIn(true)
     console.log("Email Login: Running authentication flow...")
 
     const authResult = await authenticateWithEmail(email, password)
@@ -207,6 +215,7 @@ export default function HostLogin() {
     } else {
       console.error("Email Login: Authentication failed:", authResult.error)
       Alert.alert("Sign In Error", authResult.error || "Authentication failed")
+      setIsLoggingIn(false)
     }
 
     setEmailLoading(false)

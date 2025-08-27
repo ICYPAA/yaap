@@ -15,6 +15,7 @@ interface RoleContextType {
   user: UserWithRole | null
   loading: boolean
   isAuthenticated: boolean
+  isLoggingIn: boolean
 
   // Permission checking functions
   hasPermission: (permission: Permission) => boolean
@@ -36,12 +37,16 @@ interface RoleContextType {
   
   // Set user from login flow
   setUserFromLogin: (user: UserWithRole) => void
+  
+  // Set logging in state
+  setIsLoggingIn: (isLoggingIn: boolean) => void
 }
 
 const RoleContext = createContext<RoleContextType>({
   user: null,
   loading: true,
   isAuthenticated: false,
+  isLoggingIn: false,
   hasPermission: () => false,
   hasAllPermissions: () => false,
   hasAnyPermission: () => false,
@@ -52,7 +57,8 @@ const RoleContext = createContext<RoleContextType>({
   isHostMember: () => false,
   canAccessHostTools: () => false,
   refreshUser: async () => {},
-  setUserFromLogin: () => {}
+  setUserFromLogin: () => {},
+  setIsLoggingIn: () => {}
 })
 
 export const useRole = () => {
@@ -71,6 +77,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserWithRole | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false)
 
   const loadUser = async () => {
     try {
@@ -104,6 +111,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     setUser(userWithRole)
     setIsAuthenticated(true)
     setLoading(false)
+    setIsLoggingIn(false)
   }
 
   useEffect(() => {
@@ -203,6 +211,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     user,
     loading,
     isAuthenticated,
+    isLoggingIn,
     hasPermission: checkPermission,
     hasAllPermissions: checkAllPermissions,
     hasAnyPermission: checkAnyPermission,
@@ -213,7 +222,8 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     isHostMember,
     canAccessHostTools,
     refreshUser,
-    setUserFromLogin
+    setUserFromLogin,
+    setIsLoggingIn
   }
 
   return (

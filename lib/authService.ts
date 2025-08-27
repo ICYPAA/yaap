@@ -102,31 +102,35 @@ export async function authenticateWithDiscord(
     }
     console.log("Step 2 SUCCESS: User is member of host Discord server")
     
-    // Step 3: Check user role and permissions from database BEFORE setting session
-    console.log("Step 3: Checking user role and permissions from database...")
-    const { role: userRole, permissions: dbPermissions } = await getUserRoleAndPermissions(userId)
-    
-    console.log("Step 3 SUCCESS: User role determined:", userRole)
-    console.log("Step 3: Database permissions:", dbPermissions)
-    
-    // Step 4: NOW set the session after all checks pass
-    console.log("Step 4: All checks passed, setting Supabase session...")
+    // Step 3: Set the session first so we can make authenticated database calls
+    console.log("Step 3: Setting Supabase session...")
     const { error: sessionError } = await supabase.auth.setSession({
       access_token,
       refresh_token
     })
     
     if (sessionError) {
-      console.error("Step 4 FAILED: Could not set session:", sessionError)
+      console.error("Step 3 FAILED: Could not set session:", sessionError)
       return { 
         success: false, 
         error: `Session setup failed: ${sessionError.message}` 
       }
     }
     
-    console.log("Step 4 SUCCESS: Session set")
+    console.log("Step 3 SUCCESS: Session set")
     
-    // Verify session was set correctly
+    // Step 4: Now check user role and permissions from database with active session
+    console.log("Step 4: Checking user role and permissions from database...")
+    
+    // Small delay to ensure session is fully propagated
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    const { role: userRole, permissions: dbPermissions } = await getUserRoleAndPermissions(userId)
+    
+    console.log("Step 4 SUCCESS: User role determined:", userRole)
+    console.log("Step 4: Database permissions:", dbPermissions)
+    
+    // Step 5: Verify session was set correctly
     const { data: { session: verifySession } } = await supabase.auth.getSession()
     console.log("=== SESSION VERIFICATION ===")
     console.log("Session exists:", !!verifySession)
@@ -135,7 +139,7 @@ export async function authenticateWithDiscord(
     console.log("Session expires at:", verifySession?.expires_at)
     console.log("=== END SESSION VERIFICATION ===")
     
-    // Step 5: Create user object with role and permissions
+    // Step 6: Create user object with role and permissions
     const userWithRole: UserWithRole = {
       id: userId,
       email: userEmail || "",

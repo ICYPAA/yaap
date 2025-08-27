@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
-import { useRouter } from "expo-router"
-import React, { useEffect, useRef, useState } from "react"
+import { useRouter, useFocusEffect } from "expo-router"
+import React, { useEffect, useRef, useState, useCallback } from "react"
 import {
   Alert,
   SafeAreaView,
@@ -91,16 +91,17 @@ export default function HostDashboard() {
       })
     }
     
-    if (isFeatureEnabled("volunteering_enabled")) {
-      sections.push({
-        title: "Volunteer Sign-ups",
-        route: "volunteers",
-        count: 0,
-        icon: "people",
-        table: TABLES.VOLUNTEERS,
-        category: "services"
-      })
-    }
+    // Temporarily disabled - volunteer forms should go through the public volunteer form
+    // if (isFeatureEnabled("volunteering_enabled")) {
+    //   sections.push({
+    //     title: "Volunteer Sign-ups",
+    //     route: "volunteers",
+    //     count: 0,
+    //     icon: "people",
+    //     table: TABLES.VOLUNTEERS,
+    //     category: "services"
+    //   })
+    // }
     
     if (isFeatureEnabled("hospitality_enabled")) {
       sections.push({
@@ -186,6 +187,14 @@ export default function HostDashboard() {
   useEffect(() => {
     setServiceSections(getServiceSections())
   }, [isFeatureEnabled, isHostAdmin, isSuperAdmin])
+
+  // Refresh data when screen gets focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchOnCallAssignments()
+      fetchPendingCounts()
+    }, [])
+  )
 
   const setupRealtimeSubscriptions = async () => {
     try {
@@ -414,19 +423,44 @@ export default function HostDashboard() {
         query: () =>
           supabaseWithDeviceId
             .from("oncall_assignments")
-            .select(`
-              *,
-              user:profiles!oncall_assignments_user_id_fkey(
-                id,
-                email,
-                full_name
-              )
-            `)
+            .select("*")
             .eq("program_id", 3)
             .eq("is_active", true)
       })
       
-      setOnCallAssignments(data || [])
+      if (data && data.length > 0) {
+        // Get user names for the assigned users
+        const assignedUserIds = data.map(a => a.user_id)
+        const { data: authUsers, error: authError } = await supabaseWithDeviceId
+          .rpc("get_auth_user_names", {
+            user_ids: assignedUserIds
+          })
+
+        if (authError) {
+          console.error("Error fetching auth user names:", authError)
+        }
+
+        // Create a map for easy lookup
+        const authUsersMap = new Map()
+        if (authUsers) {
+          authUsers.forEach(u => {
+            authUsersMap.set(u.id, u)
+          })
+        }
+
+        // Add user info to assignments
+        const assignmentsWithUsers = data.map(assignment => {
+          const authUser = authUsersMap.get(assignment.user_id)
+          return {
+            ...assignment,
+            user: authUser || { id: assignment.user_id, email: "Unknown", full_name: "Unknown User" }
+          }
+        })
+
+        setOnCallAssignments(assignmentsWithUsers)
+      } else {
+        setOnCallAssignments([])
+      }
     } catch (error) {
       console.error("Error fetching on-call assignments:", error)
     }
@@ -462,18 +496,19 @@ export default function HostDashboard() {
   }
 
   const fetchPendingCounts = async () => {
-    setLoading(true)
+    // Get fresh service sections to ensure we have latest data
+    const sections = getServiceSections()
+    
     try {
       await Promise.all(
-        serviceSections
+        sections
           .filter((section) => section.table)
           .map((section) => fetchCountForTable(section.table!))
       )
     } catch (error) {
       console.error("Error triggering fetch counts:", error)
-      Alert.alert("Error", "Could not fetch pending item counts.")
-    } finally {
-      setLoading(false)
+      // Don't show alert for count fetching errors
+      console.log("Could not fetch pending item counts:", error)
     }
   }
 

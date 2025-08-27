@@ -847,13 +847,13 @@ const TimelineView = ({
           const [year, month, dayNum] = dateStr
             .split("-")
             .map((num) => parseInt(num, 10))
-          const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+          // Treat dates as local CST dates without timezone conversion
+          const dateObj = new Date(year, month - 1, dayNum)
 
           const itemDate = dateObj.toLocaleDateString("en-US", {
             weekday: "long",
             month: "long",
-            day: "numeric",
-            timeZone: "UTC"
+            day: "numeric"
           })
 
           // Only include if the date matches the current day
@@ -879,13 +879,13 @@ const TimelineView = ({
       const [year, month, dayNum] = dateStr
         .split("-")
         .map((num) => parseInt(num, 10))
-      const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+      // Treat dates as local CST dates without timezone conversion
+      const dateObj = new Date(year, month - 1, dayNum)
 
       const itemDate = dateObj.toLocaleDateString("en-US", {
         weekday: "long",
         month: "long",
-        day: "numeric",
-        timeZone: "UTC"
+        day: "numeric"
       })
 
       // Check if date matches the current day string
@@ -914,12 +914,11 @@ const TimelineView = ({
                 // This event likely wraps to the next day
                 // Check if the next day is our current day
                 const nextDateObj = new Date(dateObj)
-                nextDateObj.setUTCDate(nextDateObj.getUTCDate() + 1)
+                nextDateObj.setDate(nextDateObj.getDate() + 1)
                 const nextItemDate = nextDateObj.toLocaleDateString("en-US", {
                   weekday: "long",
                   month: "long",
-                  day: "numeric",
-                  timeZone: "UTC"
+                  day: "numeric"
                 })
                 wrapsFromPreviousDay = nextItemDate === day
               }
@@ -1309,14 +1308,12 @@ const TimelineView = ({
                           const [year, month, dayNum] = dateStr
                             .split("-")
                             .map((num) => parseInt(num, 10))
-                          const dateObj = new Date(
-                            Date.UTC(year, month - 1, dayNum)
-                          )
+                          // Treat dates as local CST dates without timezone conversion
+                          const dateObj = new Date(year, month - 1, dayNum)
                           const itemDate = dateObj.toLocaleDateString("en-US", {
                             weekday: "long",
                             month: "long",
-                            day: "numeric",
-                            timeZone: "UTC"
+                            day: "numeric"
                           })
 
                           // If the event date doesn't match current day, it wraps from previous
@@ -2254,13 +2251,13 @@ const DayScheduleCard = ({
           const [year, month, dayNum] = dateStr
             .split("-")
             .map((num) => parseInt(num, 10))
-          const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+          // Treat dates as local CST dates without timezone conversion
+          const dateObj = new Date(year, month - 1, dayNum)
 
           const itemDate = dateObj.toLocaleDateString("en-US", {
             weekday: "long",
             month: "long",
-            day: "numeric",
-            timeZone: "UTC"
+            day: "numeric"
           })
 
           // Only include if the date matches the current day
@@ -3461,13 +3458,14 @@ export default function Program() {
         const [year, month, day] = dateStr
           .split("-")
           .map((num) => parseInt(num, 10))
-        const dateObj = new Date(Date.UTC(year, month - 1, day))
+        // Treat dates as local CST dates without timezone conversion
+        const dateObj = new Date(year, month - 1, day)
 
         const formattedDate = dateObj.toLocaleDateString("en-US", {
           weekday: "long",
           month: "long",
-          day: "numeric",
-          timeZone: "UTC" // Force UTC timezone to avoid date shifting
+          day: "numeric"
+          // No timeZone specified - display as local date
         })
 
         if (!acc[formattedDate]) {
@@ -3535,13 +3533,14 @@ export default function Program() {
         const [year, month, day] = dateStr
           .split("-")
           .map((num) => parseInt(num, 10))
-        const dateObj = new Date(Date.UTC(year, month - 1, day))
+        // Treat dates as local CST dates without timezone conversion
+        const dateObj = new Date(year, month - 1, day)
 
         const itemDate = dateObj.toLocaleDateString("en-US", {
           weekday: "long",
           month: "long",
-          day: "numeric",
-          timeZone: "UTC"
+          day: "numeric"
+          // No timeZone specified - display as local date
         })
 
         return savedItems.includes(item.id) && itemDate === currentDayFormatted
@@ -4082,13 +4081,14 @@ export default function Program() {
           const [year, month, dayNum] = dateStr
             .split("-")
             .map((num) => parseInt(num, 10))
-          const dateObj = new Date(Date.UTC(year, month - 1, dayNum))
+          // Treat dates as local CST dates without timezone conversion
+          const dateObj = new Date(year, month - 1, dayNum)
 
           const formattedDayTab = dateObj.toLocaleDateString("en-US", {
             weekday: "short",
             month: "short",
-            day: "numeric",
-            timeZone: "UTC"
+            day: "numeric"
+            // No timeZone specified - display as local date
           })
 
           return (
