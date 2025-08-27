@@ -12,6 +12,7 @@ import {
 } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useFeatures } from "../../../context/FeatureContext"
+import { useRole } from "../../../context/RoleContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeCountRequest, makeRequest } from "../../../lib/requestHelper"
 import { supabase, withDeviceId } from "../../../lib/supabase"
@@ -49,12 +50,33 @@ interface UserProfile {
   email?: string
 }
 
+interface OnCallAssignment {
+  id: number
+  service_type: string
+  user_id: string
+  user?: {
+    id: string
+    email: string
+    full_name?: string
+  }
+}
+
+const ON_CALL_SERVICE_TYPES = [
+  { key: "accessibility", label: "Accessibility", icon: "accessibility" },
+  { key: "volunteers", label: "Volunteers", icon: "people" },
+  { key: "hospitality", label: "Hospitality", icon: "restaurant" },
+  { key: "support", label: "Support Chat", icon: "chatbubbles" }
+]
+
 export default function HostDashboard() {
   const router = useRouter()
   const { theme, isDarkMode } = useTheme()
   const { isFeatureEnabled } = useFeatures()
   const { isDebugMode } = useDebug()
+  const { isHostAdmin, isSuperAdmin } = useRole()
   const [user, setUser] = useState<any>(null)
+  const [onCallAssignments, setOnCallAssignments] = useState<OnCallAssignment[]>([])
+  
   const getServiceSections = () => {
     const sections: ServiceSection[] = []
     
@@ -102,22 +124,32 @@ export default function HostDashboard() {
       })
     }
     
-    // Tools are always shown
-    sections.push({
-      title: "Send General Notification",
-      route: "general-notifications",
-      icon: "notifications",
-      isAction: true,
-      category: "tools"
-    })
-    
-    sections.push({
-      title: "Feature Management",
-      route: "features",
-      icon: "settings",
-      isAction: true,
-      category: "tools"
-    })
+    // Tools section - only for steering members and admins
+    if (isHostAdmin() || isSuperAdmin()) {
+      sections.push({
+        title: "Send General Notification",
+        route: "general-notifications",
+        icon: "notifications",
+        isAction: true,
+        category: "tools"
+      })
+      
+      sections.push({
+        title: "On-Call Management",
+        route: "oncall",
+        icon: "call",
+        isAction: true,
+        category: "tools"
+      })
+      
+      sections.push({
+        title: "Feature Management",
+        route: "features",
+        icon: "settings",
+        isAction: true,
+        category: "tools"
+      })
+    }
     
     sections.push({
       title: "Chairperson Schedule",
@@ -137,6 +169,7 @@ export default function HostDashboard() {
   useEffect(() => {
     fetchUserProfile()
     fetchPendingCounts()
+    fetchOnCallAssignments()
     setupRealtimeSubscriptions()
 
     // Cleanup subscriptions when component unmounts
@@ -149,10 +182,10 @@ export default function HostDashboard() {
     }
   }, [])
   
-  // Update sections when features change
+  // Update sections when features or role change
   useEffect(() => {
     setServiceSections(getServiceSections())
-  }, [isFeatureEnabled])
+  }, [isFeatureEnabled, isHostAdmin, isSuperAdmin])
 
   const setupRealtimeSubscriptions = async () => {
     try {
@@ -372,6 +405,33 @@ export default function HostDashboard() {
     )
   }
 
+  const fetchOnCallAssignments = async () => {
+    try {
+      const supabaseWithDeviceId = await withDeviceId()
+      const { data } = await makeRequest({
+        table: "oncall_assignments",
+        isDebugMode,
+        query: () =>
+          supabaseWithDeviceId
+            .from("oncall_assignments")
+            .select(`
+              *,
+              user:profiles!oncall_assignments_user_id_fkey(
+                id,
+                email,
+                full_name
+              )
+            `)
+            .eq("program_id", 3)
+            .eq("is_active", true)
+      })
+      
+      setOnCallAssignments(data || [])
+    } catch (error) {
+      console.error("Error fetching on-call assignments:", error)
+    }
+  }
+
   const fetchUserProfile = async () => {
     try {
       // For the auth call, we still use supabase directly (could be modified to support debug in future)
@@ -516,6 +576,36 @@ export default function HostDashboard() {
         )}
       </View>
 
+      {/* On-Call Status Display */}
+      <View style={styles(theme).onCallStatusContainer}>
+        <Text style={styles(theme).onCallStatusTitle}>Current On-Call Status</Text>
+        <View style={styles(theme).onCallGrid}>
+          {ON_CALL_SERVICE_TYPES.map(service => {
+            const assignment = onCallAssignments.find(a => a.service_type === service.key)
+            
+            return (
+              <View key={service.key} style={styles(theme).onCallItem}>
+                <View style={styles(theme).onCallItemHeader}>
+                  <Ionicons
+                    name={service.icon as any}
+                    size={16}
+                    color={theme.colors.primary}
+                    style={styles(theme).onCallItemIcon}
+                  />
+                  <Text style={styles(theme).onCallItemLabel}>{service.label}</Text>
+                </View>
+                <Text style={styles(theme).onCallItemAssignment}>
+                  {assignment
+                    ? (assignment.user?.full_name || assignment.user?.email || "Unknown User")
+                    : "No one assigned"
+                  }
+                </Text>
+              </View>
+            )
+          })}
+        </View>
+      </View>
+
       <ScrollView style={styles(theme).scrollContainer}>
         {/* Services Section */}
         <View style={styles(theme).sectionContainer}>
@@ -567,56 +657,60 @@ export default function HostDashboard() {
           </View>
         </View>
 
-        {/* Tools Section */}
-        <View style={styles(theme).sectionContainer}>
-          <Text style={styles(theme).sectionHeader}>Tools</Text>
-          <Text style={styles(theme).sectionDescription}>
-            Send notifications and manage app features
-          </Text>
-          <View style={styles(theme).servicesContainer}>
-            {serviceSections
-              .filter((service) => service.category === "tools")
-              .map((service) => (
-                <TouchableOpacity
-                  key={service.route}
-                  style={styles(theme).serviceCard}
-                  onPress={() => navigateToService(service.route)}
-                >
-                  <View style={styles(theme).serviceCardContent}>
-                    <View
-                      style={[
-                        styles(theme).serviceIconContainer,
-                        { backgroundColor: theme.colors.primary }
-                      ]}
-                    >
+        {/* Tools Section - only visible to steering members and admins */}
+        {serviceSections.some((service) => service.category === "tools") && (
+          <View style={styles(theme).sectionContainer}>
+            <Text style={styles(theme).sectionHeader}>Tools</Text>
+            <Text style={styles(theme).sectionDescription}>
+              Send notifications and manage app features
+            </Text>
+            <View style={styles(theme).servicesContainer}>
+              {serviceSections
+                .filter((service) => service.category === "tools")
+                .map((service) => (
+                  <TouchableOpacity
+                    key={service.route}
+                    style={styles(theme).serviceCard}
+                    onPress={() => navigateToService(service.route)}
+                  >
+                    <View style={styles(theme).serviceCardContent}>
+                      <View
+                        style={[
+                          styles(theme).serviceIconContainer,
+                          { backgroundColor: theme.colors.primary }
+                        ]}
+                      >
+                        <Ionicons
+                          name={service.icon}
+                          size={28}
+                          color={getTextColorForBackground(theme.colors.primary)}
+                        />
+                      </View>
+                      <View style={styles(theme).serviceTextContainer}>
+                        <Text style={styles(theme).serviceTitle}>
+                          {service.title}
+                        </Text>
+                        <Text style={styles(theme).serviceSubtitle}>
+                          {service.route === "general-notifications" 
+                            ? "Send notifications to attendees"
+                            : service.route === "oncall"
+                            ? "Manage on-call assignments"
+                            : "Control available app features"}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles(theme).serviceCardAction}>
                       <Ionicons
-                        name={service.icon}
-                        size={28}
-                        color={getTextColorForBackground(theme.colors.primary)}
+                        name="chevron-forward"
+                        size={20}
+                        color={theme.colors.text.secondary}
                       />
                     </View>
-                    <View style={styles(theme).serviceTextContainer}>
-                      <Text style={styles(theme).serviceTitle}>
-                        {service.title}
-                      </Text>
-                      <Text style={styles(theme).serviceSubtitle}>
-                        {service.route === "general-notifications" 
-                          ? "Send notifications to attendees"
-                          : "Control available app features"}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles(theme).serviceCardAction}>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={theme.colors.text.secondary}
-                    />
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* User Section */}
         <View style={styles(theme).sectionContainer}>
@@ -830,5 +924,49 @@ const styles = (theme: any) =>
       fontSize: 16,
       fontWeight: "600",
       marginRight: theme.spacing.sm
+    },
+    onCallStatusContainer: {
+      backgroundColor: theme.colors.surface,
+      margin: theme.spacing.md,
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      ...theme.shadows.small
+    },
+    onCallStatusTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.sm
+    },
+    onCallGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm
+    },
+    onCallItem: {
+      backgroundColor: theme.colors.background,
+      borderRadius: theme.borderRadius.sm,
+      padding: theme.spacing.sm,
+      flex: 1,
+      minWidth: "45%",
+      borderWidth: 1,
+      borderColor: theme.colors.border
+    },
+    onCallItemHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: theme.spacing.xs
+    },
+    onCallItemIcon: {
+      marginRight: theme.spacing.xs
+    },
+    onCallItemLabel: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.colors.text.primary
+    },
+    onCallItemAssignment: {
+      fontSize: 11,
+      color: theme.colors.text.secondary
     }
   })

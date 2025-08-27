@@ -1125,134 +1125,141 @@ export default function Profile() {
   if (!currentUser && !loadingProfile) {
     return (
       <KeyboardAvoidingView
-        style={[styles.container, styles.centerContent]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <Ionicons
-          name="person-add-outline"
-          size={60}
-          color={theme.colors.text.secondary}
-          style={{ marginBottom: theme.spacing.lg }}
-        />
-        <Text style={styles.sectionTitle}>Create Profile</Text>
-        <Text style={styles.instructionText}>
-          It looks like you don't have a profile yet.
-        </Text>
-        <Text style={styles.instructionText}>
-          Enter your name below to get started.
-        </Text>
-        {/* Simplified form to create initial profile */}
-        <View style={styles.formContainerMinimal}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name</Text>
-            <TextInput
-              style={styles.input}
-              value={firstName}
-              onChangeText={setFirstName}
-              placeholder="Your first name"
-              placeholderTextColor={theme.colors.text.secondary}
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Initial</Text>
-            <TextInput
-              style={styles.input}
-              value={lastInitial}
-              onChangeText={(text) =>
-                setLastInitial(text.charAt(0).toUpperCase())
-              }
-              placeholder="Your last initial"
-              placeholderTextColor={theme.colors.text.secondary}
-              maxLength={1}
-              autoCapitalize="characters"
-            />
-          </View>
-          <TouchableOpacity
-            style={styles.saveButton}
-            onPress={async () => {
-              if (!deviceId || !firstName || !lastInitial) {
-                Alert.alert(
-                  "Missing Info",
-                  "Please enter both first name and last initial."
-                )
-                return
-              }
-              try {
-                // Get push token
-                const pushToken = await registerForPushNotificationsAsync()
+        <ScrollView 
+          contentContainerStyle={[styles.scrollContent, styles.centerContent]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Ionicons
+            name="person-add-outline"
+            size={60}
+            color={theme.colors.text.secondary}
+            style={{ marginBottom: theme.spacing.lg }}
+          />
+          <Text style={styles.sectionTitle}>Create Profile</Text>
+          <Text style={styles.instructionText}>
+            It looks like you don't have a profile yet.
+          </Text>
+          <Text style={styles.instructionText}>
+            Enter your name below to get started.
+          </Text>
+          {/* Simplified form to create initial profile */}
+          <View style={styles.formContainerMinimal}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>First Name</Text>
+              <TextInput
+                style={styles.input}
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Your first name"
+                placeholderTextColor={theme.colors.text.secondary}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Last Initial</Text>
+              <TextInput
+                style={styles.input}
+                value={lastInitial}
+                onChangeText={(text) =>
+                  setLastInitial(text.charAt(0).toUpperCase())
+                }
+                placeholder="Your last initial"
+                placeholderTextColor={theme.colors.text.secondary}
+                maxLength={1}
+                autoCapitalize="characters"
+              />
+            </View>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={async () => {
+                if (!deviceId || !firstName || !lastInitial) {
+                  Alert.alert(
+                    "Missing Info",
+                    "Please enter both first name and last initial."
+                  )
+                  return
+                }
+                try {
+                  // Get push token
+                  const pushToken = await registerForPushNotificationsAsync()
 
-                console.log("Creating user:", {
-                  device_id: deviceId,
-                  first_name: firstName,
-                  last_initial: lastInitial,
-                  expo_push_token: pushToken
-                })
-                // Actual Supabase insert call
-                const supabaseWithDeviceId = await withDeviceId()
-                const { error: insertError } = await supabaseWithDeviceId
-                  .from("users")
-                  .insert({
+                  console.log("Creating user:", {
                     device_id: deviceId,
                     first_name: firstName,
                     last_initial: lastInitial,
-                    expo_push_token: pushToken, // Add push token
-                    // Initialize settings and schedule with defaults if needed by your schema
-                    settings: {
-                      notifications: true,
-                      schedule_notifications: true,
-                      event_notifications: true,
-                      main_meeting_notifications: true,
-                      game_notifications: true,
-                      hospitality_notifications: true
-                    },
-                    schedule: {
-                      saved_events: [],
-                      requested_share: [],
-                      shared_with: [],
-                      pending_share: [],
-                      shared_by: [],
-                      banned: []
-                    }
+                    expo_push_token: pushToken
                   })
-                  .select() // Optionally select to confirm insert, though not strictly necessary here
-                  .single() // Expecting to insert one row
+                  // Actual Supabase insert call
+                  const supabaseWithDeviceId = await withDeviceId()
+                  const { error: insertError } = await supabaseWithDeviceId
+                    .from("users")
+                    .insert({
+                      device_id: deviceId,
+                      first_name: firstName,
+                      last_initial: lastInitial,
+                      expo_push_token: pushToken, // Add push token
+                      // Initialize settings and schedule with defaults if needed by your schema
+                      settings: {
+                        notifications: true,
+                        schedule_notifications: true,
+                        event_notifications: true,
+                        main_meeting_notifications: true,
+                        game_notifications: true,
+                        hospitality_notifications: true
+                      },
+                      schedule: {
+                        saved_events: [],
+                        requested_share: [],
+                        shared_with: [],
+                        pending_share: [],
+                        shared_by: [],
+                        banned: []
+                      }
+                    })
+                    .select() // Optionally select to confirm insert, though not strictly necessary here
+                    .single() // Expecting to insert one row
 
-                if (insertError) {
-                  console.error("Error inserting user:", insertError)
-                  // Check for unique constraint violation (user likely already exists)
-                  if (insertError.code === "23505") {
-                    // PostgreSQL unique violation code
-                    Alert.alert(
-                      "Error",
-                      "A profile for this device might already exist. Trying to load data."
-                    )
-                  } else {
-                    Alert.alert(
-                      "Error",
-                      `Could not create profile: ${insertError.message}`
-                    )
-                    return // Stop if insert failed for other reasons
+                  if (insertError) {
+                    console.error("Error inserting user:", insertError)
+                    // Check for unique constraint violation (user likely already exists)
+                    if (insertError.code === "23505") {
+                      // PostgreSQL unique violation code
+                      Alert.alert(
+                        "Error",
+                        "A profile for this device might already exist. Trying to load data."
+                      )
+                    } else {
+                      Alert.alert(
+                        "Error",
+                        `Could not create profile: ${insertError.message}`
+                      )
+                      return // Stop if insert failed for other reasons
+                    }
                   }
-                }
 
-                // Re-trigger data fetch by resetting deviceId momentarily
-                const currentId = deviceId
-                setDeviceId(null)
-                setTimeout(() => setDeviceId(currentId), 50)
-                // Removed success alert
-              } catch (error) {
-                // Catch any other unexpected errors during the process
-                console.error("Unexpected error creating profile:", error)
-                Alert.alert(
-                  "Error",
-                  "An unexpected error occurred while creating the profile."
-                )
-              }
-            }}
-          >
-            <Text style={styles.saveButtonText}>Create Profile</Text>
-          </TouchableOpacity>
-        </View>
+                  // Re-trigger data fetch by resetting deviceId momentarily
+                  const currentId = deviceId
+                  setDeviceId(null)
+                  setTimeout(() => setDeviceId(currentId), 50)
+                  // Removed success alert
+                } catch (error) {
+                  // Catch any other unexpected errors during the process
+                  console.error("Unexpected error creating profile:", error)
+                  Alert.alert(
+                    "Error",
+                    "An unexpected error occurred while creating the profile."
+                  )
+                }
+              }}
+            >
+              <Text style={styles.saveButtonText}>Create Profile</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     )
   }
@@ -1260,7 +1267,7 @@ export default function Profile() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
