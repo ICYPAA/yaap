@@ -9,18 +9,21 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../context/ThemeContext"
-import { supabase, withDeviceId } from "../lib/supabase"
+import { supabase } from "../lib/supabase"
 
-interface ChairpersonEvent {
+interface Shift {
   id: string
-  event_id: number
-  event_name: string
-  event_time: string
-  event_date: string
-  location: string
-  responsibilities?: string
-  notes?: string
-  category: string
+  date: string
+  start_time: string
+  end_time: string
+  job_type: string
+  location: string[] | null
+  min_volunteers: number
+  max_volunteers: number
+  assignments: any[]
+  notes: string | null
+  created_at: string
+  updated_at: string
 }
 
 interface ChairpersonScheduleProps {
@@ -31,137 +34,132 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
   userId
 }) => {
   const { theme } = useTheme()
-  const [chairEvents, setChairEvents] = useState<ChairpersonEvent[]>([])
+  const [shifts, setShifts] = useState<Shift[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
     {}
   )
-  const [userRole, setUserRole] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const styles = createStyles(theme)
 
   useEffect(() => {
-    fetchChairpersonSchedule()
+    // Only fetch if we have a userId
+    if (userId) {
+      fetchChairpersonSchedule()
+    }
   }, [userId])
 
-  const fetchChairpersonSchedule = async () => {
+  const fetchChairpersonSchedule = async (isRefresh = false) => {
     try {
-      setLoading(true)
-      const supabaseWithDeviceId = await withDeviceId()
-
-      // Get current user if no userId provided
-      let currentUserId = userId
-      if (!currentUserId) {
-        const {
-          data: { user }
-        } = await supabase.auth.getUser()
-        currentUserId = user?.id
+      if (isRefresh) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
       }
+      setError(null)
 
-      if (!currentUserId) {
+      // Get the auth token from Supabase session
+      const {
+        data: { session },
+        error: sessionError
+      } = await supabase.auth.getSession()
+
+      if (sessionError || !session?.access_token) {
+        console.error("Error getting session:", sessionError)
+        setError("Authentication required")
         setLoading(false)
         return
       }
 
-      // Fetch user's role from users table
-      const { data: userData, error: userError } = await supabaseWithDeviceId
-        .from("users")
-        .select("committee_role")
-        .eq("user_id", currentUserId)
-        .single()
+      // Fetch shifts from icyhost.org API
+      const response = await fetch("https://icyhost.org/api/schedule", {
+        method: "GET",
+        headers: {
+          "x-authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        }
+      })
 
-      if (userError) {
-        console.error("Error fetching user data:", userError)
-        // Try a default role for demo purposes
-        setUserRole("Program Chair")
-      } else {
-        setUserRole(userData?.committee_role || "Program Chair")
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(
+          `Failed to fetch shifts: ${response.status}${errorText ? ` - ${errorText}` : ''}`
+        )
       }
 
-      // For now, use mock data based on role
-      // In production, this would fetch from a chairperson_events table
-      const mockEvents = getMockEventsForRole(userData?.committee_role || "Program Chair")
-      setChairEvents(mockEvents)
+      const data = await response.json()
+      
+      console.log("API Response:", data)
+
+      // Handle different response formats
+      let shiftsData: Shift[] = []
+      
+      if (Array.isArray(data)) {
+        // Direct array of shifts
+        shiftsData = data
+      } else if (data && Array.isArray(data.shifts)) {
+        // Shifts nested in object
+        shiftsData = data.shifts
+      } else if (data && Array.isArray(data.data)) {
+        // Data nested in object
+        shiftsData = data.data
+      } else {
+        console.error("Unexpected API response format:", data)
+        shiftsData = []
+      }
+
+      // Filter shifts where current user is in assignments if userId is provided
+      const userShifts = userId && shiftsData.length > 0
+        ? shiftsData.filter((shift: Shift) => {
+            if (!shift.assignments || !Array.isArray(shift.assignments)) {
+              return false
+            }
+            return shift.assignments.some(
+              (assignment: any) =>
+                assignment.id === userId || 
+                assignment.user_id === userId ||
+                assignment.userId === userId
+            )
+          })
+        : shiftsData
+
+      setShifts(userShifts)
     } catch (error) {
       console.error("Error fetching chairperson schedule:", error)
+      setError("Failed to load schedule. Please try again later.")
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
-  const getMockEventsForRole = (role: string | null): ChairpersonEvent[] => {
-    if (!role) return []
+  // Format time for display (already in CST, no conversion needed)
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(":")
+    const hour = parseInt(hours)
+    const period = hour >= 12 ? "PM" : "AM"
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+    return `${displayHour}:${minutes} ${period}`
+  }
 
-    const baseEvents: ChairpersonEvent[] = [
-      {
-        id: "cp-1",
-        event_id: 1,
-        event_name: "Opening Ceremony",
-        event_time: "9:00 AM",
-        event_date: "2025-03-01",
-        location: "Main Ballroom",
-        category: "Main Meeting",
-        responsibilities: "Welcome attendees, introduce speakers",
-        notes: "Arrive 30 minutes early for mic check"
-      },
-      {
-        id: "cp-2",
-        event_id: 2,
-        event_name: "Speaker Meeting - Recovery Stories",
-        event_time: "10:30 AM",
-        event_date: "2025-03-01",
-        location: "Conference Room A",
-        category: "Speaker",
-        responsibilities: "Introduce speakers, manage Q&A session",
-        notes: "Review speaker bios beforehand"
-      },
-      {
-        id: "cp-3",
-        event_id: 3,
-        event_name: "Lunch Hospitality Check",
-        event_time: "12:00 PM",
-        event_date: "2025-03-01",
-        location: "Hospitality Suite",
-        category: "Hospitality",
-        responsibilities: "Ensure hospitality suite is running smoothly",
-        notes: "Check with volunteers about supplies"
+  // Group shifts by date
+  const getShiftsByDate = () => {
+    const grouped: Record<string, Shift[]> = {}
+    shifts.forEach((shift) => {
+      if (!grouped[shift.date]) {
+        grouped[shift.date] = []
       }
-    ]
-
-    // Add role-specific events
-    if (role.toLowerCase().includes("registration")) {
-      baseEvents.push({
-        id: "cp-4",
-        event_id: 4,
-        event_name: "Registration Desk Setup",
-        event_time: "7:30 AM",
-        event_date: "2025-03-01",
-        location: "Hotel Lobby",
-        category: "Setup",
-        responsibilities: "Oversee registration desk setup and volunteer training",
-        notes: "Bring extra name tags and lanyards"
-      })
-    }
-
-    if (role.toLowerCase().includes("program")) {
-      baseEvents.push({
-        id: "cp-5",
-        event_id: 5,
-        event_name: "Workshop Coordination Meeting",
-        event_time: "2:00 PM",
-        event_date: "2025-03-01",
-        location: "Meeting Room B",
-        category: "Meeting",
-        responsibilities: "Coordinate with workshop leaders",
-        notes: "Confirm AV equipment for each room"
-      })
-    }
-
-    return baseEvents.sort((a, b) => {
-      const dateA = new Date(`${a.event_date} ${a.event_time}`)
-      const dateB = new Date(`${b.event_date} ${b.event_time}`)
-      return dateA.getTime() - dateB.getTime()
+      grouped[shift.date].push(shift)
     })
+
+    // Sort shifts within each date by start time
+    Object.keys(grouped).forEach((date) => {
+      grouped[date].sort((a, b) => a.start_time.localeCompare(b.start_time))
+    })
+
+    return grouped
   }
 
   const toggleExpanded = (id: string) => {
@@ -171,31 +169,55 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
     }))
   }
 
-  const getCategoryColor = (category: string) => {
-    switch (category.toLowerCase()) {
-      case "main meeting":
+  const getJobTypeColor = (jobType: string) => {
+    switch (jobType.toLowerCase()) {
+      case "registration":
         return theme.colors.primary
-      case "speaker":
-        return theme.colors.success
+      case "security":
+        return theme.colors.error
       case "hospitality":
         return theme.colors.warning
-      case "setup":
+      case "marathon meetings":
+        return theme.colors.success
+      case "merch":
         return theme.colors.info
+      case "greeting":
+        return "#9333ea"
+      case "clean up":
+        return "#f59e0b"
       default:
         return theme.colors.text.secondary
     }
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric"
-    })
+    // Date is already formatted as YYYY-MM-DD in CST
+    const [year, month, day] = dateString.split("-")
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
+    ]
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+    // Create date in CST (no conversion needed)
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+    const dayOfWeek = dayNames[date.getDay()]
+    const monthName = monthNames[parseInt(month) - 1]
+
+    return `${dayOfWeek}, ${monthName} ${parseInt(day)}`
   }
 
-  if (loading) {
+  if (loading || !userId) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -206,117 +228,176 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
     )
   }
 
-  if (!userRole) {
+  if (error) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Chairperson Schedule</Text>
-          <Text style={styles.noRoleText}>
-            You are not assigned as a chairperson for any events.
-          </Text>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
       </View>
     )
   }
 
-  if (chairEvents.length === 0) {
+  if (shifts.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Your Chairperson Schedule</Text>
-          <Text style={styles.roleText}>Role: {userRole}</Text>
-          <Text style={styles.noEventsText}>
-            No events scheduled for your role yet.
-          </Text>
+          <Text style={styles.title}>Your Shift Schedule</Text>
+          <Text style={styles.noEventsText}>You have no shifts scheduled.</Text>
         </View>
       </View>
     )
   }
+
+  const shiftsByDate = getShiftsByDate()
+  const sortedDates = Object.keys(shiftsByDate).sort()
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Your Chairperson Schedule</Text>
-        <Text style={styles.roleText}>Role: {userRole}</Text>
-        <Text style={styles.subtitle}>
-          Events where you have chairperson responsibilities
-        </Text>
+        <View style={styles.headerTop}>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.title}>Your Shift Schedule</Text>
+            <Text style={styles.subtitle}>
+              {shifts.length} shift{shifts.length !== 1 ? "s" : ""} assigned
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.refreshButton} 
+            onPress={() => fetchChairpersonSchedule(true)}
+            activeOpacity={0.7}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <ActivityIndicator 
+                size="small" 
+                color={theme.colors.primary} 
+              />
+            ) : (
+              <Ionicons 
+                name="refresh" 
+                size={24} 
+                color={theme.colors.primary}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
         style={styles.eventsList}
         showsVerticalScrollIndicator={false}
       >
-        {chairEvents.map((event) => {
-          const isExpanded = expandedItems[event.id]
+        {sortedDates.map((date) => (
+          <View key={date} style={styles.dateSection}>
+            <Text style={styles.dateHeader}>{formatDate(date)}</Text>
+            {shiftsByDate[date].map((shift) => {
+              const isExpanded = expandedItems[shift.id]
 
-          return (
-            <TouchableOpacity
-              key={event.id}
-              style={styles.eventItem}
-              onPress={() => toggleExpanded(event.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.eventHeader}>
-                <View
-                  style={[
-                    styles.categoryIndicator,
-                    { backgroundColor: getCategoryColor(event.category) }
-                  ]}
-                />
+              return (
+                <TouchableOpacity
+                  key={shift.id}
+                  style={styles.eventItem}
+                  onPress={() => toggleExpanded(shift.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.eventHeader}>
+                    <View
+                      style={[
+                        styles.categoryIndicator,
+                        { backgroundColor: getJobTypeColor(shift.job_type) }
+                      ]}
+                    />
 
-                <View style={styles.eventContent}>
-                  <Text style={styles.eventCategory}>{event.category}</Text>
-                  <Text style={styles.eventName}>{event.event_name}</Text>
-                  <View style={styles.eventDetails}>
-                    <View style={styles.eventDetailRow}>
-                      <Ionicons
-                        name="time-outline"
-                        size={14}
-                        color={theme.colors.text.secondary}
-                      />
-                      <Text style={styles.eventTime}>
-                        {formatDate(event.event_date)} at {event.event_time}
-                      </Text>
+                    <View style={styles.eventContent}>
+                      <Text style={styles.eventCategory}>{shift.job_type}</Text>
+                      <View style={styles.eventDetails}>
+                        <View style={styles.eventDetailRow}>
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={theme.colors.text.secondary}
+                          />
+                          <Text style={styles.eventTime}>
+                            {formatTime(shift.start_time)} -{" "}
+                            {formatTime(shift.end_time)}
+                          </Text>
+                        </View>
+                        {shift.location && shift.location.length > 0 && (
+                          <View style={styles.eventDetailRow}>
+                            <Ionicons
+                              name="location-outline"
+                              size={14}
+                              color={theme.colors.text.secondary}
+                            />
+                            <Text style={styles.eventLocation}>
+                              {shift.location.join(", ")}
+                            </Text>
+                          </View>
+                        )}
+                        {shift.assignments.length > 1 && (
+                          <View style={styles.eventDetailRow}>
+                            <Ionicons
+                              name="people-outline"
+                              size={14}
+                              color={theme.colors.text.secondary}
+                            />
+                            <Text style={styles.eventTime}>
+                              {shift.assignments.length - 1} other volunteer
+                              {shift.assignments.length > 2 ? "s" : ""}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                    <View style={styles.eventDetailRow}>
-                      <Ionicons
-                        name="location-outline"
-                        size={14}
-                        color={theme.colors.text.secondary}
-                      />
-                      <Text style={styles.eventLocation}>{event.location}</Text>
-                    </View>
+
+                    <Ionicons
+                      name={isExpanded ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color={theme.colors.text.secondary}
+                    />
                   </View>
-                </View>
 
-                <Ionicons
-                  name={isExpanded ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={theme.colors.text.secondary}
-                />
-              </View>
+                  {isExpanded && (
+                    <View style={styles.expandedContent}>
+                      {shift.notes && (
+                        <View style={styles.infoSection}>
+                          <Text style={styles.infoLabel}>Notes:</Text>
+                          <Text style={styles.infoText}>{shift.notes}</Text>
+                        </View>
+                      )}
 
-              {isExpanded && (
-                <View style={styles.expandedContent}>
-                  {event.responsibilities && (
-                    <View style={styles.infoSection}>
-                      <Text style={styles.infoLabel}>Your Responsibilities:</Text>
-                      <Text style={styles.infoText}>{event.responsibilities}</Text>
+                      {shift.assignments.length > 1 && (
+                        <View style={styles.infoSection}>
+                          <Text style={styles.infoLabel}>Co-volunteers:</Text>
+                          {shift.assignments
+                            .filter(
+                              (a: any) =>
+                                a.id !== userId && a.user_id !== userId
+                            )
+                            .map((assignment: any, index: number) => (
+                              <Text key={index} style={styles.infoText}>
+                                • {assignment.name || "Volunteer"}
+                              </Text>
+                            ))}
+                        </View>
+                      )}
+
+                      <View style={styles.infoSection}>
+                        <Text style={styles.infoLabel}>Staffing:</Text>
+                        <Text style={styles.infoText}>
+                          {shift.assignments.length} of {shift.min_volunteers}-
+                          {shift.max_volunteers} volunteers
+                        </Text>
+                      </View>
                     </View>
                   )}
-
-                  {event.notes && (
-                    <View style={styles.infoSection}>
-                      <Text style={styles.infoLabel}>Notes:</Text>
-                      <Text style={styles.infoText}>{event.notes}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </TouchableOpacity>
-          )
-        })}
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        ))}
       </ScrollView>
     </View>
   )
@@ -333,6 +414,22 @@ const createStyles = (theme: any) =>
     },
     header: {
       marginBottom: theme.spacing.lg
+    },
+    headerTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start"
+    },
+    headerTextContainer: {
+      flex: 1
+    },
+    refreshButton: {
+      padding: theme.spacing.sm,
+      borderRadius: theme.borderRadius.sm,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginLeft: theme.spacing.md
     },
     title: {
       ...theme.typography.h2,
@@ -351,9 +448,9 @@ const createStyles = (theme: any) =>
       color: theme.colors.text.secondary,
       lineHeight: 20
     },
-    noRoleText: {
+    errorText: {
       ...theme.typography.body,
-      color: theme.colors.text.secondary,
+      color: theme.colors.error,
       fontStyle: "italic",
       marginTop: theme.spacing.sm
     },
@@ -439,6 +536,18 @@ const createStyles = (theme: any) =>
       ...theme.typography.body,
       color: theme.colors.text.primary,
       lineHeight: 20
+    },
+    dateSection: {
+      marginBottom: theme.spacing.lg
+    },
+    dateHeader: {
+      ...theme.typography.h3,
+      color: theme.colors.text.primary,
+      fontWeight: "bold",
+      marginBottom: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border
     }
   })
 
