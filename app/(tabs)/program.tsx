@@ -4822,33 +4822,18 @@ const HospitalitySection = ({
     (timeSlot) => timeSlot.day.toLowerCase() === dayName.toLowerCase()
   )
 
-  // Use the formatTime function from parent
+  // Use time directly from DB (already in CST, no conversion needed)
   const formatHospitalityTime = (time: string | null | undefined) => {
     if (!time) return ""
 
-    // Simple formatter like the one in parent scope
+    // Time is already in CST from the database
+    // Just format it nicely for display (HH:MM:SS -> H:MM AM/PM)
     try {
-      const cleanedTime = time.toUpperCase().replace(/\s+/g, "")
-      const match = cleanedTime.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?(AM|PM)?/)
-      if (!match) return time
-
-      let hours = parseInt(match[1], 10)
-      const minutes = parseInt(match[2], 10)
-      let period = match[4]
-
-      if (period) {
-        if (period === "PM" && hours !== 12) {
-          hours += 12
-        } else if (period === "AM" && hours === 12) {
-          hours = 0
-        }
-      }
-
-      const finalHours12 = hours % 12 === 0 ? 12 : hours % 12
-      const finalPeriod = hours >= 12 ? "PM" : "AM"
-      const finalMinutesStr = minutes < 10 ? "0" + minutes : minutes
-
-      return `${finalHours12}:${finalMinutesStr} ${finalPeriod}`
+      const [hours, minutes] = time.split(":")
+      const hour = parseInt(hours, 10)
+      const period = hour >= 12 ? "PM" : "AM"
+      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+      return `${displayHour}:${minutes} ${period}`
     } catch {
       return time
     }
@@ -4903,6 +4888,10 @@ async function registerForPushNotificationsAsync() {
     return token
   } catch (error) {
     console.error("Error getting push token:", error)
+    // Silently fail on emulators/simulators
+    if (__DEV__) {
+      console.log("Push tokens may not be supported on emulators/simulators")
+    }
     return null
   }
 }

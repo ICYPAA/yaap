@@ -1,6 +1,7 @@
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6"
 import * as AppleAuthentication from "expo-apple-authentication"
 import { makeRedirectUri } from "expo-auth-session"
+import * as Linking from "expo-linking"
 import { useRouter } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
 import React, { useEffect, useState } from "react"
@@ -55,6 +56,132 @@ export default function HostLogin() {
     checkAppleAuthAvailability()
   }, [])
 
+  // Handle session recovery for Android OAuth
+  useEffect(() => {
+    if (Platform.OS !== 'android') return
+    
+    console.log("Android: Setting up session recovery listener")
+    
+    // Also listen for deep links on Android
+    const linkingListener = Linking.addEventListener('url', async ({ url }) => {
+      console.log("Android: Deep link received:", url)
+      
+      if (url.includes('#access_token=')) {
+        console.log("Android: Auth callback URL detected")
+        
+        // Extract tokens from the URL fragment
+        const urlParts = url.split('#')
+        if (urlParts.length > 1) {
+          const params = new URLSearchParams(urlParts[1])
+          const access_token = params.get('access_token')
+          const refresh_token = params.get('refresh_token')
+          const provider_token = params.get('provider_token')
+          
+          console.log("Android: Extracted tokens from deep link")
+          console.log("- Access token:", access_token ? "Found" : "Missing")
+          console.log("- Refresh token:", refresh_token ? "Found" : "Missing")
+          console.log("- Provider token:", provider_token ? "Found" : "Missing")
+          
+          if (access_token && refresh_token) {
+            setIsLoggingIn(true)
+            
+            const authResult = await authenticateWithDiscord(
+              access_token,
+              refresh_token,
+              provider_token || ''
+            )
+            
+            if (authResult.success && authResult.user) {
+              console.log("Android: Authentication successful via deep link")
+              setUserFromLogin(authResult.user)
+              router.replace("/(tabs)/host")
+            } else {
+              console.log("Android: Authentication failed, error:", authResult.error)
+              Alert.alert("Login Error", authResult.error || "Authentication failed")
+              setIsLoggingIn(false)
+            }
+            setLoading(false)
+          }
+        }
+      }
+    })
+    
+    // Listen for auth state changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Android: Auth state changed:", event)
+      console.log("Android: Session present:", !!session)
+      console.log("Android: Provider token present:", !!session?.provider_token)
+      
+      // Handle multiple auth events that might indicate successful login
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+        console.log("Android: Checking session for OAuth completion")
+        
+        // Check if we have required tokens for Discord auth
+        const provider_token = session.provider_token
+        const access_token = session.access_token
+        const refresh_token = session.refresh_token
+        
+        // Check if this is a Discord OAuth session (has provider_token or provider_refresh_token)
+        if (provider_token || session.user?.app_metadata?.provider === 'discord') {
+          console.log("Android: Discord session detected")
+          
+          // If we don't have provider_token but have a Discord session, 
+          // we might need to recover it
+          if (!provider_token && session.user?.app_metadata?.provider === 'discord') {
+            console.log("Android: Discord session without provider token, attempting direct auth")
+            
+            // Try to authenticate with just the access token
+            if (access_token && refresh_token) {
+              setIsLoggingIn(true)
+              
+              const authResult = await authenticateWithDiscord(
+                access_token,
+                refresh_token,
+                '' // Empty provider token, the backend might not need it
+              )
+              
+              if (authResult.success && authResult.user) {
+                console.log("Android: Authentication successful (without provider token)")
+                setUserFromLogin(authResult.user)
+                router.replace("/(tabs)/host")
+              } else {
+                console.log("Android: Authentication failed, error:", authResult.error)
+                Alert.alert("Login Error", authResult.error || "Authentication failed")
+                setIsLoggingIn(false)
+              }
+              setLoading(false)
+            }
+          } else if (provider_token) {
+            console.log("Android: Provider token found, authenticating...")
+            setIsLoggingIn(true)
+            
+            const authResult = await authenticateWithDiscord(
+              access_token,
+              refresh_token,
+              provider_token
+            )
+            
+            if (authResult.success && authResult.user) {
+              console.log("Android: Authentication successful")
+              setUserFromLogin(authResult.user)
+              router.replace("/(tabs)/host")
+            } else {
+              console.log("Android: Authentication failed, error:", authResult.error)
+              Alert.alert("Login Error", authResult.error || "Authentication failed")
+              setIsLoggingIn(false)
+            }
+            setLoading(false)
+          }
+        }
+      }
+    })
+    
+    return () => {
+      linkingListener.remove()
+      authListener?.subscription.unsubscribe()
+    }
+  }, [router, setUserFromLogin, setIsLoggingIn])
+
   // Create a redirect URI
   const redirectUri = makeRedirectUri({
     scheme: "yaap",
@@ -71,6 +198,8 @@ export default function HostLogin() {
       console.log("Redirect URI:", redirectUri)
 
       console.log("Step 1: Initiating OAuth with Supabase...")
+      console.log("Using redirectTo:", redirectUri)
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "discord",
         options: {
@@ -92,6 +221,39 @@ export default function HostLogin() {
 
       if (data?.url) {
         console.log("Step 3: Opening WebBrowser for authentication...")
+        
+        // On Android, use openBrowserAsync and wait for session recovery
+        if (Platform.OS === 'android') {
+          console.log("Android detected: Using openBrowserAsync")
+          
+          // Set a timeout to handle if auth doesn't complete
+          const timeoutId = setTimeout(() => {
+            console.log("Android: Auth timeout reached, checking session manually")
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session) {
+                console.log("Android: Found session after timeout, triggering auth state change")
+                // Manually trigger the auth state change by refreshing the session
+                supabase.auth.refreshSession()
+              } else {
+                console.log("Android: No session found after timeout")
+                setLoading(false)
+                setIsLoggingIn(false)
+              }
+            })
+          }, 5000) // 5 second timeout
+          
+          await WebBrowser.openBrowserAsync(data.url)
+          
+          // Clear timeout if still pending
+          clearTimeout(timeoutId)
+          
+          // For Android, the session will be recovered via onAuthStateChange
+          console.log("Browser opened, waiting for session recovery...")
+          // Don't setLoading(false) here - let the auth state change handler do it
+          return
+        }
+        
+        // iOS continues to use openAuthSessionAsync
         const result = await WebBrowser.openAuthSessionAsync(
           data.url,
           redirectUri

@@ -109,9 +109,16 @@ const linking: LinkingOptions<{}> = {
                 schedule_share
             }
           },
-          program: "program"
+          program: "program",
+          host: {
+            screens: {
+              index: "host"
+            }
+          }
         }
       },
+      // Auth callback route for OAuth redirects
+      "auth/callback": "(tabs)/host",
       // Handle old format for backward compatibility
       "schedule_share=:id": "(tabs)/profile"
     }

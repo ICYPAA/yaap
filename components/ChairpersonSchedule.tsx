@@ -27,7 +27,7 @@ interface Shift {
 }
 
 interface ChairpersonScheduleProps {
-  userId?: string
+  userId?: string // Can be email, phone, or user ID
 }
 
 const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
@@ -73,14 +73,27 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
         return
       }
 
-      // Fetch shifts from icyhost.org API
-      const response = await fetch("https://icyhost.org/api/schedule", {
-        method: "GET",
-        headers: {
-          "x-authorization": `Bearer ${session.access_token}`,
-          "Content-Type": "application/json"
+      // Fetch shifts from icyhost.org API (use www subdomain to avoid redirect)
+      let response: Response
+      
+      try {
+        response = await fetch("https://www.icyhost.org/api/schedule", {
+          method: "GET",
+          headers: {
+            "x-authorization": `Bearer ${session.access_token}`,
+            "Content-Type": "application/json"
+          }
+        })
+      } catch (networkError) {
+        console.error("Network error fetching shifts:", networkError)
+        // On Android, sometimes HTTPS issues occur. Log more details.
+        if (networkError instanceof TypeError && networkError.message.includes("Network request failed")) {
+          throw new Error(
+            "Unable to connect to the schedule server. Please check your internet connection and try again."
+          )
         }
-      })
+        throw networkError
+      }
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -91,7 +104,11 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
 
       const data = await response.json()
       
-      console.log("API Response:", data)
+      console.log("=== Shift Schedule API Response ===")
+      console.log("Response type:", typeof data)
+      console.log("Is array:", Array.isArray(data))
+      console.log("Keys:", data ? Object.keys(data) : 'null')
+      console.log("Full response:", JSON.stringify(data, null, 2))
 
       // Handle different response formats
       let shiftsData: Shift[] = []
@@ -110,21 +127,74 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
         shiftsData = []
       }
 
+      // Log shifts data for debugging
+      console.log("=== Processing Shifts ===")
+      console.log("Total shifts received:", shiftsData.length)
+      console.log("User identifier (email/phone/id):", userId)
+      
+      if (shiftsData.length > 0) {
+        console.log("First shift structure:", JSON.stringify(shiftsData[0], null, 2))
+        
+        // Check assignment structure
+        if (shiftsData[0].assignments) {
+          console.log("Assignments in first shift:", shiftsData[0].assignments)
+          console.log("Assignment structure:", shiftsData[0].assignments.length > 0 ? shiftsData[0].assignments[0] : 'No assignments')
+        }
+      }
+      
       // Filter shifts where current user is in assignments if userId is provided
       const userShifts = userId && shiftsData.length > 0
         ? shiftsData.filter((shift: Shift) => {
             if (!shift.assignments || !Array.isArray(shift.assignments)) {
+              console.log(`Shift ${shift.id} has no assignments array`)
               return false
             }
-            return shift.assignments.some(
-              (assignment: any) =>
-                assignment.id === userId || 
-                assignment.user_id === userId ||
-                assignment.userId === userId
+            
+            const isUserAssigned = shift.assignments.some(
+              (assignment: any) => {
+                // Match by multiple fields: email, phone, user ID, etc.
+                // userId could be email, but also check against all possible identifiers
+                const matches = 
+                  // Email matching
+                  assignment.contact === userId ||
+                  assignment.email === userId ||
+                  // Phone matching (in case userId is a phone number)
+                  assignment.phone === userId ||
+                  assignment.phone_number === userId ||
+                  // ID matching (various ID fields)
+                  assignment.id === userId ||
+                  assignment.user_id === userId ||
+                  assignment.userId === userId ||
+                  assignment.discord_id === userId ||
+                  assignment.volunteering_interest_id === userId ||
+                  // Also check if userId is numeric and matches numeric IDs
+                  (userId && !isNaN(Number(userId)) && (
+                    assignment.id === Number(userId) ||
+                    assignment.volunteering_interest_id === Number(userId)
+                  ))
+                  
+                if (matches) {
+                  console.log(`User ${userId} matched in shift ${shift.id}:`, {
+                    assignmentId: assignment.id,
+                    contact: assignment.contact,
+                    name: assignment.name,
+                    matchedField: 
+                      assignment.contact === userId ? 'contact/email' :
+                      assignment.phone === userId ? 'phone' :
+                      assignment.id === userId ? 'id' :
+                      assignment.volunteering_interest_id === userId ? 'volunteering_interest_id' :
+                      'other'
+                  })
+                }
+                return matches
+              }
             )
+            
+            return isUserAssigned
           })
         : shiftsData
-
+      
+      console.log("Filtered user shifts:", userShifts.length)
       setShifts(userShifts)
     } catch (error) {
       console.error("Error fetching chairperson schedule:", error)

@@ -27,12 +27,44 @@ interface HospitalitySlotsProps {
 
 // Helper function to get current hospitality host
 export const getCurrentHospitalityHost = (slots: HospitalitySlot[]): HospitalitySlot | null => {
+  // Get current time and convert to CST for comparison
+  // Since database times are stored in CST, we need to compare in CST
   const now = new Date()
+  
+  // Get CST offset (UTC-6 for CST, UTC-5 for CDT)
+  // We'll get the current time in CST by getting UTC and adjusting
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000)
+  // CST is UTC-6 hours (during standard time) or UTC-5 (during daylight time)
+  // For simplicity, we'll check if we're in daylight saving time
+  const isDST = () => {
+    const jan = new Date(now.getFullYear(), 0, 1)
+    const jul = new Date(now.getFullYear(), 6, 1)
+    return now.getTimezoneOffset() < Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset())
+  }
+  const cstOffset = isDST() ? -5 : -6
+  const cstTime = new Date(utcTime + (cstOffset * 60 * 60 * 1000))
+  
+  console.log("Current CST time for hospitality check:", cstTime.toISOString())
+  
+  // Find the slot that's currently active
   return slots.find((slot) => {
     if (!slot.date_time) return false
-    const slotStart = new Date(slot.date_time)
+    
+    // Parse the database time directly (it's already in CST)
+    // Remove any timezone indicators to treat as CST time
+    const cleanString = slot.date_time.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '')
+    
+    // Create date from the clean string, treating it as CST
+    const slotStart = new Date(cleanString)
     const slotEnd = new Date(slotStart.getTime() + (slot.scheduled_hours || 2) * 60 * 60 * 1000)
-    return now >= slotStart && now <= slotEnd
+    
+    console.log(`Checking slot: ${slot.group_hosting}`)
+    console.log(`  Slot start: ${slotStart.toISOString()}`)
+    console.log(`  Slot end: ${slotEnd.toISOString()}`)
+    console.log(`  Current CST: ${cstTime.toISOString()}`)
+    console.log(`  Is active: ${cstTime >= slotStart && cstTime <= slotEnd}`)
+    
+    return cstTime >= slotStart && cstTime <= slotEnd
   }) || null
 }
 
@@ -61,50 +93,21 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
         { p_program_id: programId }
       )
 
-      // TEST DATA: Add mock data for demonstration
-      const now = new Date()
-      const testSlots: HospitalitySlot[] = [
-        {
-          id: 1,
-          program_id: programId,
-          date_time: new Date(now.getTime() - 30 * 60 * 1000).toISOString(), // Started 30 mins ago
-          group_hosting: "Denver Young People's Group",
-          planning_to_bring: "Coffee, snacks, and games",
-          room: "Suite 2301",
-          scheduled_hours: 2
-        },
-        {
-          id: 2,
-          program_id: programId,
-          date_time: new Date(now.getTime() + 90 * 60 * 1000).toISOString(), // Starts in 90 mins
-          group_hosting: "Phoenix Unity Group",
-          planning_to_bring: "Pizza and sodas",
-          room: "Suite 2301",
-          scheduled_hours: 2
-        },
-        {
-          id: 3,
-          program_id: programId,
-          date_time: new Date(now.getTime() + 210 * 60 * 1000).toISOString(), // Starts in 3.5 hours
-          group_hosting: "Los Angeles Fellowship",
-          planning_to_bring: "Desserts and coffee",
-          room: "Suite 2301",
-          scheduled_hours: 2
-        }
-      ]
-
       if (error) {
         console.error("Error fetching hospitality slots:", error)
-        console.log("Using test data instead")
-        setSlots(testSlots)
-        const currentSlot = getCurrentHospitalityHost(testSlots)
-        setCurrentHost(currentSlot)
+        console.error("Error details:", JSON.stringify(error, null, 2))
+        console.log("Note: Only confirmed slots (group_confirmed = true) are returned")
+        setSlots([])
+        setCurrentHost(null)
         if (onCurrentHostChange) {
-          onCurrentHostChange(currentSlot)
+          onCurrentHostChange(null)
         }
       } else {
-        console.log("Hospitality slots data from DB:", data)
-        const slotsData = data && data.length > 0 ? data : testSlots // Use test data if no real data
+        console.log("Hospitality slots fetched successfully")
+        console.log("Raw data from RPC:", JSON.stringify(data, null, 2))
+        console.log("Number of slots:", data?.length || 0)
+        
+        const slotsData = data || []
         setSlots(slotsData)
         
         // Find current host based on current time
@@ -118,22 +121,8 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
       }
     } catch (error) {
       console.error("Error in fetchHospitalitySlots:", error)
-      // Use test data on error
-      const now = new Date()
-      const testSlots: HospitalitySlot[] = [
-        {
-          id: 1,
-          program_id: programId,
-          date_time: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
-          group_hosting: "Denver Young People's Group",
-          planning_to_bring: "Coffee, snacks, and games",
-          room: "Suite 2301",
-          scheduled_hours: 2
-        }
-      ]
-      setSlots(testSlots)
-      const currentSlot = getCurrentHospitalityHost(testSlots)
-      setCurrentHost(currentSlot)
+      setSlots([])
+      setCurrentHost(null)
     } finally {
       setLoading(false)
     }
@@ -143,28 +132,37 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
     try {
       if (!dateTimeString) return { date: "", time: "TBD", endTime: "TBD" }
       
-      // Parse the date - JavaScript Date constructor handles ISO strings with timezone correctly
-      const date = new Date(dateTimeString)
+      // Parse the timestamp string directly WITHOUT timezone conversion
+      // Treat whatever time is in the string as the display time
       
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.error("Invalid date:", dateTimeString)
+      // Extract date and time parts from the ISO string
+      // Format can be: "2024-01-15T14:30:00Z" or "2024-01-15T14:30:00+00:00" etc
+      const cleanString = dateTimeString.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '')
+      const [datePart, timePart] = cleanString.split('T')
+      
+      if (!datePart || !timePart) {
+        console.error("Invalid date format:", dateTimeString)
         return { date: "", time: "TBD", endTime: "TBD" }
       }
       
-      // Format date using local timezone methods
+      // Parse date components for day of week calculation
+      const [year, month, day] = datePart.split('-').map(Number)
+      
+      // Create date object just for day of week (no timezone conversion)
+      const dateForDayOfWeek = new Date(year, month - 1, day)
+      
       const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
       
-      // Use local timezone getters
-      const dayOfWeek = weekdays[date.getDay()]
-      const month = months[date.getMonth()] // getMonth() returns 0-11
-      const dayNum = date.getDate()
-      const formattedDate = `${dayOfWeek}, ${month} ${dayNum}`
+      const dayOfWeek = weekdays[dateForDayOfWeek.getDay()]
+      const monthName = months[month - 1]
+      const formattedDate = `${dayOfWeek}, ${monthName} ${day}`
       
-      // Format start time using local timezone
-      const hours = date.getHours()
-      const minutes = date.getMinutes()
+      // Parse time directly from the string (no conversion)
+      const [hourStr, minuteStr] = timePart.split(':')
+      const hours = parseInt(hourStr)
+      const minutes = parseInt(minuteStr) || 0
+      
       const period = hours >= 12 ? "PM" : "AM"
       const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
       const displayMinute = minutes.toString().padStart(2, "0")
@@ -177,18 +175,32 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
     }
   }
   
-  const calculateEndTime = (dateTimeString: string, hours: number) => {
+  const calculateEndTime = (dateTimeString: string, hoursToAdd: number) => {
     try {
-      const startDate = new Date(dateTimeString)
-      const endDate = new Date(startDate.getTime() + (hours * 60 * 60 * 1000))
+      // Parse time directly from string without timezone conversion
+      const cleanString = dateTimeString.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '')
+      const [datePart, timePart] = cleanString.split('T')
       
-      const endHours = endDate.getHours()
-      const endMinutes = endDate.getMinutes()
-      const endPeriod = endHours >= 12 ? "PM" : "AM"
-      const endDisplayHour = endHours === 0 ? 12 : endHours > 12 ? endHours - 12 : endHours
-      const endDisplayMinute = endMinutes.toString().padStart(2, "0")
+      if (!timePart) return "TBD"
       
-      return `${endDisplayHour}:${endDisplayMinute} ${endPeriod}`
+      // Parse hours and minutes
+      const [hourStr, minuteStr] = timePart.split(':')
+      let hours = parseInt(hourStr)
+      const minutes = parseInt(minuteStr) || 0
+      
+      // Add the scheduled hours
+      hours = hours + hoursToAdd
+      
+      // Handle day overflow
+      if (hours >= 24) {
+        hours = hours % 24
+      }
+      
+      const period = hours >= 12 ? "PM" : "AM"
+      const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+      const displayMinute = minutes.toString().padStart(2, "0")
+      
+      return `${displayHour}:${displayMinute} ${period}`
     } catch (error) {
       console.error("Error calculating end time:", error)
       return "TBD"

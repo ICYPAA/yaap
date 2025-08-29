@@ -70,6 +70,10 @@ async function registerForPushNotificationsAsync() {
     return token
   } catch (error) {
     console.error("Error getting push token:", error)
+    // Silently fail on emulators/simulators
+    if (__DEV__) {
+      console.log("Push tokens may not be supported on emulators/simulators")
+    }
     return null
   }
 }

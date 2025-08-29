@@ -80,7 +80,7 @@ async function registerForPushNotificationsAsync() {
 
     if (finalStatus !== "granted") {
       console.log("Push notification permissions not granted")
-      alert(`Push notification permissions not granted`)
+      // Don't show alert - just log
       return null
     }
 
@@ -93,7 +93,11 @@ async function registerForPushNotificationsAsync() {
     return token
   } catch (error) {
     console.error("Error getting push token:", error)
-    alert(`Failed to get push token: ${JSON.stringify(error)}`)
+    // Don't show alert for emulator/simulator - just log the error
+    // Emulators don't support push tokens and that's okay
+    if (__DEV__) {
+      console.log("Push tokens may not be supported on emulators/simulators")
+    }
     return null
   }
 }

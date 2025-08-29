@@ -78,14 +78,6 @@ export default function ServicesLayout() {
           headerShown: true
         }}
       />
-      <Stack.Screen
-        name="host"
-        options={{
-          headerLeft: () => <BackButton />,
-          headerTitle: "Host Login",
-          headerShown: true
-        }}
-      />
     </Stack>
   )
 }
