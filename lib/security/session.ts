@@ -136,7 +136,8 @@ class SessionManager {
         return;
       }
 
-      const expiresAt = new Date(session.expires_at || 0).getTime();
+      // Supabase returns expires_at as Unix timestamp in seconds
+      const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
       const now = Date.now();
       const timeUntilExpiry = (expiresAt - now) / 1000;
 
@@ -294,7 +295,8 @@ class SessionManager {
       };
     }
 
-    const expiresAt = new Date(session.expires_at || 0).getTime();
+    // Supabase returns expires_at as Unix timestamp in seconds
+    const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
     const expiresIn = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
 
     return {
