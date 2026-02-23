@@ -1,0 +1,444 @@
+{
+  "components": {
+    "header": {
+      "navigationMenu": {
+        "dashboard": "Dashboard",
+        "hotel": "Tsev so",
+        "events": "Cov xwm txheej",
+        "activities": "Kev ua si",
+        "register": "Sau npe",
+        "contact": "Tiv tauj peb",
+        "bylaws": "Txoj cai",
+        "resources": "Cov peev txheej"
+      },
+      "trigger": "Ntau"
+    },
+    "mobile-header": {
+      "navigationMenu": {
+        "dashboard": "Dashboard",
+        "hotel": "Tsev so",
+        "events": "Cov xwm txheej",
+        "activities": "Kev ua si"
+      }
+    },
+    "SignInButton": {
+      "label": "Host ID nkag mus"
+    },
+    "AuthButton": {
+      "SignOut": {
+        "label": "Sau npe tawm"
+      }
+    }
+  },
+  "pages": {
+    "activities": {
+      "ActivitiesPage": {
+        "title": "Tej Yam Ua Hauv Minneapolis thiab St. Paul",
+        "TabHeaders": {
+          "food": "Khoom noj &amp; haus",
+          "fun": "Kev Lom Zem &amp; Lom Zem"
+        },
+        "Tabs": {
+          "food": {
+            "card-1": {
+              "title": "Noj Street",
+              "description": "Kev sau ntau yam ntawm cov khw noj mov thoob ntiaj teb",
+              "details": "Tshawb nrhiav ntau hom zaub mov los ntawm thoob plaws ntiaj teb ntawm Nicollet Avenue, lub npe hu ua &#39;Eat Street&#39;. Los ntawm Nyab Laj pho mus rau German schnitzel, muaj qee yam rau txhua lub palate.",
+              "cost": "Nws txawv ntawm lub tsev noj mov, feem ntau yog $ 10- $ 30 rau ib tus neeg"
+            },
+            "card-2": {
+              "title": "Midtown Ntiaj Teb Kev Ua Lag Luam",
+              "description": "Sab hauv tsev lag luam thoob ntiaj teb pej xeem",
+              "details": "Mus saib qhov chaw ua lag luam zoo nkauj no uas muaj cov neeg muag khoom noj, khw noj mov, thiab khoom plig tshwj xeeb los ntawm thoob plaws ntiaj teb. Tsis txhob plam lub sijhawm los sim cov khoom noj los ntawm ntau haiv neeg nyob hauv ib lub ru tsev.",
+              "cost": "Kev nkag dawb, nqi zaub mov txawv"
+            },
+            "card-3": {
+              "title": "St. Paul Farmers&#39; Market",
+              "description": "Cov khoom lag luam tshiab hauv zos thiab cov khoom siv txuj ci",
+              "details": "Kawm paub qhov zoo tshaj plaws ntawm Minnesota cov khoom siv hauv zos thiab cov khoom siv cuab yeej cuab tam ntawm cov neeg ua liaj ua teb keeb kwm no. Qhib txhua xyoo, nws yog qhov chaw zoo rau cov khoom noj tshiab thiab ntsib cov neeg tsim khoom hauv zos.",
+              "cost": "Kev nkag dawb, tus nqi sib txawv ntawm tus neeg muag khoom"
+            },
+            "card-4": {
+              "title": "Myriel",
+              "description": "Intimate Dining tuaj nrog ib khob qe kas fes",
+              "details": "Cov ntawv qhia a la carte tsis muaj nyob online vim nws hloov ntau zaus. Tomlinson ua rau lub ntsej muag nto moo: Yog tias lub ncuav qab zib tshwm rau ntawm cov ntawv qhia zaub mov, xaj nws yam tsis muaj hesitation, thiab khub khoom qab zib nrog Scandinavian qe kas fes.",
+              "cost": "$$$, Tasting zaub mov ncig $135 rau ib tug neeg"
+            }
+          },
+          "fun": {
+            "card-1": {
+              "title": "Minneapolis Institute of Art",
+              "description": "Ntiaj teb-class kos duab tsev cia puav pheej nrog dawb nkag",
+              "details": "Tshawb nrhiav ntau dua 90,000 cov haujlwm ntawm kev kos duab hla 5,000 xyoo ntawm tib neeg muaj tswv yim. Los ntawm cov khoom qub thaum ub mus rau niaj hnub masterpieces, MIA muab kev paub ntau yam thiab muaj txiaj ntsig zoo rau cov neeg nyiam kos duab.",
+              "cost": "Kev nkag mus pub dawb, qee qhov kev nthuav qhia tshwj xeeb yuav muaj tus nqi"
+            },
+            "card-2": {
+              "title": "Mall of America",
+              "description": "Lub khw loj tshaj plaws hauv Tebchaws Meskas",
+              "details": "Ntau tshaj li kev yuav khoom, Mall of America muaj qhov chaw ua si sab hauv tsev, thoob dej yug ntses, thiab ntau yam kev lom zem xaiv. Nws yog ib lub nroog nyob rau hauv ib lub nroog thiab ib tug yuav tsum-mus ntsib attraction.",
+              "cost": "Kev nkag dawb, tus nqi sib txawv rau kev nyiam thiab yuav khoom"
+            },
+            "card-3": {
+              "title": "Minnehaha Falls",
+              "description": "53-foot dej tsaws tsag hauv nroog chaw",
+              "details": "Txaus siab rau qhov zoo nkauj ntawm Minnehaha Falls, nyob hauv Minnehaha Park. Mus ncig ua si zoo nkauj, noj hmo, lossis so kom txaus los ntawm cov dej cascading hauv nroog oasis.",
+              "cost": "Dawb"
+            },
+            "card-4": {
+              "title": "Science Museum of Minnesota",
+              "description": "Sib tham sib science museum nrog stunning dej views",
+              "details": "Koom tes nrog cov khoom pov thawj, ntes cov yeeb yam ntawm Omniheater, thiab kawm txog txhua yam ntawm dinosaurs mus rau tib neeg lub cev. Lub tsev khaws puav pheej muaj kev pom zoo nkauj ntawm Mississippi River.",
+              "cost": "Cov neeg laus $24.95, Menyuam yaus (4-12) $17.95, Seniors (65+) $22.95"
+            }
+          }
+        }
+      },
+      "ActivityCard": {
+        "learnMoreButton": "Kawm ntxiv"
+      }
+    },
+    "auth": {
+      "authCodeError": {
+        "ProtectedPage": {
+          "message": "Koj tsis muaj kev nkag mus rau nplooj ntawv ntawd.",
+          "returnText": "Rov qab mus tsev"
+        }
+      }
+    },
+    "bylaws": {
+      "ProgramPage": {
+        "title": "Txoj cai",
+        "message": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+      }
+    },
+    "contact": {
+      "ContactPage": {
+        "title": "Tiv tauj peb",
+        "message": "Muaj lus nug txog kev sau npe lossis lub rooj sib tham? Peb nyob ntawm no los pab!"
+      },
+      "ContactForm": {
+        "form": {
+          "firstName": {
+            "label": "Lub Npe",
+            "placeholder": "Sau koj lub npe"
+          },
+          "lastName": {
+            "label": "Lub Npe",
+            "placeholder": "Sau koj lub xeem"
+          },
+          "email": {
+            "label": "Email",
+            "placeholder": "Sau koj email chaw nyob"
+          },
+          "phone": {
+            "label": "Xov tooj (yeem)",
+            "placeholder": "Sau koj tus lej xov tooj"
+          }
+        },
+        "inquiryType": {
+          "label": "Hom Kev Tshawb Fawb",
+          "trigger": {
+            "placeholder": "Xaiv hom kev nug"
+          },
+          "items": {
+            "registration": "Kev sau npe",
+            "program": "Program",
+            "hotel": "Tsev so",
+            "other": "Lwm yam"
+          }
+        },
+        "message": {
+          "label": "Xov xwm",
+          "placeholder": "Sau koj cov lus"
+        }
+      }
+    },
+    "events": {
+      "EventsPage": {
+        "title": "Cov xwm txheej yuav los tom ntej",
+        "upcomingEventsSection": {
+          "title": "ICYPAA Events"
+        },
+        "otherEventsSection": {
+          "title": "Lwm yam xwm txheej"
+        }
+      }
+    },
+    "event-creation-form": {
+      "EventCreationForm": {
+        "formSchema": {
+          "title": {
+            "errors": {
+              "minLength": "Lub npe yuav tsum muaj tsawg kawg yog 2 tus cim."
+            }
+          },
+          "description": {
+            "errors": {
+              "minLength": "Cov lus piav qhia yuav tsum muaj tsawg kawg yog 10 tus cim."
+            }
+          },
+          "date": {
+            "errors": {
+              "required": "Yuav tsum muaj hnub."
+            }
+          },
+          "time": {
+            "errors": {
+              "invalidFormat": "Thov sau lub sijhawm siv tau hauv HH: MM hom."
+            }
+          },
+          "location": {
+            "errors": {
+              "minLength": "Qhov chaw yuav tsum muaj tsawg kawg yog 2 cim."
+            }
+          },
+          "image": {
+            "errors": {
+              "required": "Yuav tsum muaj duab.",
+              "tooLarge": "Cov ntaub ntawv loj tshaj plaws yog 5MB."
+            }
+          }
+        },
+        "form": {
+          "title": {
+            "label": "Kev tshwm sim Title",
+            "placeholder": "Sau lub npe txheej xwm",
+            "description": "Lub npe ntawm koj qhov kev tshwm sim raws li nws yuav tshwm sim hauv lub sijhawm."
+          },
+          "description": {
+            "label": "Kev piav qhia",
+            "placeholder": "Sau qhov xwm txheej piav qhia",
+            "description": "Muab cov lus piav qhia luv luv ntawm qhov xwm txheej."
+          },
+          "date": {
+            "label": "Hnub tim",
+            "placeholder": "Xaiv hnub xwm txheej",
+            "description": "Hnub ntawm qhov kev tshwm sim thaum lub rooj sib tham."
+          },
+          "time": {
+            "label": "Sijhawm",
+            "placeholder": "Xaiv lub sijhawm tshwm sim",
+            "description": "Lub sijhawm pib ntawm qhov kev tshwm sim."
+          },
+          "location": {
+            "label": "Qhov chaw",
+            "placeholder": "Nkag mus rau qhov chaw ua yeeb yam",
+            "description": "Qhov kev tshwm sim yuav tshwm sim (piv txwv li, chav tsev npe, cheeb tsam)."
+          },
+          "image": {
+            "label": "Duab xwm txheej",
+            "description": "Upload ib daim duab rau qhov kev tshwm sim (max 5MB)."
+          },
+          "is_icypaa_event": {
+            "label": "ICYPAA Txheej Xwm",
+            "description": "Puas yog qhov no yog ICYPAA cov txheej xwm? Qhov no yuav tso cai rau cov tuaj pab dawb sau npe."
+          },
+          "submit": {
+            "cta": "Tsim qhov xwm txheej",
+            "loading": "Tsim..."
+          }
+        }
+      },
+      "CreateEventPage": {
+        "title": "Tsim qhov xwm txheej"
+      }
+    },
+    "registration": {
+      "RegistrationNumbersPage": {
+        "title": "Cov lej sau npe",
+        "form": {
+          "registrations": {
+            "placeholder": "Tus lej sau npe"
+          }
+        },
+        "table": {
+          "totalRegistrations": {
+            "header": "Tag nrho cov ntawv sau npe"
+          },
+          "submittedOn": {
+            "header": "Xa rau"
+          },
+          "submittedBy": {
+            "header": "Xa los ntawm"
+          }
+        }
+      }
+    },
+    "host": {
+      "ProtectedPage": {
+        "title": "Host Dashboard",
+        "cards": {
+          "totalRegistrations": {
+            "title": "Tag nrho cov ntawv sau npe",
+            "content": "{value}% ntawm tsab ntawv ceeb toom kawg"
+          },
+          "upcomingEvents": {
+            "title": "Cov xwm txheej yuav los tom ntej",
+            "content": "Tom ntej no ICYPAA kev tshwm sim hauv {value} hnub"
+          },
+          "openInquiries": {
+            "title": "Qhib Cov Lus Nug",
+            "content": "{value} yuav tsum tau saib xyuas tam sim"
+          },
+          "timeToConference": {
+            "title": "Sijhawm rau Kev Sib Tham",
+            "content": "{value} hnub"
+          },
+          "nextScheduled": {
+            "title": "Cov xwm txheej yuav los tom ntej",
+            "description": "Tom ntej no 5 txheej xwm teem tseg",
+            "content": {
+              "viewButton": "Saib"
+            }
+          },
+          "quickActions": {
+            "title": "",
+            "description": "",
+            "content": {
+              "addEventButton": "",
+              "addRegistrationButton": ""
+            }
+          },
+          "recentActivity": {
+            "title": "Kev Ua Si Tsis ntev los no",
+            "description": "Cov kev hloov tshiab tshiab thiab kev ua"
+          }
+        }
+      }
+    },
+    "hotel": {
+      "HotelInfo": {
+        "title": "Cov ntaub ntawv Hotel",
+        "grid-cards": {
+          "hotel": {
+            "title": "Hilton Minneapolis",
+            "description": {
+              "link": "Mus saib Hotel Website"
+            },
+            "content": {
+              "hotel-description": "Ua rau lub plawv ntawm plawv nroog Minneapolis ntawm peb lub rooj sib tham lub tsev so. Txaus siab rau cov khoom siv niaj hnub no, chav dav dav, thiab nkag tau yooj yim rau cov chaw hauv zos.",
+              "link": "Sau koj Chav"
+            }
+          }
+        },
+        "tabs": {
+          "floor-plans": {
+            "title": "Cov phiaj xwm pem teb",
+            "card": {
+              "title": "Conference Floor Plans",
+              "description": "Tshawb nrhiav peb qhov chaw tshwm sim",
+              "content": "Peb lub tsev so muaj ntau qhov chaw sib tham kom haum rau txhua yam kev sib tham. Los ntawm cov chaw sib tham dav mus rau chav sib tham sib tham, peb muaj qhov chaw zoo tshaj plaws rau txhua qhov kev sib tham."
+            }
+          },
+          "amenities": {
+            "title": "Amenities",
+            "card": {
+              "title": "Hotel Amenities",
+              "description": "Kev nplij siab thiab yooj yim rau txhua tus neeg tuaj koom",
+              "content": "Txaus siab rau kev nyob zoo nrog peb cov khoom siv ntau yam tsim los txhim kho koj cov kev paub hauv kev sib tham. Los ntawm kev txuas nrog dawb WiFi kom ua raws li koj qhov kev noj qab haus huv, peb tau pab koj."
+            }
+          }
+        }
+      }
+    },
+    "merch": {
+      "title": "Muag khoom",
+      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+    },
+    "outreach": {
+      "title": "Kev nthuav qhia",
+      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+    },
+    "program": {
+      "title": "Program",
+      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+    },
+    "register": {
+      "title": "Sau npe",
+      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+    },
+    "resources": {
+      "ResourcesPage": {
+        "title": "65th ICYPAA Resources",
+        "description": "Download tau txhua yam koj xav tau rau 65th International Conference ntawm Cov Hluas Hauv Kev Cuam Tshuam Tsis Qhia npe",
+        "message": "Cov ntaub ntawv xov xwm yuav los sai sai!",
+        "conference-material": {
+          "title": "Cov khoom siv sablaj"
+        }
+      },
+      "PreviewDialog": {
+        "subtitle": "Saib ua ntej ntawm daim ntawv ua ntej rub tawm",
+        "download-button": {
+          "content": "Download tau"
+        }
+      },
+      "ConferenceMaterialCard": {
+        "download-button": {
+          "content": "Download tau"
+        }
+      }
+    },
+    "transportation": {
+      "title": "Kev thauj mus los",
+      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+    },
+    "volunteer": {
+      "title": "Ua haujlwm pub dawb",
+      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+    },
+    "homepage": {
+      "HomePage": {
+        "title": {
+          "title": "65th ICYPAA",
+          "subtitle": "International Conference ntawm Cov Hluas hauv AA"
+        },
+        "cards": {
+          "countdown": {
+            "title": "Countdown rau Conference",
+            "days": "{value} hnub",
+            "days-after": "mus txog rau lub rooj sib tham"
+          },
+          "accommodations": {
+            "title": "Chaw nyob",
+            "description": "Npaj koj chav tam sim no!",
+            "link": "Hotel Paub meej"
+          },
+          "location": {
+            "title": "Qhov chaw",
+            "description": "Minneapolis, Minnesota",
+            "link": "Kev ua si"
+          }
+        },
+        "faq": {
+          "title": "Cov lus nug nquag",
+          "accordion": {
+            "item-1": {
+              "trigger": "ICYPAA yog dab tsi?",
+              "content": "ICYPAA sawv cev rau Lub Rooj Sib Tham Thoob Ntiaj Teb ntawm Cov Neeg Hluas hauv Kev Cuam Tshuam Tsis Qhia npe."
+            },
+            "item-2": {
+              "trigger": "Leej twg tuaj yeem tuaj koom ICYPAA?",
+              "content": "ICYPAA qhib rau txhua tus neeg uas xav haus cawv, tsis hais hnub nyoog li cas. Thaum nws tau tsom mus rau cov tub ntxhais hluas, txhua tus tau txais tos tuaj koom thiab koom nrog."
+            },
+            "item-3": {
+              "trigger": "Kuv tuaj yeem sau npe rau lub rooj sib tham li cas?",
+              "content": "Koj tuaj yeem tso npe rau lub rooj sib tham los ntawm nias lub pob &quot;Sau npe tam sim no&quot; nyob rau sab saum toj ntawm nplooj ntawv no."
+            },
+            "item-4": {
+              "trigger": "Puas muaj scholarships?",
+              "content": "Yog lawm, muaj nyiaj pab kawm ntawv. Thov mus saib nplooj ntawv sau npe kom paub ntau ntxiv txog kev thov."
+            }
+          }
+        },
+        "contact": {
+          "title": "Tiv tauj peb",
+          "description": "Yog tias koj muaj lus nug lossis xav paub ntxiv, thov tsis txhob yig tiv tauj peb.",
+          "email": {
+            "before": "Los yog email ",
+            "after": " ncaj qha."
+          }
+        }
+      }
+    }
+  }
+}

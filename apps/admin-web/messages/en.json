@@ -1,0 +1,552 @@
+{
+  "components": {
+    "header": {
+      "navigationMenu": {
+        "dashboard": "Dashboard",
+        "hotel": "Hotel",
+        "events": "Events",
+        "activities": "Activities",
+        "travel": "Travel",
+        "register": "Register",
+        "contact": "Contact Us",
+        "bylaws": "Bylaws",
+        "resources": "Resources"
+      },
+      "trigger": "More"
+    },
+    "mobile-header": {
+      "navigationMenu": {
+        "dashboard": "Dashboard",
+        "hotel": "Hotel",
+        "events": "Events",
+        "activities": "Activities",
+        "travel": "Travel"
+      }
+    },
+    "SignInButton": {
+      "label": "Host Login"
+    },
+    "AuthButton": {
+      "SignOut": {
+        "label": "Sign out"
+      }
+    }
+  },
+  "pages": {
+    "activities": {
+      "ActivitiesPage": {
+        "title": "Things to Do in Minneapolis and St. Paul",
+        "TabHeaders": {
+          "food": "Food & Drink",
+          "fun": "Fun & Entertainment"
+        },
+        "Tabs": {
+          "food": {
+            "card-1": {
+              "title": "Eat Street",
+              "description": "A diverse collection of international restaurants",
+              "details": "Explore a wide variety of cuisines from around the world on Nicollet Avenue, known locally as 'Eat Street'. From Vietnamese pho to German schnitzel, there's something for every palate.",
+              "cost": "Varies by restaurant, generally $10-$30 per person"
+            },
+            "card-2": {
+              "title": "Midtown Global Market",
+              "description": "Indoor international public market",
+              "details": "Visit this vibrant marketplace featuring food vendors, restaurants, and unique gifts from around the world. Don't miss the opportunity to try foods from various cultures all under one roof.",
+              "cost": "Free entry, food prices vary"
+            },
+            "card-3": {
+              "title": "St. Paul Farmers' Market",
+              "description": "Fresh local produce and artisanal goods",
+              "details": "Experience the best of Minnesota's local produce and artisanal products at this historic farmers' market. Open year-round, it's a great place to sample fresh foods and meet local producers.",
+              "cost": "Free entry, prices vary by vendor"
+            },
+            "card-4": {
+              "title": "Myriel",
+              "description": "Intimate Dining Comes With a Cup of Egg Coffee",
+              "details": "The a la carte menu isn't available online because it changes often. Tomlinson makes a famous crust: If apple pie appears on the menu, order it without hesitation, and pair dessert with a Scandinavian egg coffee.",
+              "cost": "$$$, Tasting menu around $135 per person"
+            }
+          },
+          "fun": {
+            "card-1": {
+              "title": "Minneapolis Institute of Art",
+              "description": "World-class art museum with free admission",
+              "details": "Explore over 90,000 works of art spanning 5,000 years of human creativity. From ancient artifacts to contemporary masterpieces, MIA offers a diverse and enriching experience for art lovers.",
+              "cost": "Free general admission, some special exhibitions may have a fee"
+            },
+            "card-2": {
+              "title": "Mall of America",
+              "description": "Largest shopping mall in the United States",
+              "details": "More than just shopping, the Mall of America features an indoor amusement park, aquarium, and countless entertainment options. It's a city within a city and a must-visit attraction.",
+              "cost": "Free entry, costs vary for attractions and shopping"
+            },
+            "card-3": {
+              "title": "Minnehaha Falls",
+              "description": "53-foot waterfall in an urban setting",
+              "details": "Enjoy the natural beauty of Minnehaha Falls, located in Minnehaha Park. Take a scenic hike, have a picnic, or simply relax by the cascading water in this urban oasis.",
+              "cost": "Free"
+            },
+            "card-4": {
+              "title": "Science Museum of Minnesota",
+              "description": "Interactive science museum with stunning river views",
+              "details": "Engage with hands-on exhibits, catch a show at the Omnitheater, and learn about everything from dinosaurs to the human body. The museum offers spectacular views of the Mississippi River.",
+              "cost": "Adults $24.95, Children (4-12) $17.95, Seniors (65+) $22.95"
+            }
+          }
+        }
+      },
+      "ActivityCard": {
+        "learnMoreButton": "Learn More"
+      }
+    },
+    "auth": {
+      "authCodeError": {
+        "ProtectedPage": {
+          "message": "You do not have access to that page.",
+          "returnText": "Return to home"
+        }
+      }
+    },
+    "bylaws": {
+      "BylawsPage": {
+        "title": "Bylaws",
+        "message": "The 65th ICYPAA program is still being developed. Check back soon for\n more information!"
+      }
+    },
+    "contact": {
+      "ContactPage": {
+        "title": "Contact Us",
+        "message": "Have questions about registration or the conference? We're here to\nhelp!"
+      },
+      "ContactForm": {
+        "form": {
+          "firstName": {
+            "label": "First Name",
+            "placeholder": "Enter your first name"
+          },
+          "lastName": {
+            "label": "Last Name",
+            "placeholder": "Enter your last name"
+          },
+          "email": {
+            "label": "Email",
+            "placeholder": "Enter your email address"
+          },
+          "phone": {
+            "label": "Phone (optional)",
+            "placeholder": "Enter your phone number"
+          }
+        },
+        "inquiryType": {
+          "label": "Type of Inquiry",
+          "trigger": {
+            "placeholder": "Select inquiry type"
+          },
+          "items": {
+            "registration": "Registration",
+            "program": "Program",
+            "hotel": "Hotel",
+            "other": "Other"
+          }
+        },
+        "message": {
+          "label": "Message",
+          "placeholder": "Enter your message"
+        }
+      }
+    },
+    "events": {
+      "EventsPage": {
+        "title": "Upcoming Events",
+        "upcomingEventsSection": {
+          "title": "ICYPAA Events"
+        },
+        "otherEventsSection": {
+          "title": "Other Events"
+        }
+      }
+    },
+    "event-creation-form": {
+      "EventCreationForm": {
+        "formSchema": {
+          "title": {
+            "errors": {
+              "minLength": "Title must be at least 2 characters."
+            }
+          },
+          "description": {
+            "errors": {
+              "minLength": "Description must be at least 10 characters."
+            }
+          },
+          "date": {
+            "errors": {
+              "required": "A date is required."
+            }
+          },
+          "time": {
+            "errors": {
+              "invalidFormat": "Please enter a valid time in HH:MM format."
+            }
+          },
+          "location": {
+            "errors": {
+              "minLength": "Location must be at least 2 characters."
+            }
+          },
+          "image": {
+            "errors": {
+              "required": "Image is required.",
+              "tooLarge": "Max file size is 5MB."
+            }
+          }
+        },
+        "form": {
+          "title": {
+            "label": "Event Title",
+            "placeholder": "Enter event title",
+            "description": "The name of your event as it will appear in the schedule."
+          },
+          "description": {
+            "label": "Event Description",
+            "placeholder": "Enter event description",
+            "description": "Provide a brief description of the event."
+          },
+          "date": {
+            "label": "Date",
+            "placeholder": "Select event date",
+            "description": "The date of the event during the conference."
+          },
+          "time": {
+            "label": "Time",
+            "placeholder": "Select event time",
+            "description": "The start time of the event."
+          },
+          "location": {
+            "label": "Location",
+            "placeholder": "Enter event location",
+            "description": "Where the event will take place (e.g., room name, area)."
+          },
+          "image": {
+            "label": "Event Image",
+            "description": "Upload an image for the event (max 5MB)."
+          },
+          "is_icypaa_event": {
+            "label": "ICYPAA Event",
+            "description": "Is this an official ICYPAA event? This will allow volunteers to sign up."
+          },
+          "submit": {
+            "cta": "Create Event",
+            "loading": "Creating..."
+          }
+        }
+      },
+      "CreateEventPage": {
+        "title": "Create Event"
+      }
+    },
+    "registration": {
+      "RegistrationNumbersPage": {
+        "title": "Registration Numbers",
+        "form": {
+          "registrations": {
+            "placeholder": "Registration Number"
+          }
+        },
+        "table": {
+          "totalRegistrations": {
+            "header": "Total Registrations"
+          },
+          "countries": {
+            "header": "Countries"
+          },
+          "usStates": {
+            "header": "US States"
+          },
+          "scholarships": {
+            "header": "Scholarship Fund"
+          },
+          "submittedOn": {
+            "header": "Submitted On"
+          },
+          "submittedBy": {
+            "header": "Submitted By"
+          }
+        }
+      }
+    },
+    "host": {
+      "ProtectedPage": {
+        "title": "Host Dashboard",
+        "cards": {
+          "totalRegistrations": {
+            "title": "Total Registrations",
+            "content": "+{value}% from last report"
+          },
+          "upcomingEvents": {
+            "title": "Upcoming Events",
+            "content": "Next ICYPAA event in {value} days"
+          },
+          "openInquiries": {
+            "title": "Open Inquiries",
+            "content": "{value} require immediate attention"
+          },
+          "timeToConference": {
+            "title": "Time to Conference",
+            "content": "{value} days"
+          },
+          "nextScheduled": {
+            "title": "Upcoming Events",
+            "description": "Next 5 scheduled events",
+            "content": {
+              "viewButton": "View"
+            }
+          },
+          "quickActions": {
+            "title": "Quick Actions",
+            "description": "Common tasks and actions",
+            "content": {
+              "addEventButton": "Add Event",
+              "addRegistrationButton": "Add Registration"
+            }
+          },
+          "recentActivity": {
+            "title": "Recent Activity",
+            "description": "Latest updates and actions"
+          }
+        }
+      },
+      "CreateEventPage": {
+        "title": "Create New Event",
+        "description": "Add a new event to the conference schedule"
+      },
+      "RegistrationPage": {
+        "title": "Registration Management",
+        "description": "Manage conference registrations"
+      },
+      "HostPage": {
+        "title": "Host Dashboard",
+        "stats": {
+          "states": {
+            "title": "States with Registrations",
+            "description": "Number of US states represented"
+          },
+          "countries": {
+            "title": "Countries with Registrations",
+            "description": "Number of countries represented"
+          }
+        }
+      }
+    },
+    "hotel": {
+      "HotelInfo": {
+        "title": "Hotel Information",
+        "grid-cards": {
+          "hotel": {
+            "title": "Hilton Minneapolis",
+            "description": {
+              "link": "Visit Hotel Website"
+            },
+            "content": {
+              "hotel-description": "Experience the heart of downtown Minneapolis at our conference hotel. Enjoy modern amenities, spacious rooms, and easy access to local attractions.",
+              "link": "Book Your Room"
+            }
+          }
+        },
+        "tabs": {
+          "floor-plans": {
+            "title": "Floor Plans",
+            "card": {
+              "title": "Conference Floor Plans",
+              "description": "Explore our event spaces",
+              "content": "Our hotel offers versatile event spaces to accommodate all\n                conference activities. From spacious ballrooms to intimate\n                meeting rooms, we have the perfect setting for every session."
+            }
+          },
+          "amenities": {
+            "title": "Amenities",
+            "card": {
+              "title": "Hotel Amenities",
+              "description": "Comfort and convenience for all attendees",
+              "content": "Enjoy a comfortable stay with our range of amenities designed to\n                enhance your conference experience. From staying connected with\n                free WiFi to keeping up with your fitness routine, we've got you\n                covered."
+            }
+          }
+        }
+      }
+    },
+    "merch": {
+      "MerchPage": {
+        "title": "Merch",
+        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+      }
+    },
+    "outreach": {
+      "OutreachPage": {
+        "title": "Outreach",
+        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+      }
+    },
+    "program": {
+      "ProgramPage": {
+        "title": "Program",
+        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+      }
+    },
+    "register": {
+      "RegistrationPage": {
+        "title": "Register",
+        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+      }
+    },
+    "transportation": {
+      "TransportationPage": {
+        "title": "Transportation",
+        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!",
+        "sections": {
+          "airport": {
+            "title": "Airport Transportation",
+            "description": "Information about getting to and from MSP International Airport"
+          },
+          "local": {
+            "title": "Local Transportation",
+            "description": "Getting around Minneapolis and St. Paul"
+          }
+        }
+      }
+    },
+    "homepage": {
+      "HomePage": {
+        "title": {
+          "title": "65th ICYPAA",
+          "subtitle": "International Conference of Young People in AA"
+        },
+        "cards": {
+          "countdown": {
+            "title": "Countdown to Conference",
+            "days": "{value} days",
+            "days-after": "until the conference"
+          },
+          "accommodations": {
+            "title": "Accommodations",
+            "description": "Book your room now!",
+            "link": "Hotel Details"
+          },
+          "location": {
+            "title": "Location",
+            "description": "Minneapolis, Minnesota",
+            "link": "Activities"
+          }
+        },
+        "faq": {
+          "title": "Frequently Asked Questions",
+          "accordion": {
+            "item-1": {
+              "trigger": "What is ICYPAA?",
+              "content": "ICYPAA stands for International Conference of Young People in Alcoholics Anonymous."
+            },
+            "item-2": {
+              "trigger": "Who can attend ICYPAA?",
+              "content": "ICYPAA is open to anyone who wants to stop drinking, regardless of age. While it's focused on young people, all are welcome to\n                attend and participate."
+            },
+            "item-3": {
+              "trigger": "How can I register for the conference?",
+              "content": "You can register for the conference by clicking the \"Register Now\" button at the top of this page."
+            },
+            "item-4": {
+              "trigger": "Are there scholarships available?",
+              "content": "Yes, scholarships are available. Please check the registration page for more information on how to apply."
+            },
+            "item-5": {
+              "trigger": "What are the other YPAA conferences leading up to ICYPAA?",
+              "content": "Check out our YPAA conference page for more information!"
+            }
+          }
+        },
+        "contact": {
+          "title": "Contact Us",
+          "description": "If you have any questions or need more information, please don't hesitate to reach out to us.",
+          "email": {
+            "before": "Or email ",
+            "after": " directly."
+          }
+        }
+      }
+    },
+    "service": {
+      "ServicePage": {
+        "title": "Service Opportunities",
+        "description": "Get involved and help carry the message at ICYPAA",
+        "message": "The 65th ICYPAA service opportunities are still being developed. Check back soon for more information!"
+      }
+    },
+    "volunteer": {
+      "VolunteerPage": {
+        "title": "Volunteer Opportunities",
+        "description": "Join us in making the 65th ICYPAA a success",
+        "message": "Volunteer sign-up information coming soon!"
+      }
+    },
+    "resources": {
+      "ResourcesPage": {
+        "title": "The 65th ICYPAA Resources",
+        "description": "Download everything you need for the 65th International Conference of Young People in Alcoholics Anonymous",
+        "message": "Resource information coming soon!",
+        "conference-material": {
+          "title": "Conference Material"
+        }
+      },
+      "PreviewDialog": {
+        "subtitle": "Preview of the document before downloading",
+        "download-button": {
+          "content": "Download"
+        }
+      },
+      "ConferenceMaterialCard": {
+        "download-button": {
+          "content": "Download"
+        }
+      }
+    },
+    "privacy": {
+      "PrivacyPolicyPage": {
+        "title": "Website & App Privacy Policy",
+        "overview": {
+          "title": "Overview",
+          "description": "This Privacy Policy describes how we protect your privacy when you use our website and mobile application. We are committed to safeguarding the privacy of our website visitors, app users, and service users."
+        },
+        "dataCollection": {
+          "title": "Data Collection",
+          "description": "Our website does not collect personal information from visitors. We do not use cookies or tracking technologies to monitor browsing behavior on our website."
+        },
+        "appData": {
+          "title": "App-Specific Information",
+          "description": "Our mobile application collects limited personal information including your name and profile photo to enhance your user experience. This information is stored securely and is only used for the purpose of personalizing your app experience.",
+          "additionalInfo": "Beyond this basic profile information, our app does not collect device information, location data, or access other services on your device. We only require permissions necessary for core app functionality."
+        },
+        "dataUsage": {
+          "title": "How We Use Your Information",
+          "description": "The name and profile photo you provide in our app are only used to personalize your experience within the app. This information is not used for marketing purposes or behavioral analysis."
+        },
+        "dataSharing": {
+          "title": "Data Sharing",
+          "description": "We do not share, sell, rent, or trade any user information with third parties for their commercial purposes. Your name and photo remain private within our application and are not shared externally."
+        },
+        "dataDeletion": {
+          "title": "Data Deletion",
+          "description": "You can request the deletion of your profile information at any time by contacting us. Upon account deletion, all personal information including your name and photo will be permanently removed from our systems."
+        },
+        "security": {
+          "title": "Security",
+          "description": "We take reasonable precautions to protect your information. While we use standard security practices, no internet, electronic storage method, or mobile application is 100% secure, and we cannot guarantee absolute security."
+        },
+        "changes": {
+          "title": "Changes to This Policy",
+          "description": "We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the app if applicable."
+        },
+        "contact": {
+          "title": "Contact Us",
+          "description": "If you have any questions about this Privacy Policy or wish to exercise your data rights, please contact us."
+        }
+      }
+    }
+  }
+}

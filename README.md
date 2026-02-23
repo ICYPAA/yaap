@@ -1,186 +1,80 @@
-# ICYPAA Mobile Application
+# YAAP Monorepo
 
-A comprehensive conference guide mobile application built with React Native, TypeScript, and Expo. Designed with anonymity-first principles and robust offline capabilities to serve as an indispensable tool for conference attendees.
+This repository is a monorepo managed by `pnpm` workspaces + Turborepo.
 
-## Overview
+## Apps
 
-The ICYPAA mobile app provides attendees with a complete conference experience through five main sections:
+- `apps/mobile`: Expo React Native app
+- `apps/admin-web`: Next.js host/admin app (Vercel target)
+- `apps/functions`: Supabase functions + migrations workspace
 
-- **Program** - Browse and save conference events, view timeline/list views, and filter by event type
-- **Accommodations** - Access venue information, hospitality schedules, and local recommendations
-- **Services** - Request support, volunteer opportunities, and accessibility accommodations
-- **Profile** - Manage optional profile, privacy settings, and app preferences
-- **Host** (Restricted) - Administrative tools for host committee members
+## Prerequisites
 
-## Key Features
+- Node.js 22+
+- pnpm 10+
+- Docker Desktop (required for local Supabase)
 
-### 🔒 Privacy & Anonymity First
-- Optional profile creation with minimal PII requirements
-- All data sharing is explicit and user-controlled
-- Complete control over schedule sharing with QR codes
-- Anonymous device-based authentication for services
+## Install
 
-### 📱 Offline-First Architecture
-- All essential conference data cached locally
-- Browse program, maps, and saved schedule without internet
-- Network-efficient data synchronization
-- Battery and data usage optimized
-
-### 🎯 Core Functionality
-- **Event Management** - Save events, view personalized schedule, time conflict detection
-- **Schedule Sharing** - Share your schedule via QR code with granular privacy controls
-- **Real-time Updates** - Push notifications for schedule changes and announcements
-- **Multi-view Program** - Timeline and list views with advanced filtering
-- **Accessibility** - Full support for screen readers, high contrast modes, and accessibility services
-- **Bid Committee Support** - Special bid schedule section for committee events
-
-## Tech Stack
-
-- **Frontend**: React Native with Expo SDK
-- **Language**: TypeScript
-- **Backend**: Supabase (PostgreSQL, Auth, Realtime)
-- **State Management**: React Context API
-- **Styling**: React Native StyleSheet with theme support
-- **Navigation**: Expo Router (file-based routing)
-- **Security**: Client-side encryption, rate limiting, device integrity checks
-
-## Documentation
-
-For detailed information about specific aspects of the application:
-
-- [**Project Instructions**](./CLAUDE.md) - Comprehensive development guidelines and app architecture
-- [**Security**](./SECURITY.md) - Security policies, threat model, and implementation details
-- [**Deployment**](./DEPLOYMENT.md) - Release process, update types, and deployment strategies
-- [**Services Guide**](./supabase/SERVICES.md) - Backend services and API documentation
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ and npm/yarn
-- Expo CLI (`npm install -g expo-cli`)
-- iOS Simulator (Mac only) or Android Emulator
-- Expo Go app for physical device testing
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-org/icypaa.git
-   cd icypaa
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Set up environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your Supabase credentials
-   ```
-
-4. Start the development server:
-   ```bash
-   npx expo start
-   ```
-
-5. Run on your device:
-   - Press `i` for iOS simulator
-   - Press `a` for Android emulator
-   - Scan QR code with Expo Go app for physical device
+```bash
+pnpm install
+```
 
 ## Development
 
-### Project Structure
-
-```
-icypaa/
-├── app/                  # Expo Router screens (file-based routing)
-│   ├── (tabs)/          # Tab navigation screens
-│   ├── (auth)/          # Authentication screens
-│   └── _layout.tsx      # Root layout
-├── components/          # Reusable UI components
-├── context/            # React Context providers
-├── lib/                # Utilities and helpers
-│   └── security/       # Security modules
-├── types/              # TypeScript type definitions
-├── assets/             # Images and static files
-└── supabase/           # Backend configuration
-```
-
-### Available Scripts
+Start individual apps:
 
 ```bash
-# Development
-npm start              # Start Expo development server
-npm run ios           # Run on iOS simulator
-npm run android       # Run on Android emulator
-npm run web           # Run in web browser
-
-# Testing & Quality
-npm run lint          # Run ESLint
-npm run typecheck     # Run TypeScript compiler
-npm test              # Run test suite
-
-# Building
-npm run build:ios     # Build iOS app
-npm run build:android # Build Android app
-npm run build:web     # Build web app
+pnpm dev:mobile
+pnpm dev:admin
 ```
 
-### Key Components
+Start an app with local Supabase Docker automatically:
 
-- **EventDetailsModal** - Displays detailed event information with CTA links
-- **SafetyModal** - Shows safety and anonymity policies on first launch
-- **BidSchedule** - Specialized component for bid committee events
-- **ProtectedComponent** - Role-based access control wrapper
+```bash
+pnpm dev:mobile:local
+pnpm dev:admin:local
+pnpm dev:admin:vercel:local
+```
 
-## Security
+The `:local` scripts start Supabase containers first, then stop them when the app process exits.
+On first run, image pulls can take several minutes.
 
-The app implements comprehensive security measures:
+## Supabase CLI
 
-- **Device Security**: Cryptographically secure device ID generation
-- **Rate Limiting**: Client-side request throttling
-- **Input Sanitization**: XSS and injection prevention
-- **Session Management**: Auto-refresh with secure token handling
-- **App Integrity**: Jailbreak/root detection and signature verification
+Supabase CLI is installed as a workspace dev dependency and run via `pnpm`:
 
-See [SECURITY.md](./SECURITY.md) for complete security documentation.
+```bash
+pnpm supabase:status
+pnpm supabase:start
+pnpm supabase:stop
+pnpm supabase:db:reset
+```
 
-## Deployment
+After `pnpm supabase:start`, run `pnpm supabase:status` to get local URLs and anon/service keys for `.env` files.
 
-The app supports three update types:
+Link this repo to the hosted Supabase project:
 
-1. **OTA Updates** - JavaScript bundle updates via Expo
-2. **Native Updates** - Binary updates through app stores
-3. **Forced Updates** - Critical updates with version enforcement
+```bash
+pnpm supabase:login
+pnpm supabase:link
+```
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for deployment procedures.
+`supabase:link` requires a valid Supabase access token (via `supabase login` or `SUPABASE_ACCESS_TOKEN`).
 
-## Contributing
+Override project ref if needed:
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+```bash
+SUPABASE_PROJECT_REF=your-ref pnpm supabase:link
+```
 
-## Support
+## Vercel
 
-For support, questions, or feedback:
+Deploy `apps/admin-web` as the Vercel project root.
 
-- Use the in-app Support Chat feature
-- Contact a Host Committee member at the conference
-- Open an issue on GitHub
+For local Vercel-style Next development:
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Built for the ICYPAA community
-- Powered by Expo and React Native
-- Backend infrastructure by Supabase
+```bash
+cd apps/admin-web
+pnpm dev
+```

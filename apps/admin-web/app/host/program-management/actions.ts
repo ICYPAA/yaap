@@ -1,0 +1,943 @@
+"use server"
+
+import { logActivity } from "@/lib/audit-logger"
+import { createClient } from "@/utils/supabase/server"
+import { revalidatePath } from "next/cache"
+
+export interface Program {
+  id: number
+  title: string
+  description: string
+  logo: string
+  start_date: string
+  end_date: string
+  location: any
+  venue_rooms: string[]
+  hospitality: any
+  theme: string
+  big_book_passage: string
+  design: any
+  promote: number[]
+  content: any
+  host_committee?: any // JSONB field with committee structure
+}
+
+export interface Event {
+  id: number
+  program_id: number
+  title: string
+  description: string
+  image: string
+  date: string
+  start_time: string
+  end_time: string
+  location: string
+  event_category_id: number
+  can_save: boolean
+  speakers: string[]
+  chairpeople: string[]
+  asl: boolean
+  languages: string[]  // Array of language codes: ['spanish', 'somali', 'hmong']
+  hybrid: boolean
+  event_categories?: EventCategory
+}
+
+export interface EventCategory {
+  id: number
+  program_id: number
+  title: string
+  color: string
+}
+
+export interface Venue {
+  id: number
+  program_id: number
+  floors: any
+  amenities: any
+}
+
+export interface Food {
+  id: number
+  program_id: number
+  category: string
+  name: string
+  description: string
+  image: string | null
+  location: string
+  distance: number | null
+  menu: string | null
+}
+
+export interface Activity {
+  id: number
+  program_id: number
+  category: string
+  name: string
+  description: string
+  image: string | null
+  location: string
+  distance: number | null
+}
+
+// Program Actions
+export async function getPrograms() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("programs")
+    .select("*")
+    .order("id", { ascending: false })
+
+  if (error) {
+    console.error("Error fetching programs:", error)
+    return { programs: [], error: error.message }
+  }
+
+  return { programs: data || [], error: null }
+}
+
+export async function getProgram(id: number) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("programs")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (error) {
+    console.error("Error fetching program:", error)
+    return { program: null, error: error.message }
+  }
+
+  return { program: data, error: null }
+}
+
+export async function updateProgram(id: number, programData: Partial<Program>) {
+  const supabase = await createClient()
+
+  // Get existing program data before updating
+  const { data: existingProgram, error: fetchError } = await supabase
+    .from("programs")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (fetchError) {
+    console.error("Error fetching existing program:", fetchError)
+    return { program: null, error: fetchError.message }
+  }
+
+  const { data, error } = await supabase
+    .from("programs")
+    .update(programData)
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error updating program:", error)
+    return { program: null, error: error.message }
+  }
+
+  // Log successful program update
+  await logActivity({
+    actionType: "update_program",
+    metadata: {
+      programId: id,
+      title: data.title,
+      beforeData: existingProgram,
+      changedFields: Object.keys(programData),
+      afterData: data
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { program: data, error: null }
+}
+
+export async function createProgram(programData: Omit<Program, "id">) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("programs")
+    .insert([programData])
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error creating program:", error)
+    return { program: null, error: error.message }
+  }
+
+  // Log successful program creation
+  await logActivity({
+    actionType: "create_program",
+    metadata: {
+      programId: data.id,
+      title: data.title,
+      createdData: data
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { program: data, error: null }
+}
+
+// Event Actions
+export async function getEvents(programId?: number) {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from("events")
+    .select(
+      `
+      *,
+      event_categories (
+        id,
+        title,
+        color
+      )
+    `
+    )
+    .order("date", { ascending: true })
+    .order("start_time", { ascending: true })
+
+  if (programId) {
+    query = query.eq("program_id", programId)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Error fetching events:", error)
+    return { events: [], error: error.message }
+  }
+
+  return { events: data || [], error: null }
+}
+
+export async function getEvent(id: number) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("events")
+    .select(
+      `
+      *,
+      event_categories (
+        id,
+        title,
+        color
+      )
+    `
+    )
+    .eq("id", id)
+    .single()
+
+  if (error) {
+    console.error("Error fetching event:", error)
+    return { event: null, error: error.message }
+  }
+
+  return { event: data, error: null }
+}
+
+export async function createEvent(
+  eventData: Omit<Event, "id" | "event_categories">
+) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("events")
+    .insert([eventData])
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error creating event:", error)
+    return { event: null, error: error.message }
+  }
+
+  // Log successful event creation
+  await logActivity({
+    actionType: "create_program_event",
+    metadata: {
+      eventId: data.id,
+      title: data.title,
+      programId: data.program_id,
+      date: data.date,
+      startTime: data.start_time,
+      endTime: data.end_time,
+      location: data.location,
+      createdData: data
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { event: data, error: null }
+}
+
+export async function updateEvent(id: number, eventData: Partial<Event>) {
+  const supabase = await createClient()
+
+  // Get existing event data before updating
+  const { data: existingEvent, error: fetchError } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (fetchError) {
+    console.error("Error fetching existing event:", fetchError)
+    return { event: null, error: fetchError.message }
+  }
+
+  const { data, error } = await supabase
+    .from("events")
+    .update(eventData)
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error updating event:", error)
+    return { event: null, error: error.message }
+  }
+
+  // Log successful event update
+  await logActivity({
+    actionType: "update_program_event",
+    metadata: {
+      eventId: id,
+      title: data.title,
+      programId: data.program_id,
+      beforeData: existingEvent,
+      changedFields: Object.keys(eventData),
+      afterData: data
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { event: data, error: null }
+}
+
+export async function deleteEvent(id: number) {
+  const supabase = await createClient()
+
+  // Get existing event data before deleting
+  const { data: existingEvent, error: fetchError } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (fetchError) {
+    console.error("Error fetching existing event:", fetchError)
+    return { error: fetchError.message }
+  }
+
+  const { error } = await supabase.from("events").delete().eq("id", id)
+
+  if (error) {
+    console.error("Error deleting event:", error)
+    return { error: error.message }
+  }
+
+  // Log successful event deletion
+  await logActivity({
+    actionType: "delete_program_event",
+    metadata: {
+      eventId: id,
+      title: existingEvent.title,
+      programId: existingEvent.program_id,
+      date: existingEvent.date,
+      startTime: existingEvent.start_time,
+      endTime: existingEvent.end_time,
+      location: existingEvent.location,
+      deletedData: existingEvent
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { error: null }
+}
+
+// Event Category Actions
+export async function getEventCategories(programId?: number) {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from("event_categories")
+    .select("*")
+    .order("title", { ascending: true })
+
+  if (programId) {
+    query = query.eq("program_id", programId)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Error fetching event categories:", error)
+    return { categories: [], error: error.message }
+  }
+
+  return { categories: data || [], error: null }
+}
+
+export async function createEventCategory(
+  categoryData: Omit<EventCategory, "id">
+) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("event_categories")
+    .insert([categoryData])
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error creating event category:", error)
+    return { category: null, error: error.message }
+  }
+
+  // Log successful event category creation
+  await logActivity({
+    actionType: "create_event_category",
+    metadata: {
+      categoryId: data.id,
+      title: data.title,
+      programId: data.program_id,
+      color: data.color,
+      createdData: data
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { category: data, error: null }
+}
+
+export async function updateEventCategory(
+  id: number,
+  categoryData: Partial<EventCategory>
+) {
+  const supabase = await createClient()
+
+  // Get existing category data before updating
+  const { data: existingCategory, error: fetchError } = await supabase
+    .from("event_categories")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (fetchError) {
+    console.error("Error fetching existing event category:", fetchError)
+    return { category: null, error: fetchError.message }
+  }
+
+  const { data, error } = await supabase
+    .from("event_categories")
+    .update(categoryData)
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error updating event category:", error)
+    return { category: null, error: error.message }
+  }
+
+  // Log successful event category update
+  await logActivity({
+    actionType: "update_event_category",
+    metadata: {
+      categoryId: id,
+      title: data.title,
+      programId: data.program_id,
+      beforeData: existingCategory,
+      changedFields: Object.keys(categoryData),
+      afterData: data
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { category: data, error: null }
+}
+
+export async function deleteEventCategory(id: number) {
+  const supabase = await createClient()
+
+  // Get existing category data before deleting
+  const { data: existingCategory, error: fetchError } = await supabase
+    .from("event_categories")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (fetchError) {
+    console.error("Error fetching existing event category:", fetchError)
+    return { error: fetchError.message }
+  }
+
+  const { error } = await supabase
+    .from("event_categories")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    console.error("Error deleting event category:", error)
+    return { error: error.message }
+  }
+
+  // Log successful event category deletion
+  await logActivity({
+    actionType: "delete_event_category",
+    metadata: {
+      categoryId: id,
+      title: existingCategory.title,
+      programId: existingCategory.program_id,
+      color: existingCategory.color,
+      deletedData: existingCategory
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { error: null }
+}
+
+// Venue Actions
+export async function getVenues(programId?: number) {
+  const supabase = await createClient()
+
+  let query = supabase.from("venues").select("*")
+
+  if (programId) {
+    query = query.eq("program_id", programId)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Error fetching venues:", error)
+    return { venues: [], error: error.message }
+  }
+
+  return { venues: data || [], error: null }
+}
+
+// Get venue for a specific program
+export async function getVenue(programId: number) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("venues")
+    .select("*")
+    .eq("program_id", programId)
+    .maybeSingle() // Use maybeSingle instead of single to handle no rows gracefully
+
+  if (error) {
+    console.error("Error fetching venue for program", programId, ":", error)
+    return { venue: null, error: error.message }
+  }
+
+  console.log("Fetched venue for program", programId, ":", data)
+  return { venue: data, error: null }
+}
+
+// Create or update venue for a program
+export async function updateVenue(programId: number, venueData: Partial<Venue>) {
+  const supabase = await createClient()
+
+  // Check if venue exists
+  const { data: existingVenue } = await supabase
+    .from("venues")
+    .select("id")
+    .eq("program_id", programId)
+    .single()
+
+  let result
+  if (existingVenue) {
+    // Update existing venue
+    result = await supabase
+      .from("venues")
+      .update(venueData)
+      .eq("program_id", programId)
+      .select()
+      .single()
+  } else {
+    // Create new venue
+    result = await supabase
+      .from("venues")
+      .insert({ ...venueData, program_id: programId })
+      .select()
+      .single()
+  }
+
+  if (result.error) {
+    console.error("Error updating venue:", result.error)
+    return { venue: null, error: result.error.message }
+  }
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: { 
+      programId, 
+      title: `Venue updated`,
+      changedFields: ["venue"],
+      afterData: { venueData }
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { venue: result.data, error: null }
+}
+
+// Get venue rooms for a specific program
+export async function getVenueRooms(programId: number) {
+  const supabase = await createClient()
+
+  const { data: program, error } = await supabase
+    .from("programs")
+    .select("venue_rooms")
+    .eq("id", programId)
+    .single()
+
+  if (error) {
+    console.error("Error fetching venue rooms:", error)
+    return { rooms: [], error: error.message }
+  }
+
+  return { rooms: program?.venue_rooms || [], error: null }
+}
+
+// Food Actions
+export async function getFoodItems(programId: number) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("food")
+    .select("*")
+    .eq("program_id", programId)
+    .order("category", { ascending: true })
+    .order("name", { ascending: true })
+
+  if (error) {
+    console.error("Error fetching food items:", error)
+    return { foodItems: [], error: error.message }
+  }
+
+  return { foodItems: data || [], error: null }
+}
+
+export async function createFoodItem(foodData: Omit<Food, "id">) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("food")
+    .insert(foodData)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error creating food item:", error)
+    return { foodItem: null, error: error.message }
+  }
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: { 
+      action: "create_food_item",
+      foodId: data.id,
+      name: foodData.name,
+      programId: foodData.program_id,
+      createdData: foodData 
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { foodItem: data, error: null }
+}
+
+export async function updateFoodItem(id: number, foodData: Partial<Food>) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("food")
+    .update(foodData)
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error updating food item:", error)
+    return { foodItem: null, error: error.message }
+  }
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: { 
+      action: "update_food_item",
+      foodId: id,
+      name: data.name,
+      changedFields: Object.keys(foodData),
+      afterData: foodData 
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { foodItem: data, error: null }
+}
+
+export async function deleteFoodItem(id: number) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("food")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    console.error("Error deleting food item:", error)
+    return { success: false, error: error.message }
+  }
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: { 
+      action: "delete_food_item",
+      foodId: id
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { success: true, error: null }
+}
+
+// Activities Actions
+export async function getActivities(programId: number) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select("*")
+    .eq("program_id", programId)
+    .order("category", { ascending: true })
+    .order("name", { ascending: true })
+
+  if (error) {
+    console.error("Error fetching activities:", error)
+    return { activities: [], error: error.message }
+  }
+
+  return { activities: data || [], error: null }
+}
+
+export async function createActivity(activityData: Omit<Activity, "id">) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("activities")
+    .insert(activityData)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error creating activity:", error)
+    return { activity: null, error: error.message }
+  }
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: { 
+      action: "create_activity",
+      activityId: data.id,
+      name: activityData.name,
+      programId: activityData.program_id,
+      createdData: activityData 
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { activity: data, error: null }
+}
+
+export async function updateActivity(id: number, activityData: Partial<Activity>) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("activities")
+    .update(activityData)
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error updating activity:", error)
+    return { activity: null, error: error.message }
+  }
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: { 
+      action: "update_activity",
+      activityId: id,
+      name: data.name,
+      changedFields: Object.keys(activityData),
+      afterData: activityData 
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { activity: data, error: null }
+}
+
+export async function deleteActivity(id: number) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("activities")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    console.error("Error deleting activity:", error)
+    return { success: false, error: error.message }
+  }
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: { 
+      action: "delete_activity",
+      activityId: id
+    }
+  })
+
+  revalidatePath("/host/program-management")
+  return { success: true, error: null }
+}
+
+// Hospitality Hours Interface and Actions
+export interface HospitalityHour {
+  id: number
+  created_at: string
+  updated_at: string
+  program_id?: number
+  date_time: string
+  group_hosting?: string
+  group_contact?: string
+  group_confirmed: boolean
+  group_phone?: string
+  group_email?: string
+  planning_to_bring?: string
+  display_name: string
+  day: string
+  time_slot: string
+  room?: string
+  volunteering_interest_id?: number
+  scheduled_hours: number
+}
+
+export async function getHospitalityHours(programId?: number) {
+  const supabase = await createClient()
+  
+  let query = supabase.from("hospitality_hours").select("*")
+  
+  if (programId) {
+    query = query.eq("program_id", programId)
+  }
+  
+  const { data, error } = await query
+    .order("date_time", { ascending: true })
+  
+  if (error) {
+    console.error("Error fetching hospitality hours:", error)
+    return { hospitalityHours: [], error: error.message }
+  }
+  
+  // Add computed fields for compatibility
+  const hoursWithComputedFields = (data || []).map(hour => ({
+    ...hour,
+    display_name: hour.group_hosting || 'Open Slot',
+    day: new Date(hour.date_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    time_slot: new Date(hour.date_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  }))
+  
+  return { hospitalityHours: hoursWithComputedFields as HospitalityHour[], error: null }
+}
+
+export async function updateHospitalityHour(
+  id: number,
+  updates: Partial<HospitalityHour>
+) {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from("hospitality_hours")
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id)
+    .select()
+    .single()
+  
+  if (error) {
+    console.error("Error updating hospitality hour:", error)
+    return { hospitalityHour: null, error: error.message }
+  }
+  
+  revalidatePath("/host/program-management")
+  
+  // Add computed fields
+  const hourWithComputedFields = {
+    ...data,
+    display_name: data.group_hosting || 'Open Slot',
+    day: new Date(data.date_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    time_slot: new Date(data.date_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+  
+  return { hospitalityHour: hourWithComputedFields as HospitalityHour, error: null }
+}
+
+export async function createHospitalityHour(data: {
+  program_id?: number
+  date_time: string
+  group_hosting?: string
+  group_contact?: string
+  group_confirmed?: boolean
+  group_phone?: string
+  group_email?: string
+  planning_to_bring?: string
+  room?: string
+  volunteering_interest_id?: number
+}) {
+  const supabase = await createClient()
+  
+  const { data: newHour, error } = await supabase
+    .from("hospitality_hours")
+    .insert({
+      ...data,
+      group_confirmed: data.group_confirmed || false,
+      scheduled_hours: 2.0
+    })
+    .select()
+    .single()
+  
+  if (error) {
+    console.error("Error creating hospitality hour:", error)
+    return { hospitalityHour: null, error: error.message }
+  }
+  
+  revalidatePath("/host/program-management")
+  
+  // Add computed fields
+  const hourWithComputedFields = {
+    ...newHour,
+    display_name: newHour.group_hosting || 'Open Slot',
+    day: new Date(newHour.date_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    time_slot: new Date(newHour.date_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+  
+  return { hospitalityHour: hourWithComputedFields as HospitalityHour, error: null }
+}

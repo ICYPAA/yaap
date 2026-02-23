@@ -1,0 +1,14 @@
+{
+  "name": "@yaap/functions",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Run one of: pnpm supabase:functions:serve or pnpm supabase:start'",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "supabase:link": "supabase link --project-ref ${SUPABASE_PROJECT_REF:-oolqeopfhhiuvsmamxln}",
+    "supabase:db:reset": "supabase db reset",
+    "supabase:migration:new": "supabase migration new",
+    "supabase:functions:serve": "supabase functions serve"
+  }
+}
