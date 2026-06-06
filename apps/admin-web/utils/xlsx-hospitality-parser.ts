@@ -18,11 +18,64 @@ export interface ParsedHospitalityData {
   successfulRows: number
 }
 
-// Helper function to parse date and time from column A
-// NOTE: This function automatically corrects July dates to August dates
-// since the conference is August 28-31, 2025 and the source data
-// sometimes incorrectly has July dates
-function parseDateAndTime(value: string | number): Date | null {
+export interface HospitalityDateOptions {
+  startDate?: string | null
+  endDate?: string | null
+}
+
+function enumerateConferenceDates(options?: HospitalityDateOptions): Date[] {
+  if (!options?.startDate || !options?.endDate) return []
+
+  const dates: Date[] = []
+  const current = new Date(`${options.startDate}T00:00:00`)
+  const end = new Date(`${options.endDate}T00:00:00`)
+
+  if (Number.isNaN(current.getTime()) || Number.isNaN(end.getTime())) {
+    return []
+  }
+
+  while (current <= end) {
+    dates.push(new Date(current))
+    current.setDate(current.getDate() + 1)
+  }
+
+  return dates
+}
+
+function getConferenceYear(options?: HospitalityDateOptions): number {
+  const start = options?.startDate
+    ? new Date(`${options.startDate}T00:00:00`)
+    : null
+  return start && !Number.isNaN(start.getTime())
+    ? start.getFullYear()
+    : new Date().getFullYear()
+}
+
+function coerceToConferenceDate(
+  parsed: Date,
+  options?: HospitalityDateOptions
+): Date {
+  const conferenceDates = enumerateConferenceDates(options)
+  const matchingDate = conferenceDates.find(
+    (date) => date.getDate() === parsed.getDate()
+  )
+
+  if (!matchingDate) return parsed
+
+  const corrected = new Date(matchingDate)
+  corrected.setHours(
+    parsed.getHours(),
+    parsed.getMinutes(),
+    parsed.getSeconds(),
+    parsed.getMilliseconds()
+  )
+  return corrected
+}
+
+function parseDateAndTime(
+  value: string | number,
+  options?: HospitalityDateOptions
+): Date | null {
   if (!value) return null
 
   try {
@@ -30,11 +83,7 @@ function parseDateAndTime(value: string | number): Date | null {
     if (typeof value === 'number') {
       // Excel dates are days since 1900-01-01 (with a leap year bug)
       const excelDate = new Date((value - 25569) * 86400 * 1000)
-      // Fix month if it's July (month 6 in JS) - change to August (month 7)
-      if (excelDate.getMonth() === 6 && excelDate.getFullYear() === 2025) {
-        excelDate.setMonth(7) // Change July to August
-      }
-      return excelDate
+      return coerceToConferenceDate(excelDate, options)
     }
 
     // Try to parse various date/time formats
@@ -43,10 +92,7 @@ function parseDateAndTime(value: string | number): Date | null {
     // Handle format like "7/28/2025 5pm-7pm" or "7/28/2025 10pm-12am" - extract date and start time
     const rangeMatch = dateStr.match(/^(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}(?::\d{2})?)(am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?(am|pm)?)?/i)
     if (rangeMatch) {
-      let [, datePart, timePart, meridiem] = rangeMatch
-      
-      // Fix month if date shows 7/XX/2025 (July) - change to 8/XX/2025 (August)
-      datePart = datePart.replace(/^7\//, '8/')
+      const [, datePart, timePart, meridiem] = rangeMatch
       
       // Construct a proper date string
       let timeStr = timePart
@@ -58,7 +104,7 @@ function parseDateAndTime(value: string | number): Date | null {
       timeStr += ' ' + meridiem.toUpperCase()
       
       const fullDateStr = `${datePart} ${timeStr}`
-      let parsed = new Date(fullDateStr)
+      const parsed = new Date(fullDateStr)
       
       if (!isNaN(parsed.getTime())) {
         const hour = parseInt(timePart)
@@ -81,17 +127,14 @@ function parseDateAndTime(value: string | number): Date | null {
           // You may need to adjust based on your actual data
         }
         
-        return parsed
+        return coerceToConferenceDate(parsed, options)
       }
     }
     
     // Also try with optional space before meridiem
     const rangeMatch2 = dateStr.match(/^(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}(?::\d{2})?)\s*(am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i)
     if (rangeMatch2) {
-      let [, datePart, timePart, meridiem] = rangeMatch2
-      
-      // Fix month if date shows 7/XX/2025 (July) - change to 8/XX/2025 (August)
-      datePart = datePart.replace(/^7\//, '8/')
+      const [, datePart, timePart, meridiem] = rangeMatch2
       
       let timeStr = timePart
       if (!timeStr.includes(':')) {
@@ -100,7 +143,7 @@ function parseDateAndTime(value: string | number): Date | null {
       timeStr += ' ' + meridiem.toUpperCase()
       
       const fullDateStr = `${datePart} ${timeStr}`
-      let parsed = new Date(fullDateStr)
+      const parsed = new Date(fullDateStr)
       
       if (!isNaN(parsed.getTime())) {
         const hour = parseInt(timePart)
@@ -115,11 +158,11 @@ function parseDateAndTime(value: string | number): Date | null {
           // 12pm is already correct (noon)
         }
         
-        return parsed
+        return coerceToConferenceDate(parsed, options)
       }
     }
     
-    // Handle format like "Aug 28 8:00 AM - 10:00 AM" or "Aug 28 8am-10am"
+    // Handle format like "Sep 12 8:00 AM - 10:00 AM" or "Sep 12 8am-10am"
     const monthDayMatch = dateStr.match(/^([A-Za-z]+\s+\d{1,2})\s+(\d{1,2}(?::\d{2})?)\s*(am|pm)?(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i)
     if (monthDayMatch) {
       const [, datePart, timePart, meridiem] = monthDayMatch
@@ -132,47 +175,31 @@ function parseDateAndTime(value: string | number): Date | null {
         timeStr += ' ' + meridiem.toUpperCase()
       }
       
-      const fullDateStr = `${datePart} 2025 ${timeStr}`
+      const fullDateStr = `${datePart} ${getConferenceYear(options)} ${timeStr}`
       const parsed = new Date(fullDateStr)
       
       if (!isNaN(parsed.getTime())) {
-        return parsed
+        return coerceToConferenceDate(parsed, options)
       }
     }
 
     // Try native Date parsing for standard formats
-    // First fix any July dates to August
-    const fixedDateStr = dateStr.replace(/^7\//, '8/').replace(/Jul(?:y)?/i, 'Aug')
-    const parsed = new Date(fixedDateStr)
+    const parsed = new Date(dateStr)
     if (!isNaN(parsed.getTime())) {
-      // If year is missing or seems wrong, set to 2025
-      if (parsed.getFullYear() < 2025) {
-        parsed.setFullYear(2025)
-      }
-      // Additional check: Fix month if it's still July (month 6 in JS) - change to August (month 7)
-      if (parsed.getMonth() === 6 && parsed.getFullYear() === 2025) {
-        parsed.setMonth(7) // Change July to August
-      }
-      return parsed
+      return coerceToConferenceDate(parsed, options)
     }
 
-    // If no year in string, append 2025
+    // If no year in string, append the selected conference year.
     if (!dateStr.match(/\d{4}/)) {
-      // Fix any July references to August before parsing
-      const fixedStr = dateStr.replace(/^7\//, '8/').replace(/Jul(?:y)?/i, 'Aug')
-      const withYear = fixedStr + ' 2025'
+      const withYear = `${dateStr} ${getConferenceYear(options)}`
       const parsedWithYear = new Date(withYear)
       if (!isNaN(parsedWithYear.getTime())) {
-        // Fix month if it's still July (month 6 in JS) - change to August (month 7)
-        if (parsedWithYear.getMonth() === 6 && parsedWithYear.getFullYear() === 2025) {
-          parsedWithYear.setMonth(7) // Change July to August
-        }
-        return parsedWithYear
+        return coerceToConferenceDate(parsedWithYear, options)
       }
     }
 
     // If we still couldn't parse, log the format for debugging
-    console.warn(`Could not parse date/time: "${dateStr}". Expected formats: "7/28/2025 5pm-7pm", "MM/DD/YYYY HH:MM AM/PM", etc.`)
+    console.warn(`Could not parse date/time: "${dateStr}". Expected formats: "MM/DD/YYYY 5pm-7pm", "MM/DD/YYYY HH:MM AM/PM", etc.`)
     return null
   } catch (error) {
     console.error('Error parsing date:', value, error)
@@ -215,7 +242,8 @@ function extractPhone(value: string): string | undefined {
 }
 
 export async function parseXLSXHospitalityData(
-  file: File
+  file: File,
+  dateOptions?: HospitalityDateOptions
 ): Promise<ParsedHospitalityData> {
   try {
     const arrayBuffer = await file.arrayBuffer()
@@ -268,7 +296,7 @@ export async function parseXLSXHospitalityData(
         // F=Group email
         // G=planning to bring
 
-        const dateTime = parseDateAndTime(row["A"])
+        const dateTime = parseDateAndTime(row["A"], dateOptions)
         
         if (!dateTime) {
           // Only add error if the cell had content

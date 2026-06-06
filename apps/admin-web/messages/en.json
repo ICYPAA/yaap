@@ -110,7 +110,7 @@
     "bylaws": {
       "BylawsPage": {
         "title": "Bylaws",
-        "message": "The 65th ICYPAA program is still being developed. Check back soon for\n more information!"
+          "message": "The conference program is still being developed. Check back soon for\n more information!"
       }
     },
     "contact": {
@@ -376,31 +376,31 @@
     "merch": {
       "MerchPage": {
         "title": "Merch",
-        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+        "description": "The conference program is still being developed. Check back soon for more information!"
       }
     },
     "outreach": {
       "OutreachPage": {
         "title": "Outreach",
-        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+        "description": "The conference program is still being developed. Check back soon for more information!"
       }
     },
     "program": {
       "ProgramPage": {
         "title": "Program",
-        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+        "description": "The conference program is still being developed. Check back soon for more information!"
       }
     },
     "register": {
       "RegistrationPage": {
         "title": "Register",
-        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!"
+        "description": "The conference program is still being developed. Check back soon for more information!"
       }
     },
     "transportation": {
       "TransportationPage": {
         "title": "Transportation",
-        "description": "The 65th ICYPAA program is still being developed. Check back soon for more information!",
+        "description": "The conference program is still being developed. Check back soon for more information!",
         "sections": {
           "airport": {
             "title": "Airport Transportation",
@@ -416,7 +416,7 @@
     "homepage": {
       "HomePage": {
         "title": {
-          "title": "65th ICYPAA",
+          "title": "Current Conference",
           "subtitle": "International Conference of Young People in AA"
         },
         "cards": {
@@ -474,21 +474,21 @@
     "service": {
       "ServicePage": {
         "title": "Service Opportunities",
-        "description": "Get involved and help carry the message at ICYPAA",
-        "message": "The 65th ICYPAA service opportunities are still being developed. Check back soon for more information!"
+        "description": "Get involved and help carry the message at the conference",
+        "message": "Conference service opportunities are still being developed. Check back soon for more information!"
       }
     },
     "volunteer": {
       "VolunteerPage": {
         "title": "Volunteer Opportunities",
-        "description": "Join us in making the 65th ICYPAA a success",
+        "description": "Join us in making the conference a success",
         "message": "Volunteer sign-up information coming soon!"
       }
     },
     "resources": {
       "ResourcesPage": {
-        "title": "The 65th ICYPAA Resources",
-        "description": "Download everything you need for the 65th International Conference of Young People in Alcoholics Anonymous",
+        "title": "Conference Resources",
+        "description": "Download conference materials and attendee resources",
         "message": "Resource information coming soon!",
         "conference-material": {
           "title": "Conference Material"

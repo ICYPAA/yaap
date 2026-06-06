@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  FlatList,
   StyleSheet,
   Text,
   View
@@ -31,11 +30,7 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
   const [bidEvents, setBidEvents] = useState<BidEvent[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchBidSchedule()
-  }, [programId])
-
-  const fetchBidSchedule = async () => {
+  const fetchBidSchedule = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -131,7 +126,11 @@ export const BidSchedule: React.FC<BidScheduleProps> = ({ programId }) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [programId])
+
+  useEffect(() => {
+    fetchBidSchedule()
+  }, [fetchBidSchedule])
 
   const formatTime = (timeString: string) => {
     try {

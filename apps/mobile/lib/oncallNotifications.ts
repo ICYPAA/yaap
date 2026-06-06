@@ -1,4 +1,4 @@
-import { supabase, withDeviceId } from "./supabase"
+import { withDeviceId } from "./supabase"
 
 /**
  * Send push notification to on-call user for a service

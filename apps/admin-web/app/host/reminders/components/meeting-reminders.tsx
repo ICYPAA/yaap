@@ -27,7 +27,6 @@ import {
   type ParsedMeeting
 } from "@/utils/xlsx-meeting-parser"
 import {
-  formatMeetingRaidForDisplay,
   parseXLSXMeetingRaidData,
   validateMeetingRaidData,
   type ParsedMeetingRaid
@@ -50,7 +49,7 @@ import {
   Users,
   X
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import {
   bulkUpsertOutreachReminders,
@@ -102,13 +101,8 @@ export function MeetingReminders() {
   const [showParsedRaidData, setShowParsedRaidData] = useState(false)
   const [raidUploadBuffers, setRaidUploadBuffers] = useState<string[]>(["1h"])
 
-  const supabase = createClient()
-
-  useEffect(() => {
-    fetchReminders()
-  }, [])
-
-  const fetchReminders = async () => {
+  const fetchReminders = useCallback(async () => {
+    const supabase = createClient()
     try {
       const { data, error } = await supabase
         .from("outreach_reminders")
@@ -123,7 +117,11 @@ export function MeetingReminders() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchReminders()
+  }, [fetchReminders])
 
   const addUploadBuffer = () => {
     setUploadBuffers([...uploadBuffers, ""])
@@ -257,7 +255,7 @@ export function MeetingReminders() {
         }
         
         // Build meeting details with address
-        let meetingDetails = meeting.address || ""
+        const meetingDetails = meeting.address || ""
 
         // Create a reminder for each buffer
         for (const buffer of validBuffers) {
@@ -414,7 +412,7 @@ export function MeetingReminders() {
         }
         
         // Build meeting details
-        let meetingDetails = meeting.location || ""
+        const meetingDetails = meeting.location || ""
 
         // Create a reminder for each buffer
         for (const buffer of validBuffers) {
@@ -748,8 +746,8 @@ export function MeetingReminders() {
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Each reminder time will create a separate reminder for each
-                  meeting in your file. Use formats like '1h' (1 hour), '1d' (1
-                  day), '30m' (30 minutes).
+                  meeting in your file. Use formats like &apos;1h&apos; (1 hour), &apos;1d&apos; (1
+                  day), &apos;30m&apos; (30 minutes).
                 </p>
               </div>
 
@@ -1614,9 +1612,9 @@ function ReminderForm({
             placeholder="e.g., 'Monday 7PM', '12/25 at 6:30 PM', 'Saturday-Sunday 9AM'"
           />
           <p className="text-xs text-muted-foreground mt-1">
-            For recurring: "Monday 7PM", "Daily 10AM", "Saturday-Sunday 9AM"
+            For recurring: &quot;Monday 7PM&quot;, &quot;Daily 10AM&quot;, &quot;Saturday-Sunday 9AM&quot;
             <br />
-            For one-time: "12/25 at 6:30 PM", "5/31 at 8:30 PM"
+            For one-time: &quot;12/25 at 6:30 PM&quot;, &quot;5/31 at 8:30 PM&quot;
           </p>
         </div>
       </div>
@@ -1656,7 +1654,7 @@ function ReminderForm({
 
         {reminder.people.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No people added yet. Click "Add Person" to add contacts.
+            No people added yet. Click &quot;Add Person&quot; to add contacts.
           </p>
         ) : (
           <div className="space-y-2">

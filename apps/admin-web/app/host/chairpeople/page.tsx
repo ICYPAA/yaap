@@ -19,13 +19,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -56,7 +49,6 @@ import {
   AlertCircle,
   CheckCircle,
   Edit2,
-  FileSpreadsheet,
   Phone,
   Plus,
   Save,
@@ -72,7 +64,6 @@ import { deleteChairperson, getChairpeople, getPanels, saveChairpeople, updateCh
 import { 
   checkMessageStatuses, 
   getChairpeopleForNotification, 
-  getNotificationHistory, 
   sendChairpersonNotifications,
   type ChairpersonNotification,
   type NotificationStatus 
@@ -108,7 +99,6 @@ export default function ChairpeoplePage() {
   const [notificationChairpeople, setNotificationChairpeople] = useState<ChairpersonNotification[]>([])
   const [selectedNotifications, setSelectedNotifications] = useState<number[]>([])
   const [sendingNotifications, setSendingNotifications] = useState(false)
-  const [notificationHistory, setNotificationHistory] = useState<any[]>([])
   const [notificationStatuses, setNotificationStatuses] = useState<NotificationStatus[]>([])
 
   useEffect(() => {
@@ -877,9 +867,6 @@ export default function ChairpeoplePage() {
                         const results = await sendChairpersonNotifications(selectedNotifications)
                         setNotificationStatuses(results)
                         toast.success(`Sent ${results.filter(r => r.status === 'sent').length} messages`)
-                        // Reload notification history
-                        const history = await getNotificationHistory()
-                        setNotificationHistory(history)
                       } catch (error) {
                         toast.error("Failed to send notifications")
                       } finally {
@@ -1030,7 +1017,7 @@ export default function ChairpeoplePage() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Message Preview</h3>
                 <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm">
-{`Hello [Name], thank you for serving as a chairperson at The 65th ICYPAA!
+{`Hello [Name], thank you for serving as a chairperson at [Current Conference]!
 
 📅 Day & Time: [Day/Time]
 📍 Room: [Room]
@@ -1049,7 +1036,7 @@ Expectations:
 Thank you for your service!
 
 In love and service,
-The 65th ICYPAA Host Committee`}
+[Host Committee]`}
                 </div>
               </div>
             </CardContent>

@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { makeRequest } from "../../../lib/requestHelper"
@@ -38,7 +39,12 @@ type FilterType = "all" | "active" | "completed" | "closed"
 export default function AccessibilityRequests() {
   const router = useRouter()
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const { isDebugMode } = useDebug()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [requests, setRequests] = useState<AccessibilityRequest[]>([])
   const [filteredRequests, setFilteredRequests] = useState<
     AccessibilityRequest[]
@@ -49,29 +55,57 @@ export default function AccessibilityRequests() {
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
   const currentUserEmailRef = useRef<string | undefined>(undefined)
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session?.user) {
-        setCurrentUser(data.session.user.id)
-        currentUserEmailRef.current = data.session.user.email
-      }
+  const handleNewRequest = useCallback((newRecord: any) => {
+    if (!newRecord) return
+
+    // Format the new request with current user info if needed
+    const formattedRequest: AccessibilityRequest = {
+      ...newRecord,
+      owner_email:
+        newRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : newRecord.owner_id
+          ? "User " + newRecord.owner_id.substring(0, 6)
+          : undefined
     }
 
-    getUser()
-    fetchRequests()
-    setupRealtimeSubscription()
+    // Add to requests list
+    setRequests((prev) => [formattedRequest, ...prev])
+  }, [currentUser])
 
-    // Cleanup subscription when component unmounts
-    return () => {
-      if (subscriptionRef.current.unsubscribe) {
-        subscriptionRef.current.unsubscribe()
-      }
+  const handleUpdatedRequest = useCallback((updatedRecord: any) => {
+    if (!updatedRecord) return
+
+    // Format the updated request with current user info
+    const formattedRequest: AccessibilityRequest = {
+      ...updatedRecord,
+      owner_email:
+        updatedRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : updatedRecord.owner_id
+          ? "User " + updatedRecord.owner_id.substring(0, 6)
+          : undefined
     }
+
+    // Update in the list
+    setRequests((prev) =>
+      prev.map((request) =>
+        request.id === updatedRecord.id ? formattedRequest : request
+      )
+    )
+  }, [currentUser])
+
+  const handleDeletedRequest = useCallback((id?: string) => {
+    if (!id) return
+
+    // Remove from the list
+    setRequests((prev) => prev.filter((request) => request.id !== id))
   }, [])
 
-  const setupRealtimeSubscription = async () => {
+  const setupRealtimeSubscription = useCallback(async () => {
     try {
+      if (!programId) return
+
       const supabaseWithDeviceId = await withDeviceId()
 
       const subscription = supabaseWithDeviceId
@@ -82,7 +116,7 @@ export default function AccessibilityRequests() {
             event: "*",
             schema: "public",
             table: "accessibility_forms",
-            filter: "program_id=eq.3"
+            filter: `program_id=eq.${programId}`
           },
           (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload
@@ -106,62 +140,14 @@ export default function AccessibilityRequests() {
     } catch (error) {
       console.error("Error setting up realtime subscription:", error)
     }
-  }
+  }, [
+    handleDeletedRequest,
+    handleNewRequest,
+    handleUpdatedRequest,
+    programId
+  ])
 
-  const handleNewRequest = (newRecord: any) => {
-    if (!newRecord) return
-
-    // Format the new request with current user info if needed
-    const formattedRequest: AccessibilityRequest = {
-      ...newRecord,
-      owner_email:
-        newRecord.owner_id === currentUser
-          ? currentUserEmailRef.current
-          : newRecord.owner_id
-          ? "User " + newRecord.owner_id.substring(0, 6)
-          : undefined
-    }
-
-    // Add to requests list
-    setRequests((prev) => [formattedRequest, ...prev])
-  }
-
-  const handleUpdatedRequest = (updatedRecord: any) => {
-    if (!updatedRecord) return
-
-    // Format the updated request with current user info
-    const formattedRequest: AccessibilityRequest = {
-      ...updatedRecord,
-      owner_email:
-        updatedRecord.owner_id === currentUser
-          ? currentUserEmailRef.current
-          : updatedRecord.owner_id
-          ? "User " + updatedRecord.owner_id.substring(0, 6)
-          : undefined
-    }
-
-    // Update in the list
-    setRequests((prev) =>
-      prev.map((request) =>
-        request.id === updatedRecord.id ? formattedRequest : request
-      )
-    )
-  }
-
-  const handleDeletedRequest = (id?: string) => {
-    if (!id) return
-
-    // Remove from the list
-    setRequests((prev) => prev.filter((request) => request.id !== id))
-  }
-
-  useEffect(() => {
-    if (requests.length > 0) {
-      filterRequests(activeFilter)
-    }
-  }, [requests, activeFilter])
-
-  const filterRequests = (filter: FilterType) => {
+  const filterRequests = useCallback((filter: FilterType) => {
     switch (filter) {
       case "active":
         setFilteredRequests(
@@ -186,10 +172,21 @@ export default function AccessibilityRequests() {
         setFilteredRequests(requests)
         break
     }
-  }
+  }, [requests])
 
-  const fetchRequests = async () => {
+  useEffect(() => {
+    if (requests.length > 0) {
+      filterRequests(activeFilter)
+    }
+  }, [activeFilter, filterRequests, requests.length])
+
+  const fetchRequests = useCallback(async () => {
     try {
+      if (!programId) {
+        setRequests([])
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "accessibility_forms",
@@ -198,7 +195,7 @@ export default function AccessibilityRequests() {
           supabaseWithDeviceId
             .from("accessibility_forms")
             .select("*")
-            .eq("program_id", 3)
+            .eq("program_id", programId)
             .order("created_at", { ascending: false })
       })
 
@@ -228,7 +225,28 @@ export default function AccessibilityRequests() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [isDebugMode, programId])
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session?.user) {
+        setCurrentUser(data.session.user.id)
+        currentUserEmailRef.current = data.session.user.email
+      }
+    }
+
+    getUser()
+    fetchRequests()
+    setupRealtimeSubscription()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
+    }
+  }, [fetchRequests, setupRealtimeSubscription])
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
@@ -430,7 +448,7 @@ export default function AccessibilityRequests() {
         // This runs when the screen is unfocused
         console.log("Screen unfocused")
       }
-    }, [])
+    }, [fetchRequests])
   )
 
   return (

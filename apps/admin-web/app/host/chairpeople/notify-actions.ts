@@ -1,5 +1,7 @@
 "use server"
 
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
+import { buildProgramTemplateContext } from "@/lib/panel-notification-templates"
 import { createClient } from "@/utils/supabase/server"
 import twilio from "twilio"
 
@@ -140,6 +142,9 @@ export async function sendChairpersonNotifications(
   }
   
   const results: NotificationStatus[] = []
+  const programContext = buildProgramTemplateContext(
+    await getCurrentProgramOrNull()
+  )
   
   for (const chair of chairpeople || []) {
     // Find the linked panel
@@ -154,7 +159,8 @@ export async function sendChairpersonNotifications(
       panel?.room || "TBD",
       panel?.title || chair.panel_name,
       panel?.panelists || 4,
-      isHybrid
+      isHybrid,
+      programContext
     )
     
     try {
@@ -211,11 +217,12 @@ function formatChairpersonMessage(
   room: string,
   panelTitle: string,
   panelists: number,
-  isHybrid: boolean
+  isHybrid: boolean,
+  programContext: ReturnType<typeof buildProgramTemplateContext>
 ): string {
   const firstName = name.split(" ")[0]
   
-  let message = `Hello ${firstName}, thank you for serving as a chairperson at The 65th ICYPAA!
+  let message = `Hello ${firstName}, thank you for serving as a chairperson at ${programContext.title}!
 
 📅 Day & Time: ${dayTime}
 📍 Room: ${room}
@@ -239,7 +246,7 @@ Expectations:
 Thank you for your service in helping showcase these featured conversations in our new and wonderful world.
 
 In love and service,
-The 65th ICYPAA Host Committee`
+${programContext.committeeName}`
 
   return message
 }

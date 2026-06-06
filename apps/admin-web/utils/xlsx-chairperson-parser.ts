@@ -113,12 +113,10 @@ export async function parseXLSXChairpersonData(
     const errors: string[] = []
     let skippedHeaderRows = 0
     let skippedEmptyRows = 0
-    let totalProcessedRows = 0
 
     console.log(`Processing ${jsonData.length} total rows from spreadsheet`)
 
     jsonData.forEach((row: any, index: number) => {
-      totalProcessedRows++
       try {
         // Skip empty rows
         if (!row || Object.keys(row).length === 0) {

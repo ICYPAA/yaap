@@ -25,7 +25,7 @@ function parseTimeRange(timeStr: string): { start: string, end: string } {
     throw new Error(`Invalid time format: ${timeStr}`)
   }
   
-  let [startStr, endStr] = parts
+  const [startStr, endStr] = parts
   
   // Extract am/pm from end if present
   const endMatch = endStr.match(/(am|pm)$/)
@@ -103,34 +103,45 @@ function parseName(nameStr: string): { name: string, last_initial?: string } {
   }
 }
 
-/**
- * Convert day to date (Aug 28-31)
- */
-function dayToDate(day: string): string {
-  const dayMap: Record<string, string> = {
-    'Thursday': '2025-08-28',
-    'Friday': '2025-08-29',
-    'Saturday': '2025-08-30',
-    'Sunday': '2025-08-31',
-    'Thurs': '2025-08-28',
-    'Fri': '2025-08-29',
-    'Sat': '2025-08-30',
-    'Sun': '2025-08-31',
-    'Thu': '2025-08-28',
-    '28': '2025-08-28',
-    '29': '2025-08-29',
-    '30': '2025-08-30',
-    '31': '2025-08-31'
-  }
+function buildDayMap(conferenceDates: string[]): Record<string, string> {
+  const dayMap: Record<string, string> = {}
+
+  conferenceDates.forEach((date) => {
+    const parsedDate = new Date(`${date}T00:00:00`)
+    if (Number.isNaN(parsedDate.getTime())) return
+
+    const weekday = parsedDate
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toLowerCase()
+    const shortWeekday = parsedDate
+      .toLocaleDateString('en-US', { weekday: 'short' })
+      .toLowerCase()
+    const monthDay = parsedDate
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      .toLowerCase()
+    const dayNumber = String(parsedDate.getDate())
+
+    dayMap[weekday] = date
+    dayMap[shortWeekday] = date
+    dayMap[weekday.slice(0, 4)] = date
+    dayMap[weekday.slice(0, 5)] = date
+    dayMap[dayNumber] = date
+    dayMap[monthDay] = date
+  })
+
+  return dayMap
+}
+
+function dayToDate(day: string, conferenceDates: string[]): string {
+  const dayMap = buildDayMap(conferenceDates)
   
   for (const [key, value] of Object.entries(dayMap)) {
-    if (day.includes(key)) {
+    if (day.toLowerCase().includes(key)) {
       return value
     }
   }
   
-  // Default to Thursday if not found
-  return '2025-08-28'
+  return conferenceDates[0]
 }
 
 /**
@@ -152,7 +163,11 @@ function parseStatus(statusStr: string | undefined): 'accepted' | 'declined' | '
   return 'pending'
 }
 
-export async function parseGreeterSpreadsheet(file: File): Promise<GreeterEntry[]> {
+export async function parseGreeterSpreadsheet(file: File, conferenceDates: string[]): Promise<GreeterEntry[]> {
+  if (conferenceDates.length === 0) {
+    throw new Error('Select a current conference before importing greeter volunteers')
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     
@@ -203,7 +218,7 @@ export async function parseGreeterSpreadsheet(file: File): Promise<GreeterEntry[
           
           // Get day
           const dayValue = dayIndex >= 0 ? String(row[dayIndex] || '') : ''
-          const date = dayToDate(dayValue)
+          const date = dayToDate(dayValue, conferenceDates)
           
           // Get meeting - check if it's "Lobby" which means it's the room
           const meetingValue = meetingIndex >= 0 ? String(row[meetingIndex] || '') : ''

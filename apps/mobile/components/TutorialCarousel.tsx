@@ -111,7 +111,7 @@ interface TutorialCarouselProps {
 export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({
   onClose
 }) => {
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
   const { isFeatureEnabled } = useFeatures()
   const [currentPage, setCurrentPage] = useState(0)
   const scrollViewRef = useRef<ScrollView>(null)

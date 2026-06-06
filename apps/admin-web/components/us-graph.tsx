@@ -14,6 +14,7 @@ import { AlbersUsa } from "@visx/geo"
 import { geoCentroid } from "d3-geo"
 import { useEffect, useState } from "react"
 import * as topojson from "topojson-client"
+import type { Topology } from "topojson-specification"
 import stateAbbrs from "./us-abbr.json"
 import topology from "./usa-topo.json"
 
@@ -24,10 +25,9 @@ interface FeatureShape {
   properties: { name: string }
 }
 
-const { features: unitedStates } = topojson.feature(
-  topology as any,
-  topology.objects.states as any
-) as unknown as {
+const usTopology = topology as unknown as Topology
+const statesFeatureCollection = topojson.feature(usTopology, usTopology.objects.states)
+const { features: unitedStates } = statesFeatureCollection as {
   type: "FeatureCollection"
   features: FeatureShape[]
 }
@@ -42,6 +42,19 @@ type UnmatchedUSRecord = {
   cityState: string
   committee: string
   country: string
+}
+
+type RegistrationRow = {
+  "Ticket type"?: string
+  "City, State"?: string
+  "Order date"?: string
+  Committee?: string
+  Country?: string
+}
+
+type RegistrationReport = {
+  created_at: string
+  data?: RegistrationRow[]
 }
 
 // Color scale based on number of registrations
@@ -66,7 +79,10 @@ export default function USGraph() {
   useEffect(() => {
     const fetchRegistrationData = async () => {
       try {
-        const registrations = (await getRegistrations()) as any[]
+        const registrationResult = await getRegistrations()
+        const registrations = Array.isArray(registrationResult)
+          ? (registrationResult as unknown as RegistrationReport[])
+          : []
         const latestReport = registrations.sort(
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -75,16 +91,16 @@ export default function USGraph() {
         if (!latestReport?.data) return
 
         const stateCount: Record<string, number> = {}
-        const remainingRecords: any[] = []
+        const remainingRecords: RegistrationRow[] = []
 
         // First pass: try to match states and cities, track what doesn't match
         latestReport.data
           .filter(
-            (row: any) =>
+            (row) =>
               row["Ticket type"] !== "Contribute to Scholarship Fund"
           )
-          .forEach((row: any) => {
-            const state = parseLocationData(row["City, State"])
+          .forEach((row) => {
+            const state = parseLocationData(row["City, State"] || "")
             if (state) {
               stateCount[state] = (stateCount[state] || 0) + 1
             } else {
@@ -95,8 +111,8 @@ export default function USGraph() {
 
         // Second pass: check remaining records for US country indicators
         const unmatchedUS: UnmatchedUSRecord[] = []
-        remainingRecords.forEach((row: any) => {
-          const normalizedCountry = normalizeCountry(row.Country)
+        remainingRecords.forEach((row) => {
+          const normalizedCountry = normalizeCountry(row.Country || "")
           if (normalizedCountry === "United States") {
             unmatchedUS.push({
               orderDate: row["Order date"] || "Unknown",
@@ -274,7 +290,7 @@ export default function USGraph() {
                 <CardHeader>
                   <p className="text-sm text-muted-foreground">
                     These registrations have a country indicating United States
-                    but their city/state couldn't be matched to any US state or
+                    but their city/state couldn&apos;t be matched to any US state or
                     major city. This may indicate data entry issues, missing
                     mappings, or locations that need to be added to the city
                     database.

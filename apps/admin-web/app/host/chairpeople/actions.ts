@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
 import { type ParsedChairperson } from "@/utils/xlsx-chairperson-parser"
 import { revalidatePath } from "next/cache"
 
@@ -35,14 +36,32 @@ export async function getChairpeople(): Promise<StoredChairperson[]> {
 
 export async function getPanels() {
   const supabase = await createClient()
+  const currentProgram = await getCurrentProgramOrNull()
 
-  // First try to get panels from events table (category 12 = panels)
-  const { data: eventPanels, error: eventsError } = await supabase
-    .from("events")
-    .select("id, title, date, start_time, end_time, location")
-    .eq("event_category_id", 12) // Panel category
-    .order("date", { ascending: true })
-    .order("start_time", { ascending: true })
+  const { data: panelCategories, error: categoryError } = currentProgram
+    ? await supabase
+        .from("event_categories")
+        .select("id")
+        .eq("program_id", currentProgram.id)
+        .ilike("title", "%panel%")
+    : { data: [], error: null }
+
+  if (categoryError) {
+    console.error("Error fetching panel categories:", categoryError)
+  }
+
+  const panelCategoryIds = panelCategories?.map((category) => category.id) || []
+
+  const { data: eventPanels, error: eventsError } =
+    currentProgram && panelCategoryIds.length > 0
+      ? await supabase
+          .from("events")
+          .select("id, title, date, start_time, end_time, location")
+          .eq("program_id", currentProgram.id)
+          .in("event_category_id", panelCategoryIds)
+          .order("date", { ascending: true })
+          .order("start_time", { ascending: true })
+      : { data: [], error: null }
 
   // Also get panels from panel_notifications for backward compatibility
   const { data: notificationPanels, error: notifError } = await supabase
@@ -339,7 +358,7 @@ export async function updateChairperson(
   }
 
   // If panel_name is being updated, try to find matching panel
-  let finalUpdates = { ...updates }
+  const finalUpdates = { ...updates }
   if (updates.panel_name || updates.day_time) {
     // Get current chairperson data if we only have partial updates
     const { data: currentChair } = await supabase

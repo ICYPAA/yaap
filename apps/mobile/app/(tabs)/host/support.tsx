@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
@@ -48,13 +49,17 @@ export default function SupportChats() {
   const router = useRouter()
   const { isDebugMode } = useDebug()
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [chats, setChats] = useState<SupportChat[]>([])
   const [filteredChats, setFilteredChats] = useState<SupportChat[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedChat, setSelectedChat] = useState<SupportChat | null>(null)
   const [replyText, setReplyText] = useState("")
   const [drawerVisible, setDrawerVisible] = useState(true)
-  const [canReadSupport, setCanReadSupport] = useState(false)
   const [canEditSupport, setCanEditSupport] = useState(false)
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
   const flatListRef = useRef<FlatList>(null)
@@ -62,20 +67,7 @@ export default function SupportChats() {
   const drawerAnimation = useRef(new Animated.Value(0)).current
   const styles = React.useMemo(() => createStyles(theme), [theme])
 
-  useEffect(() => {
-    checkPermissions()
-    fetchChats()
-    setupRealtimeSubscription()
-
-    // Cleanup subscription when component unmounts
-    return () => {
-      if (subscriptionRef.current.unsubscribe) {
-        subscriptionRef.current.unsubscribe()
-      }
-    }
-  }, [])
-  
-  const checkPermissions = async () => {
+  const checkPermissions = useCallback(async () => {
     const userWithRole = await getCurrentUserWithRole()
     if (userWithRole) {
       const canRead = hasPermission(
@@ -88,7 +80,6 @@ export default function SupportChats() {
         Permission.SUPPORT_EDIT,
         userWithRole.dbPermissions
       )
-      setCanReadSupport(canRead)
       setCanEditSupport(canEdit)
       
       // If user doesn't have read permission, redirect them
@@ -96,19 +87,7 @@ export default function SupportChats() {
         router.replace("/not-authorized" as any)
       }
     }
-  }
-
-  // Refetch data when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log("Support chats screen focused, fetching chats")
-      fetchChats()
-      return () => {
-        // This runs when the screen is unfocused
-        console.log("Support chats screen unfocused")
-      }
-    }, [])
-  )
+  }, [router])
 
   useEffect(() => {
     // Filter out resolved chats
@@ -120,8 +99,46 @@ export default function SupportChats() {
     }
   }, [chats])
 
-  const setupRealtimeSubscription = async () => {
+  const handleNewChat = useCallback((newRecord: any) => {
+    if (!newRecord) return
+
+    // Add to chats list
+    setChats((prev) => [newRecord, ...prev])
+
+    // If this is an unread chat and no chat is selected, automatically select it
+    setSelectedChat((current) =>
+      current ?? (newRecord.status === "unread" ? newRecord : null)
+    )
+  }, [])
+
+  const handleUpdatedChat = useCallback((updatedRecord: any) => {
+    if (!updatedRecord) return
+
+    // Update in the list
+    setChats((prev) =>
+      prev.map((chat) => (chat.id === updatedRecord.id ? updatedRecord : chat))
+    )
+
+    // If this is the currently selected chat, update it
+    setSelectedChat((current) =>
+      current?.id === updatedRecord.id ? updatedRecord : current
+    )
+  }, [])
+
+  const handleDeletedChat = useCallback((id?: string) => {
+    if (!id) return
+
+    // Remove from the list
+    setChats((prev) => prev.filter((chat) => chat.id !== id))
+
+    // If this is the currently selected chat, clear selection
+    setSelectedChat((current) => (current?.id === id ? null : current))
+  }, [])
+
+  const setupRealtimeSubscription = useCallback(async () => {
     try {
+      if (!programId) return
+
       const supabaseWithDeviceId = await withDeviceId()
 
       const subscription = supabaseWithDeviceId
@@ -132,7 +149,7 @@ export default function SupportChats() {
             event: "*",
             schema: "public",
             table: "support_chats",
-            filter: "program_id=eq.3"
+            filter: `program_id=eq.${programId}`
           },
           (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload
@@ -156,48 +173,15 @@ export default function SupportChats() {
     } catch (error) {
       console.error("Error setting up realtime subscription:", error)
     }
-  }
+  }, [handleDeletedChat, handleNewChat, handleUpdatedChat, programId])
 
-  const handleNewChat = (newRecord: any) => {
-    if (!newRecord) return
-
-    // Add to chats list
-    setChats((prev) => [newRecord, ...prev])
-
-    // If this is an unread chat and no chat is selected, automatically select it
-    if (newRecord.status === "unread" && !selectedChat) {
-      setSelectedChat(newRecord)
-    }
-  }
-
-  const handleUpdatedChat = (updatedRecord: any) => {
-    if (!updatedRecord) return
-
-    // Update in the list
-    setChats((prev) =>
-      prev.map((chat) => (chat.id === updatedRecord.id ? updatedRecord : chat))
-    )
-
-    // If this is the currently selected chat, update it
-    if (selectedChat && selectedChat.id === updatedRecord.id) {
-      setSelectedChat(updatedRecord)
-    }
-  }
-
-  const handleDeletedChat = (id?: string) => {
-    if (!id) return
-
-    // Remove from the list
-    setChats((prev) => prev.filter((chat) => chat.id !== id))
-
-    // If this is the currently selected chat, clear selection
-    if (selectedChat && selectedChat.id === id) {
-      setSelectedChat(null)
-    }
-  }
-
-  const fetchChats = async () => {
+  const fetchChats = useCallback(async () => {
     try {
+      if (!programId) {
+        setChats([])
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "support_chats",
@@ -206,7 +190,7 @@ export default function SupportChats() {
           supabaseWithDeviceId
             .from("support_chats")
             .select("*")
-            .eq("program_id", 3)
+            .eq("program_id", programId)
             .order("created_at", { ascending: false })
       })
 
@@ -214,20 +198,44 @@ export default function SupportChats() {
       setChats(data || [])
 
       // Auto-select the first non-resolved chat if available and none selected
-      if (data && data.length > 0 && !selectedChat) {
+      setSelectedChat((current) => {
+        if (current || !data || data.length === 0) return current
         const nonResolvedChats = data.filter(
           (chat: SupportChat) => chat.status !== "resolved"
         )
-        if (nonResolvedChats.length > 0) {
-          setSelectedChat(nonResolvedChats[0])
-        }
-      }
+        return nonResolvedChats[0] ?? current
+      })
     } catch (error) {
       console.error("Error fetching support chats:", error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [isDebugMode, programId])
+
+  useEffect(() => {
+    checkPermissions()
+    fetchChats()
+    setupRealtimeSubscription()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
+    }
+  }, [checkPermissions, fetchChats, setupRealtimeSubscription])
+
+  // Refetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Support chats screen focused, fetching chats")
+      fetchChats()
+      return () => {
+        // This runs when the screen is unfocused
+        console.log("Support chats screen unfocused")
+      }
+    }, [fetchChats])
+  )
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
@@ -256,7 +264,7 @@ export default function SupportChats() {
   }
 
   const handleReply = async () => {
-    if (!selectedChat || !replyText.trim()) return
+    if (!selectedChat || !replyText.trim() || !programId) return
 
     try {
       // Add reply to chat history
@@ -289,7 +297,7 @@ export default function SupportChats() {
       try {
         await sendNotification({
           eventType: "support", // Assuming 'host' is the correct type for user-facing notifications
-          programId: 1, // Assuming programId is 1
+          programId,
           data: {
             title: `New reply in "${selectedChat.chat_title}"`,
             message: replyText,

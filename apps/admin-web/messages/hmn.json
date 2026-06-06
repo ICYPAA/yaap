@@ -108,7 +108,7 @@
     "bylaws": {
       "ProgramPage": {
         "title": "Txoj cai",
-        "message": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+        "message": "Txoj haujlwm lub rooj sib tham tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
       }
     },
     "contact": {
@@ -343,24 +343,24 @@
     },
     "merch": {
       "title": "Muag khoom",
-      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+      "description": "Txoj haujlwm lub rooj sib tham tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
     },
     "outreach": {
       "title": "Kev nthuav qhia",
-      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+      "description": "Txoj haujlwm lub rooj sib tham tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
     },
     "program": {
       "title": "Program",
-      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+      "description": "Txoj haujlwm lub rooj sib tham tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
     },
     "register": {
       "title": "Sau npe",
-      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+      "description": "Txoj haujlwm lub rooj sib tham tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
     },
     "resources": {
       "ResourcesPage": {
-        "title": "65th ICYPAA Resources",
-        "description": "Download tau txhua yam koj xav tau rau 65th International Conference ntawm Cov Hluas Hauv Kev Cuam Tshuam Tsis Qhia npe",
+        "title": "Conference Resources",
+        "description": "Download tau cov khoom siv thiab ntaub ntawv rau lub rooj sib tham",
         "message": "Cov ntaub ntawv xov xwm yuav los sai sai!",
         "conference-material": {
           "title": "Cov khoom siv sablaj"
@@ -380,16 +380,16 @@
     },
     "transportation": {
       "title": "Kev thauj mus los",
-      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+      "description": "Txoj haujlwm lub rooj sib tham tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
     },
     "volunteer": {
       "title": "Ua haujlwm pub dawb",
-      "description": "65th ICYPAA txoj haujlwm tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
+      "description": "Txoj haujlwm lub rooj sib tham tseem tab tom tsim. Rov qab mus sai sai rau cov ntaub ntawv ntxiv!"
     },
     "homepage": {
       "HomePage": {
         "title": {
-          "title": "65th ICYPAA",
+          "title": "Current Conference",
           "subtitle": "International Conference ntawm Cov Hluas hauv AA"
         },
         "cards": {

@@ -1,7 +1,32 @@
 "use server"
 
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+
+function enumerateProgramDates(startDate?: string | null, endDate?: string | null) {
+  if (!startDate || !endDate) return []
+
+  const dates: string[] = []
+  const current = new Date(`${startDate}T00:00:00`)
+  const end = new Date(`${endDate}T00:00:00`)
+
+  if (Number.isNaN(current.getTime()) || Number.isNaN(end.getTime())) {
+    return []
+  }
+
+  while (current <= end) {
+    dates.push(current.toISOString().slice(0, 10))
+    current.setDate(current.getDate() + 1)
+  }
+
+  return dates
+}
+
+export async function getCurrentConferenceDates() {
+  const program = await getCurrentProgramOrNull()
+  return enumerateProgramDates(program?.start_date, program?.end_date)
+}
 
 // Helper function to check if user has permission to edit/delete
 export async function checkEditPermission() {

@@ -12,19 +12,37 @@ export interface CleanupEntry {
 /**
  * Parse day range like "Thur-Sat" or "Thursday-Saturday" into individual dates
  */
-function parseDayRange(dayStr: string): string[] {
-  const dayMap: Record<string, string> = {
-    'thursday': '2025-08-28',
-    'thurs': '2025-08-28',
-    'thur': '2025-08-28',
-    'thu': '2025-08-28',
-    'friday': '2025-08-29',
-    'fri': '2025-08-29',
-    'saturday': '2025-08-30',
-    'sat': '2025-08-30',
-    'sunday': '2025-08-31',
-    'sun': '2025-08-31'
-  }
+function buildDayMap(conferenceDates: string[]): Record<string, string> {
+  const dayMap: Record<string, string> = {}
+
+  conferenceDates.forEach((date) => {
+    const parsedDate = new Date(`${date}T00:00:00`)
+    if (Number.isNaN(parsedDate.getTime())) return
+
+    const weekday = parsedDate
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toLowerCase()
+    const shortWeekday = parsedDate
+      .toLocaleDateString('en-US', { weekday: 'short' })
+      .toLowerCase()
+    const monthDay = parsedDate
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      .toLowerCase()
+    const dayNumber = String(parsedDate.getDate())
+
+    dayMap[weekday] = date
+    dayMap[shortWeekday] = date
+    dayMap[weekday.slice(0, 4)] = date
+    dayMap[weekday.slice(0, 5)] = date
+    dayMap[dayNumber] = date
+    dayMap[monthDay] = date
+  })
+
+  return dayMap
+}
+
+function parseDayRange(dayStr: string, conferenceDates: string[]): string[] {
+  const dayMap = buildDayMap(conferenceDates)
   
   const dates: string[] = []
   const cleanDay = dayStr.trim().toLowerCase()
@@ -48,13 +66,12 @@ function parseDayRange(dayStr: string): string[] {
     
     if (startDate && endDate) {
       // Get all dates in the range
-      const allDates = ['2025-08-28', '2025-08-29', '2025-08-30', '2025-08-31']
-      const startIdx = allDates.indexOf(startDate)
-      const endIdx = allDates.indexOf(endDate)
+      const startIdx = conferenceDates.indexOf(startDate)
+      const endIdx = conferenceDates.indexOf(endDate)
       
       if (startIdx !== -1 && endIdx !== -1) {
         for (let i = startIdx; i <= endIdx; i++) {
-          dates.push(allDates[i])
+          dates.push(conferenceDates[i])
         }
       }
     }
@@ -70,8 +87,8 @@ function parseDayRange(dayStr: string): string[] {
   
   // If no dates found, default to all days
   if (dates.length === 0) {
-    console.warn(`Could not parse day(s): "${dayStr}", defaulting to Thursday`)
-    dates.push('2025-08-28')
+    console.warn(`Could not parse day(s): "${dayStr}", defaulting to first conference date`)
+    dates.push(conferenceDates[0])
   }
   
   return dates
@@ -80,9 +97,9 @@ function parseDayRange(dayStr: string): string[] {
 /**
  * Parse date/time string like "Thur-Sat 6pm-6:45pm" or "Friday 2pm-4pm"
  */
-function parseDateTimeRange(dateTimeStr: string): { dates: string[], timeRange: string } {
+function parseDateTimeRange(dateTimeStr: string, conferenceDates: string[]): { dates: string[], timeRange: string } {
   if (!dateTimeStr || typeof dateTimeStr !== 'string') {
-    return { dates: ['2025-08-28'], timeRange: '18:00 - 18:45' }
+    return { dates: [conferenceDates[0]], timeRange: '18:00 - 18:45' }
   }
   
   const trimmed = dateTimeStr.trim()
@@ -109,7 +126,7 @@ function parseDateTimeRange(dateTimeStr: string): { dates: string[], timeRange: 
   }
   
   // Parse the day(s)
-  const dates = parseDayRange(dayPart)
+  const dates = parseDayRange(dayPart, conferenceDates)
   
   // Parse and format the time
   const timeRange = formatTimeRange(timePart)
@@ -134,8 +151,8 @@ function formatTimeRange(timeStr: string): string {
   const [, startTime, startPeriod, endTime, endPeriod] = match
   
   // Determine AM/PM for both times
-  let startAmPm = startPeriod || endPeriod || 'pm'
-  let endAmPm = endPeriod || startAmPm
+  const startAmPm = startPeriod || endPeriod || 'pm'
+  const endAmPm = endPeriod || startAmPm
   
   // Convert to 24-hour format
   const start24 = convertTo24Hour(startTime, startAmPm)
@@ -148,7 +165,7 @@ function formatTimeRange(timeStr: string): string {
  * Convert 12-hour time to 24-hour format
  */
 function convertTo24Hour(time: string, period: string): string {
-  let [hourStr, minuteStr = '00'] = time.split(':')
+  const [hourStr, minuteStr = '00'] = time.split(':')
   let hour = parseInt(hourStr)
   const minute = parseInt(minuteStr)
   
@@ -202,7 +219,11 @@ function formatPhone(phoneStr: string | undefined): string | undefined {
   return phoneStr // Return as-is if not 10 digits
 }
 
-export async function parseCleanupSpreadsheet(file: File): Promise<CleanupEntry[]> {
+export async function parseCleanupSpreadsheet(file: File, conferenceDates: string[]): Promise<CleanupEntry[]> {
+  if (conferenceDates.length === 0) {
+    throw new Error('Select a current conference before importing cleanup volunteers')
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     
@@ -237,7 +258,7 @@ export async function parseCleanupSpreadsheet(file: File): Promise<CleanupEntry[
           const phone = formatPhone(String(row.D || ''))
           
           // Parse date/time to get multiple dates if it's a range
-          const { dates, timeRange } = parseDateTimeRange(dateTimeStr)
+          const { dates, timeRange } = parseDateTimeRange(dateTimeStr, conferenceDates)
           
           // Create an entry for each date in the range
           dates.forEach(date => {

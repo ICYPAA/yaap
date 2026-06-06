@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog"
-import { ArrowDown, ArrowUp, Loader2, MessageSquare, Search, X, Edit, Trash2, Filter } from "lucide-react"
+import { ArrowDown, ArrowUp, Loader2, MessageSquare, Search, X, Edit, Trash2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { 
@@ -51,7 +51,8 @@ import {
   updateVolunteerInterest,
   getSecurityTimeSlotAssignments,
   addSecurityTimeSlotAssignment,
-  removeSecurityTimeSlotAssignment
+  removeSecurityTimeSlotAssignment,
+  getCurrentConferenceDates
 } from "./actions"
 import {
   getGreeterVolunteers,
@@ -67,9 +68,7 @@ import {
 } from "./cleanup-actions"
 import SecurityTimeSlotManager from "./components/SecurityTimeSlotManager"
 import GreeterUpload from "./components/GreeterUpload"
-import { type GreeterEntry } from "@/utils/xlsx-greeter-parser"
 import CleanupUpload from "./components/CleanupUpload"
-import { type CleanupEntry } from "@/utils/xlsx-cleanup-parser"
 
 enum VolunteerInterestTab {
   GENERAL = "general",
@@ -170,6 +169,7 @@ export default function VolunteerInterestPage() {
   const [hasAccessToSensitiveData, setHasAccessToSensitiveData] =
     useState(false)
   const [canEdit, setCanEdit] = useState(false)
+  const [conferenceDates, setConferenceDates] = useState<string[]>([])
   
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -213,6 +213,18 @@ export default function VolunteerInterestPage() {
   const [loadingCleanup, setLoadingCleanup] = useState(false)
 
   const { toast } = useToast()
+  const conferenceDayOptions = conferenceDates.flatMap((date) => {
+    const parsedDate = new Date(`${date}T00:00:00`)
+    if (Number.isNaN(parsedDate.getTime())) return []
+
+    return [
+      parsedDate.toLocaleDateString("en-US", { weekday: "long" }),
+      parsedDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric"
+      })
+    ]
+  })
 
   // Set active tab based on URL parameters
   useEffect(() => {
@@ -237,9 +249,11 @@ export default function VolunteerInterestPage() {
         setLoading(true)
         // Load all volunteer interest data at once
         const result = await getVolunteerInterest()
+        const dates = await getCurrentConferenceDates()
         setVolunteerData(result.data || [])
         setHasAccessToSensitiveData(result.hasAccessToSensitive)
         setCanEdit(result.canEdit || false)
+        setConferenceDates(dates)
         setLoading(false)
       } catch (error) {
         console.error("Error loading volunteer interest data:", error)
@@ -818,7 +832,7 @@ export default function VolunteerInterestPage() {
       <div className="flex flex-wrap gap-1">
         {selectedSlots.map(([key]) => {
           let label = ""
-          let icon = (
+          const icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -1491,7 +1505,7 @@ export default function VolunteerInterestPage() {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Delete Volunteer</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to delete {volunteer.name} {volunteer.last_initial}.'s volunteer interest? This action cannot be undone.
+                                      Are you sure you want to delete {volunteer.name} {volunteer.last_initial}.&apos;s volunteer interest? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -1575,14 +1589,11 @@ export default function VolunteerInterestPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Days</SelectItem>
-            <SelectItem value="Thursday">Thursday</SelectItem>
-            <SelectItem value="Aug 28">Aug 28</SelectItem>
-            <SelectItem value="Friday">Friday</SelectItem>
-            <SelectItem value="Aug 29">Aug 29</SelectItem>
-            <SelectItem value="Saturday">Saturday</SelectItem>
-            <SelectItem value="Aug 30">Aug 30</SelectItem>
-            <SelectItem value="Sunday">Sunday</SelectItem>
-            <SelectItem value="Aug 31">Aug 31</SelectItem>
+            {conferenceDayOptions.map((day) => (
+              <SelectItem key={day} value={day}>
+                {day}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         
@@ -1730,6 +1741,7 @@ export default function VolunteerInterestPage() {
                 </div>
                 {canEdit && (
                   <GreeterUpload
+                    conferenceDates={conferenceDates}
                     onUploadSuccess={async (entries) => {
                       const result = await upsertGreeterVolunteers(entries)
                       
@@ -1895,6 +1907,7 @@ export default function VolunteerInterestPage() {
                 </div>
                 {canEdit && (
                   <CleanupUpload
+                    conferenceDates={conferenceDates}
                     onUploadSuccess={async (entries) => {
                       const result = await upsertCleanupVolunteers(entries)
                       

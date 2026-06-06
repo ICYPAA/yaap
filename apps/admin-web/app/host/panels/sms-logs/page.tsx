@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
 import {
   Table,
@@ -32,9 +32,8 @@ interface SMSLog {
 export default function SMSLogsPage() {
   const [logs, setLogs] = useState<SMSLog[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
+    const supabase = createClient()
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -50,11 +49,11 @@ export default function SMSLogsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadLogs()
-  }, [])
+  }, [loadLogs])
 
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase()

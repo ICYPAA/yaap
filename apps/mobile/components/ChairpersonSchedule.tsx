@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -48,14 +48,7 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
 
   const styles = createStyles(theme)
 
-  useEffect(() => {
-    // Only fetch if we have a userId
-    if (userId) {
-      fetchChairpersonSchedule()
-    }
-  }, [userId])
-
-  const fetchChairpersonSchedule = async (isRefresh = false) => {
+  const fetchChairpersonSchedule = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) {
         setRefreshing(true)
@@ -171,7 +164,14 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [userId])
+
+  useEffect(() => {
+    // Only fetch if we have a userId
+    if (userId) {
+      fetchChairpersonSchedule()
+    }
+  }, [fetchChairpersonSchedule, userId])
 
   // Format time for display (already in CST, no conversion needed)
   const formatTime = (time: string) => {

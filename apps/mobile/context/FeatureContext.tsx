@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from "react"
-import { supabase, withDeviceId } from "../lib/supabase"
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState
+} from "react"
+import { withDeviceId } from "../lib/supabase"
+import { useCurrentConference } from "./CurrentConferenceContext"
 
 interface FeatureFlags {
   child_care_enabled: boolean
@@ -56,18 +63,29 @@ interface FeatureProviderProps {
 
 export const FeatureProvider: React.FC<FeatureProviderProps> = ({ 
   children, 
-  programId = 3 
+  programId
 }) => {
+  const currentConference = useCurrentConference()
+  const activeProgramId =
+    programId ||
+    (currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null)
   const [features, setFeatures] = useState<FeatureFlags>(defaultFeatures)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchFeatures = async (isInitial = false) => {
+  const fetchFeatures = useCallback(async (isInitial = false) => {
     try {
       if (isInitial) {
         setLoading(true)
       }
       setError(null)
+
+      if (!activeProgramId) {
+        setFeatures(defaultFeatures)
+        return
+      }
       
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise<null>((resolve) => {
@@ -82,7 +100,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({
       const fetchPromise = supabaseWithDeviceId
         .from("programs")
         .select("features")
-        .eq("id", programId)
+        .eq("id", activeProgramId)
         .single()
       
       // Race between fetching features and timeout
@@ -114,11 +132,11 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({
         setLoading(false)
       }
     }
-  }
+  }, [activeProgramId])
 
   useEffect(() => {
     fetchFeatures(true)
-  }, [programId])
+  }, [fetchFeatures])
 
   const isFeatureEnabled = (featureKey: keyof FeatureFlags): boolean => {
     return features[featureKey] ?? true // Default to enabled if not found

@@ -4,8 +4,8 @@ import {
   getStateFromPath as navGetStateFromPath
 } from "@react-navigation/native"
 import * as Linking from "expo-linking"
-import { router } from "expo-router"
 import { Alert, Platform, ToastAndroid } from "react-native"
+import { getCurrentConferenceProgramId } from "../lib/currentConference"
 import { sendNotification } from "../lib/notificationHelper"
 import SentryLogger from "../lib/sentryLogging"
 import { supabase, withDeviceId } from "../lib/supabase"
@@ -305,9 +305,14 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
 
       // Send notification through the edge function
       try {
+        const programId = await getCurrentConferenceProgramId()
+        if (!programId) {
+          throw new Error("No active conference program is selected")
+        }
+
         await sendNotification({
           eventType: "schedule",
-          programId: 1,
+          programId,
           userId: parseInt(sharedUserId),
           data: {
             status: "requested",
@@ -340,23 +345,6 @@ async function processScheduleShare(deviceId: string, sharedUserId: string) {
       "Schedule Sharing Error",
       "There was a problem processing your request."
     )
-  }
-}
-
-// Shared handler for schedule share URLs (kept for backward compatibility)
-async function handleScheduleShare(sharedUserId: string) {
-  try {
-    // Check if the current user has a profile
-    const deviceId = await AsyncStorage.getItem("device_id")
-    if (!deviceId) {
-      // No device ID, redirect to profile creation
-      router.navigate("/(tabs)/profile")
-      return
-    }
-
-    return processScheduleShare(deviceId, sharedUserId)
-  } catch (error) {
-    console.error("Error in handleScheduleShare:", error)
   }
 }
 

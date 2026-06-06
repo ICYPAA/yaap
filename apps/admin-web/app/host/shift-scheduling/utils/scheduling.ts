@@ -1,4 +1,4 @@
-import { Shift, Volunteer, ShiftAssignment } from "../types"
+import { Shift, Volunteer } from "../types"
 
 /**
  * Check if two time ranges overlap

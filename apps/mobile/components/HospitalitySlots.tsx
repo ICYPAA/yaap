@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   StyleSheet,
@@ -78,12 +78,7 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
   const [expanded, setExpanded] = useState(false)
   const [currentHost, setCurrentHost] = useState<HospitalitySlot | null>(null)
 
-  useEffect(() => {
-    // Always fetch to get current host
-    fetchHospitalitySlots()
-  }, [programId])
-
-  const fetchHospitalitySlots = async () => {
+  const fetchHospitalitySlots = useCallback(async () => {
     try {
       setLoading(true)
       const supabaseWithDeviceId = await withDeviceId()
@@ -126,7 +121,12 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
     } finally {
       setLoading(false)
     }
-  }
+  }, [onCurrentHostChange, programId])
+
+  useEffect(() => {
+    // Always fetch to get current host
+    fetchHospitalitySlots()
+  }, [fetchHospitalitySlots])
 
   const formatDateTime = (dateTimeString: string) => {
     try {
@@ -179,7 +179,7 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
     try {
       // Parse time directly from string without timezone conversion
       const cleanString = dateTimeString.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '')
-      const [datePart, timePart] = cleanString.split('T')
+      const [, timePart] = cleanString.split('T')
       
       if (!timePart) return "TBD"
       

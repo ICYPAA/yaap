@@ -19,7 +19,7 @@ const handleSubmit = async () => {
     const { data, error } = await supabaseWithDeviceId
       .from("accessibility_forms")
       .insert({
-        program_id: 3, // Use actual program ID
+        program_id: programId,
         // ... other fields ...
       })
       .select()
@@ -32,7 +32,7 @@ const handleSubmit = async () => {
 
     // Send notification to on-call person
     if (data?.id) {
-      await notifyAccessibilityOnCall(3, data.id)
+      await notifyAccessibilityOnCall(programId, data.id)
     }
 
     // ... success handling ...

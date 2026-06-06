@@ -1,7 +1,6 @@
 import { FontAwesome6, Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
-import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
 import React, { useEffect, useMemo, useRef, useState } from "react"
@@ -21,10 +20,11 @@ import {
 } from "react-native"
 import { BidSchedule } from "../../components/BidSchedule"
 import { EventDetailsModal } from "../../components/EventDetailsModal"
+import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
 import { getOrCreateDeviceId } from "../../lib/security/deviceId"
-import { supabase, withDeviceId } from "../../lib/supabase"
+import { withDeviceId } from "../../lib/supabase"
 import {
   getProgramColor as getProgramColorUtil,
   getTextColorForBackground as getTextColorForBgUtil
@@ -85,25 +85,6 @@ type MappedProgramData = {
   events: DisplayScheduleItem[] // Single list of generic items
   hospitality: HospitalityInfo
   activities: Activity[]
-}
-
-// Add helper function to open maps
-const openMaps = (address: string) => {
-  const encodedAddress = encodeURIComponent(address)
-  const mapsUrl = Platform.select({
-    ios: `maps:0,0?q=${encodedAddress}`,
-    android: `geo:0,0?q=${encodedAddress}`,
-    default: `https://maps.google.com/?q=${encodedAddress}`
-  })
-
-  Linking.canOpenURL(mapsUrl).then((supported) => {
-    if (supported) {
-      Linking.openURL(mapsUrl)
-    } else {
-      // Fallback to Google Maps web URL if app links not supported
-      Linking.openURL(`https://maps.google.com/?q=${encodedAddress}`)
-    }
-  })
 }
 
 // Add mock friends data
@@ -442,10 +423,6 @@ const TimelineView = ({
   const [selectedEvent, setSelectedEvent] =
     useState<DisplayScheduleItem | null>(null)
   const [modalVisible, setModalVisible] = useState(false)
-  const [expandedEvents, setExpandedEvents] = useState<Record<number, boolean>>(
-    {}
-  )
-
   // State for event details modal
   const [eventDetailsModalVisible, setEventDetailsModalVisible] =
     useState(false)
@@ -868,7 +845,7 @@ const TimelineView = ({
           return parseTimeForSorting(timeA) - parseTimeForSorting(timeB)
         })
     )
-  }, [promoteIds, events, day])
+  }, [promoteIds, events, day, formatTime])
 
   // Find events for this day and apply filters
   const dayEvents = allScheduleItems
@@ -906,7 +883,6 @@ const TimelineView = ({
             )
             if (endTimeParts) {
               let endHour = parseInt(endTimeParts[1])
-              const endMinute = parseInt(endTimeParts[2])
               const endPeriod = endTimeParts[3]
 
               // Check if end time is early morning (suggesting it wraps to next day)
@@ -1892,8 +1868,6 @@ const DayScheduleCard = ({
   const [collapsedCategories, setCollapsedCategories] = useState<
     Record<string, boolean>
   >({})
-  const { isDarkMode } = useTheme()
-
   // State for event details modal
   const [eventDetailsModalVisible, setEventDetailsModalVisible] =
     useState(false)
@@ -2507,8 +2481,6 @@ const DayScheduleCard = ({
 
               {!collapsedCategories[category] &&
                 categoryItems.map((item) => {
-                  const isSaved = savedItems.includes(item.id)
-                  const conflict = hasTimeConflict(item, items)
                   const itemColor = getItemColor(item)
 
                   // Find original event to get end time
@@ -2865,12 +2837,15 @@ const DayScheduleCard = ({
 
 export default function Program() {
   const { theme, isDarkMode } = useTheme()
+  const currentConference = useCurrentConference()
   const { isFeatureEnabled } = useFeatures()
   const shadowStyles = getShadowStyles(isDarkMode)
   const navigation = useNavigation()
 
-  // Program ID - hardcoded for now
-  const programId = 3
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
 
   // State for tabs
   const [activeTab, setActiveTab] = useState(0)
@@ -3158,6 +3133,14 @@ export default function Program() {
       setLoading(true)
       setError(null)
       try {
+        if (!programId) {
+          setProgramDetails(null)
+          setEvents([])
+          setCategories([])
+          setActivities([])
+          return
+        }
+
         const supabaseWithDeviceId = await withDeviceId()
         const [programRes, eventsRes, categoriesRes, activitiesRes] =
           await Promise.all([
@@ -3201,7 +3184,7 @@ export default function Program() {
       }
     }
     fetchData()
-  }, [])
+  }, [programId])
 
   // --- Helper Function ---
   // Simple time formatter (e.g., "HH:MM:SS" -> "H:MM AM/PM")
@@ -3360,7 +3343,7 @@ export default function Program() {
             ...parsedSchedule, // Keep all existing properties
             saved_events: newSavedItems // Only update saved_events
           }
-        } catch (e) {
+        } catch {
           // Handle parse error with defaults
           schedule = {
             saved_events: newSavedItems,
@@ -3391,9 +3374,6 @@ export default function Program() {
 
       // Get push token and auth session
       const pushToken = await registerForPushNotificationsAsync()
-      const { data: sessionData } = await supabase.auth.getSession()
-      const authUserId = sessionData?.session?.user?.id
-
       // Update existing user record in Supabase - only update the saved_events field
       const supabaseWithDeviceId = await withDeviceId()
 
@@ -4643,7 +4623,7 @@ export default function Program() {
             {/* Bid Committee Schedule */}
             {isFeatureEnabled("bid_schedule_enabled") && showBidSchedule && (
               <View style={{ marginVertical: 16 }}>
-                <BidSchedule programId={programId} />
+                {programId ? <BidSchedule programId={programId} /> : null}
               </View>
             )}
 
@@ -4743,7 +4723,7 @@ const HospitalitySection = ({
   hospitalityInfo: HospitalityInfo
   day: string
 }) => {
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
 
   // Extract just the day name from the formatted date (e.g., "Friday, August 12" -> "Friday")
   const extractDayName = (fullDay: string) => {

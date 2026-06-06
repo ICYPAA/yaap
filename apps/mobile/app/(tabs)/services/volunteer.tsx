@@ -11,6 +11,7 @@ import {
   View
 } from "react-native"
 import { ProtectedComponent } from "../../../components/ProtectedComponent"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { supabase, withDeviceId } from "../../../lib/supabase"
@@ -49,7 +50,12 @@ type VolunteerInterestFormData = {
 
 export default function VolunteerSignup() {
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const router = useRouter()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [formSubmitted, setFormSubmitted] = useState(false)
   const [program, setProgram] = useState<Program | null>(null)
   const [description, setDescription] = useState<string>(
@@ -204,6 +210,11 @@ export default function VolunteerSignup() {
     }
 
     try {
+      if (!programId) {
+        console.error("No active conference program selected")
+        return
+      }
+
       const {
         data: { session }
       } = await supabase.auth.getSession()
@@ -219,7 +230,7 @@ export default function VolunteerSignup() {
           phone: formData.phone,
           email: formData.email,
           type: "general",
-          program_id: 3, // Default to program ID 3
+          program_id: programId,
           ...(ownerId ? { owner_id: ownerId } : {}),
           data: {
             interests: {
@@ -264,7 +275,7 @@ export default function VolunteerSignup() {
 
         await sendNotification({
           eventType: "host",
-          programId: 3,
+          programId,
           data: {
             type: "volunteer",
             form_id: insertedForm.id,

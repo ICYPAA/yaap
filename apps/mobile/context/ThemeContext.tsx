@@ -81,7 +81,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     loadSavedTheme()
-  }, [])
+  }, [colorScheme])
 
   // Update theme when system theme changes, but only if no saved preference
   useEffect(() => {

@@ -12,13 +12,19 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 export default function GeneralNotifications() {
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const router = useRouter()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [isSending, setIsSending] = useState(false)
@@ -31,12 +37,17 @@ export default function GeneralNotifications() {
       return
     }
 
+    if (!programId) {
+      Alert.alert("Error", "No active conference program is selected.")
+      return
+    }
+
     setIsSending(true)
     try {
       // Send notification with specific type for general announcements
       await sendNotification({
         eventType: "host", // Using 'host' as a general category, adjust if needed
-        programId: 1, // Assuming programId 1, adjust if dynamic
+        programId,
         data: {
           // Specific data payload for this notification type
           type: "general",

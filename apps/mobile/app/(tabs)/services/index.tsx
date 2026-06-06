@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Link, useRouter } from "expo-router"
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   ScrollView,
   StyleSheet,
@@ -126,7 +126,7 @@ export default function Services() {
     }] : [])
   ]
 
-  const serviceSections = useMemo(() => ({
+  const serviceSections = {
     help: {
       title: "How can we help?",
       items: getAllServiceItems()
@@ -139,7 +139,7 @@ export default function Services() {
       title: "Other",
       items: getOtherServiceItems()
     }
-  }), [isFeatureEnabled, program])
+  }
 
   // Service section component
   const ServiceSection = ({

@@ -42,7 +42,7 @@ export default async function ProgramManagementPage() {
               Access Denied
             </CardTitle>
             <CardDescription>
-              You don't have permission to access this page
+              You don&apos;t have permission to access this page
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -51,7 +51,7 @@ export default async function ProgramManagementPage() {
               <AlertTitle>Insufficient Permissions</AlertTitle>
               <AlertDescription>
                 You need to have admin, steering committee roles, or the
-                'program:edit' permission to manage programs. Please contact an
+                &apos;program:edit&apos; permission to manage programs. Please contact an
                 administrator if you believe this is an error.
               </AlertDescription>
             </Alert>
@@ -61,5 +61,5 @@ export default async function ProgramManagementPage() {
     )
   }
 
-  return <ProgramManagementContent hasAccess={hasAccess} user={user} />
+  return <ProgramManagementContent />
 }

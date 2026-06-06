@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { getConferenceState } from "@/lib/conference-state"
 import { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
@@ -13,6 +14,7 @@ interface Event {
   date: string // YYYY-MM-DD
   start_time: string // HH:MM:SS (Assumed CST/CDT)
   event_category_id: number
+  event_categories?: { title?: string } | { title?: string }[] | null
   // Add other event properties if needed
 }
 
@@ -58,6 +60,15 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient(process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   try {
+    const conferenceState = await getConferenceState()
+    const currentProgramId = conferenceState.current_program_id
+
+    if (conferenceState.status !== "active" || !currentProgramId) {
+      return NextResponse.json({
+        message: "No active conference program configured."
+      })
+    }
+
     // --- Time Calculation ---
     const nowUTC = new Date() // Server time is likely UTC
     const cstOffsetHours = -5 // Assuming CDT (UTC-5). Adjust if standard time (UTC-6).
@@ -98,8 +109,8 @@ export async function GET(request: NextRequest) {
     // Fetch potentially relevant events based on CST date and time window
     const { data: potentialEvents, error: eventsError } = await supabase
       .from("events")
-      .select("id, title, date, start_time, event_category_id")
-      .neq("event_category_id", 2)
+      .select("id, title, date, start_time, event_category_id, event_categories(title)")
+      .eq("program_id", currentProgramId)
       .in("date", relevantDatesCST) // Use CST date(s)
       .gte("start_time", fourMinutesFromNowTime) // Compare with HH:MM:SS CST time
       .lt("start_time", fiveMinutesFromNowTime) // Compare with HH:MM:SS CST time
@@ -112,7 +123,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    if (!potentialEvents || potentialEvents.length === 0) {
+    const reminderCandidateEvents = ((potentialEvents || []) as Event[]).filter((event) => {
+      const category = Array.isArray(event.event_categories)
+        ? event.event_categories[0]
+        : event.event_categories
+      const categoryTitle = category?.title?.toLowerCase() || ""
+      return !categoryTitle.includes("bid")
+    })
+
+    if (reminderCandidateEvents.length === 0) {
       console.log(
         "No potentially upcoming events found in the initial query based on CST time window."
       )
@@ -120,7 +139,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(
-      `Found ${potentialEvents.length} potentially relevant events based on CST time.`
+      `Found ${reminderCandidateEvents.length} potentially relevant events based on CST time.`
     )
 
     // --- Precise Filtering ---
@@ -133,7 +152,7 @@ export async function GET(request: NextRequest) {
         ? `-${Math.abs(cstOffsetHours).toString().padStart(2, "0")}:00`
         : `+${cstOffsetHours.toString().padStart(2, "0")}:00`
 
-    const events: Event[] = potentialEvents.filter((event) => {
+    const events: Event[] = reminderCandidateEvents.filter((event) => {
       try {
         // Construct ISO-like string *assuming* start_time is local CST/CDT
         // Append the assumed CST/CDT offset to parse correctly relative to UTC
@@ -260,7 +279,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      message: `Processed ${potentialEvents.length} potential events, found ${events.length} matching events, and sent ${notificationCount} notifications.`
+          message: `Processed ${reminderCandidateEvents.length} potential events, found ${events.length} matching events, and sent ${notificationCount} notifications.`
     })
   } catch (error: unknown) {
     const errorMessage =

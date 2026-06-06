@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 
-import lottie from "lottie-web"
+import lottie, { type AnimationItem } from "lottie-web"
 
 interface LottieProps {
   maxWidth: number
@@ -11,7 +11,7 @@ interface LottieProps {
 
 export const Lottie = ({ maxWidth, maxHeight }: LottieProps) => {
   const element = useRef<HTMLDivElement>(null)
-  const lottieInstance = useRef<any>()
+  const lottieInstance = useRef<AnimationItem | null>(null)
 
   const [width, setWidth] = useState(maxWidth)
   const [height, setHeight] = useState(maxHeight)
@@ -26,15 +26,14 @@ export const Lottie = ({ maxWidth, maxHeight }: LottieProps) => {
     return () => {
       lottieInstance.current?.destroy()
     }
-  }, [undefined])
+  }, [])
 
   useEffect(() => {
-    console.log(window)
     if (typeof window !== "undefined") {
-      setWidth(Math.min(width, window.innerWidth * 0.8))
-      setHeight(Math.min(width, window.innerHeight * 0.8))
+      setWidth(Math.min(maxWidth, window.innerWidth * 0.8))
+      setHeight(Math.min(maxHeight, window.innerHeight * 0.8))
     }
-  }, [])
+  }, [maxHeight, maxWidth])
 
   return (
     <div

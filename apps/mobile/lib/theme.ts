@@ -38,7 +38,7 @@ export const getTextColorForBackground = (backgroundColor: string): string => {
 
     // WCAG recommends 4.5:1 contrast for normal text, but we'll use a simpler threshold
     return luminance > 0.5 ? "#000000" : "#ffffff"
-  } catch (error) {
+  } catch {
     // If error in calculation, return white for dark backgrounds, black for light
     return backgroundColor && backgroundColor.toLowerCase() !== "#ffffff"
       ? "#ffffff"
@@ -115,6 +115,14 @@ export const storeProgramDesign = async (program: Program): Promise<void> => {
     }
   } catch (error) {
     console.error("Error storing program design:", error)
+  }
+}
+
+export const clearStoredProgram = async (): Promise<void> => {
+  try {
+    await AsyncStorage.multiRemove(["current_program", "program_design"])
+  } catch (error) {
+    console.error("Error clearing stored program:", error)
   }
 }
 

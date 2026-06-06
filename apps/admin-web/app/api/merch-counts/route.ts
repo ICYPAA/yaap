@@ -1,16 +1,42 @@
+import { getConferenceState } from "@/lib/conference-state"
 import { createClient } from "@/utils/supabase/server"
 import { NextResponse } from "next/server"
+
+function formatDayLabel(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric"
+  })
+}
+
+function formatTimeLabel(time: string) {
+  const [hours = "0", minutes = "0"] = time.split(":")
+  const date = new Date()
+  date.setHours(Number(hours), Number(minutes), 0, 0)
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  })
+}
 
 export async function GET() {
   try {
     // Use service role to bypass RLS
     const supabase = await createClient(process.env.SUPABASE_SERVICE_ROLE_KEY)
+    const conferenceState = await getConferenceState()
+    const programId = conferenceState.current_program_id
+
+    if (!programId) {
+      return NextResponse.json({ counts: {} })
+    }
 
     // Fetch all merch signups (only type and data fields, no sensitive info)
     const { data, error } = await supabase
       .from("volunteering_interest")
       .select("data")
       .eq("type", "merch")
+      .eq("program_id", programId)
 
     if (error) {
       console.error("Error fetching merch signups:", error)
@@ -28,6 +54,19 @@ export async function GET() {
     // Count signups for each day+time slot combination
     const counts: Record<string, number> = {}
     const debugInfo: any[] = []
+    const { data: shifts } = await supabase
+      .from("shifts")
+      .select("date,start_time,end_time,shift_type")
+      .eq("program_id", programId)
+      .ilike("shift_type", "%merch%")
+
+    const merchTimeSlots = new Map<string, string>()
+    ;(shifts || []).forEach((shift: any) => {
+      const day = formatDayLabel(shift.date)
+      const start = formatTimeLabel(shift.start_time)
+      const end = formatTimeLabel(shift.end_time)
+      merchTimeSlots.set(`${day}|${start}`, `${day} - ${start} - ${end}`)
+    })
 
     if (data) {
       data.forEach((record: any, index: number) => {
@@ -40,62 +79,21 @@ export async function GET() {
             debugInfo.push({ day: recordDay, time: recordTimeSlot })
           }
 
-          // Map time slots to full slot names - FROM ACTUAL timeSlotData.ts
-          const merchTimeSlots: Record<string, string[]> = {
-            "Aug 28": [
-              "1:00 PM - 3:00 PM",
-              "3:00 PM - 5:00 PM",
-              "5:00 PM - 7:00 PM",
-              "9:00 PM - 10:00 PM",
-              "10:00 PM - 12:00 AM"
-            ],
-            "Aug 29": [
-              "8:00 AM - 10:00 AM",
-              "10:00 AM - 12:00 PM",
-              "12:00 PM - 2:00 PM",
-              "2:00 PM - 4:00 PM",
-              "4:00 PM - 6:00 PM",
-              "6:00 PM - 7:00 PM",
-              "9:00 PM - 10:00 PM",
-              "10:00 PM - 12:00 AM"
-            ],
-            "Aug 30": [
-              "8:00 AM - 10:00 AM",
-              "10:00 AM - 12:00 PM",
-              "12:00 PM - 2:00 PM",
-              "2:00 PM - 4:00 PM",
-              "4:00 PM - 6:00 PM",
-              "6:00 PM - 7:00 PM",
-              "9:00 PM - 10:00 PM",
-              "10:00 PM - 12:00 AM"
-            ],
-            "Aug 31": [
-              "8:00 AM - 10:00 AM",
-              "10:00 AM - 12:00 PM"
-            ]
-          }
-
           // The time_slot in DB is just the start time (e.g., "8:00 AM", "10:00 AM", etc)
           // No need for mapping - just use the recorded time directly
           const normalizedTimeSlot = recordTimeSlot
 
           // Find the matching full slot for this day and time
-          let matched = false
-          Object.entries(merchTimeSlots).forEach(([day, slots]) => {
-            if (day === recordDay) {
-              slots.forEach((slot) => {
-                const startTime = slot.split(" - ")[0] // Extract "1:00 PM" from "1:00 PM - 3:00 PM"
-                if (normalizedTimeSlot === startTime) {
-                  const fullSlot = `${day} - ${slot}` // e.g., "Aug 28 - 1:00 PM - 3:00 PM"
-                  counts[fullSlot] = (counts[fullSlot] || 0) + 1
-                  matched = true
-                }
-              })
-            }
-          })
+          const fullSlot = merchTimeSlots.get(
+            `${recordDay}|${normalizedTimeSlot}`
+          )
 
           // If not matched, it might be in a different format
-          if (!matched) {
+          if (fullSlot) {
+            counts[fullSlot] = (counts[fullSlot] || 0) + 1
+          } else {
+            counts[`${recordDay} - ${recordTimeSlot}`] =
+              (counts[`${recordDay} - ${recordTimeSlot}`] || 0) + 1
             console.log(`Unmatched record: day="${recordDay}", time="${recordTimeSlot}"`)
           }
         }

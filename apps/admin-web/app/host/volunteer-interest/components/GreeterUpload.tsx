@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X } from "lucide-react"
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react"
 import { parseGreeterSpreadsheet, type GreeterEntry } from "@/utils/xlsx-greeter-parser"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -19,10 +19,11 @@ import {
 } from "@/components/ui/table"
 
 interface GreeterUploadProps {
+  conferenceDates: string[]
   onUploadSuccess?: (entries: GreeterEntry[]) => Promise<void>
 }
 
-export default function GreeterUpload({ onUploadSuccess }: GreeterUploadProps) {
+export default function GreeterUpload({ conferenceDates, onUploadSuccess }: GreeterUploadProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [previewData, setPreviewData] = useState<GreeterEntry[]>([])
@@ -38,7 +39,7 @@ export default function GreeterUpload({ onUploadSuccess }: GreeterUploadProps) {
     setIsProcessing(true)
 
     try {
-      const entries = await parseGreeterSpreadsheet(selectedFile)
+      const entries = await parseGreeterSpreadsheet(selectedFile, conferenceDates)
       setPreviewData(entries)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse spreadsheet")

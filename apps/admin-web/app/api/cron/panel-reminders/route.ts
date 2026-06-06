@@ -1,199 +1,4 @@
-import { PanelNotification } from "@/app/host/panels/actions"
-import { Shift, ShiftAssignment } from "@/app/host/shift-scheduling/types"
-import { getEmailApiHeaders } from "@/lib/email-api"
-import {
-  generateOneDayReminderEmailTemplate,
-  generateOneDayReminderSMSTemplate,
-  generateOneHourReminderEmailTemplate,
-  generateOneHourReminderSMSTemplate
-} from "@/lib/panel-notification-templates"
-import {
-  generateVolunteerReminderEmailTemplate,
-  generateVolunteerReminderSMSTemplate,
-  VolunteerShiftDetails
-} from "@/lib/volunteer-notification-templates"
-import { createClient } from "@/utils/supabase/server"
 import { NextRequest } from "next/server"
-import twilio from "twilio"
-
-// Helper function to normalize phone numbers for SMS
-function normalizePhoneNumber(phone: string): string {
-  const digits = phone.replace(/\D/g, "")
-
-  if (digits.length === 10) {
-    return `+1${digits}`
-  } else if (digits.length === 11 && digits.startsWith("1")) {
-    return `+${digits}`
-  } else {
-    return `+${digits}`
-  }
-}
-
-// Helper function to send SMS
-async function sendSMS(
-  to: string,
-  message: string,
-  notificationId?: number
-): Promise<{ success: boolean; error?: string; messageId?: string }> {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER
-
-  if (!accountSid || !authToken || !fromNumber) {
-    console.error("Missing Twilio configuration")
-    return { success: false, error: "Missing Twilio configuration" }
-  }
-
-  const normalizedPhone = normalizePhoneNumber(to)
-
-  try {
-    const client = twilio(accountSid, authToken)
-
-    // Construct webhook URL
-    const webhookUrl = `https://icyhost.org/api/webhooks/twilio`
-
-    const messageOptions: any = {
-      from: fromNumber,
-      to: normalizedPhone,
-      body: message,
-      statusCallback: webhookUrl
-    }
-
-    // Add custom parameters for webhook processing
-    if (notificationId) {
-      messageOptions.statusCallbackMethod = "POST"
-      messageOptions.statusCallback = `${webhookUrl}?NotificationId=${notificationId}&ReminderType=auto`
-    }
-
-    const sentMessage = await client.messages.create(messageOptions)
-
-    console.log(
-      `SMS sent successfully to ${normalizedPhone}. Message ID: ${sentMessage.sid}`
-    )
-    return { success: true, messageId: sentMessage.sid }
-  } catch (error: any) {
-    console.error(`Error sending SMS to ${normalizedPhone}:`, error)
-
-    // Extract meaningful error message
-    let errorMessage = "Failed to send SMS"
-
-    if (error.code === 21211 || error.code === 21614) {
-      errorMessage = "Invalid phone number format"
-    } else if (error.code === 21408) {
-      errorMessage = "Permission denied to send to this number"
-    } else if (error.code === 21610) {
-      errorMessage = "Recipient has opted out of messages"
-    } else if (error.code === 21612) {
-      errorMessage = "Not a valid mobile number (may be landline)"
-    } else if (error.message) {
-      errorMessage = error.message
-    }
-
-    return { success: false, error: errorMessage }
-  }
-}
-
-// Helper function to parse panel time and check if reminder should be sent
-function shouldSendReminder(
-  timeDay: string,
-  hoursBeforePanel: number
-): boolean {
-  // Parse the time and day from the timeDay string
-  const dayMatch = timeDay.match(
-    /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i
-  )
-  const timeMatch = timeDay.match(/(\d{1,2}):(\d{2})(?:\s*([AP]M))?/i)
-
-  if (!dayMatch || !timeMatch) {
-    console.log(`Could not parse time/day from: ${timeDay}`)
-    return false
-  }
-
-  const day = dayMatch[1]
-  let hour = parseInt(timeMatch[1])
-  const minute = parseInt(timeMatch[2])
-  const period = timeMatch[3]
-
-  // Convert to 24-hour format
-  if (period) {
-    if (period.toUpperCase() === "PM" && hour !== 12) {
-      hour += 12
-    } else if (period.toUpperCase() === "AM" && hour === 12) {
-      hour = 0
-    }
-  }
-
-  // Map day names to dates for the conference
-  const dayToDates: Record<string, string> = {
-    thursday: "2025-08-28",
-    friday: "2025-08-29",
-    saturday: "2025-08-30",
-    sunday: "2025-08-31"
-  }
-
-  const panelDate = dayToDates[day.toLowerCase()]
-  if (!panelDate) {
-    console.log(`Unknown day: ${day}`)
-    return false
-  }
-
-  // Create panel datetime in CST (times from DB are already in CST)
-  const panelDateTime = new Date(
-    `${panelDate}T${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00-05:00`
-  )
-
-  // Calculate when reminder should be sent
-  const reminderTime = new Date(
-    panelDateTime.getTime() - hoursBeforePanel * 60 * 60 * 1000
-  )
-
-  // Current time
-  const now = new Date()
-
-  // Check if we're within 5 minutes of the reminder time
-  const timeDiff = Math.abs(now.getTime() - reminderTime.getTime())
-  const shouldSend = timeDiff <= 5 * 60 * 1000
-
-  if (shouldSend) {
-    console.log(
-      `Should send ${hoursBeforePanel}-hour reminder for panel at ${timeDay}`
-    )
-  }
-
-  return shouldSend
-}
-
-// Helper function to check if volunteer shift reminder should be sent
-function shouldSendVolunteerReminder(
-  shiftDate: string,
-  startTime: string,
-  hoursBeforeShift: number
-): boolean {
-  // Shift times from DB are already in CST
-  // Create shift datetime in CST
-  const shiftDateTime = new Date(`${shiftDate}T${startTime}:00-05:00`)
-
-  // Calculate when reminder should be sent
-  const reminderTime = new Date(
-    shiftDateTime.getTime() - hoursBeforeShift * 60 * 60 * 1000
-  )
-
-  // Current time
-  const now = new Date()
-
-  // Check if we're within 5 minutes of the reminder time
-  const timeDiff = Math.abs(now.getTime() - reminderTime.getTime())
-  const shouldSend = timeDiff <= 5 * 60 * 1000
-
-  if (shouldSend) {
-    console.log(
-      `Should send ${hoursBeforeShift}-hour reminder for shift on ${shiftDate} at ${startTime}`
-    )
-  }
-
-  return shouldSend
-}
-
 export async function GET(request: NextRequest) {
   // Verify cron secret
   const authHeader = request.headers.get("authorization")
@@ -206,6 +11,8 @@ export async function GET(request: NextRequest) {
     // Commenting out panel reminder logic per request
     /*
     const supabase = await createClient(process.env.SUPABASE_SERVICE_ROLE_KEY)
+    const currentProgram = await getCurrentProgramOrNull()
+    const dayToDates = buildProgramDayMap(currentProgram)
 
     // Fetch all confirmed panel notifications
     const { data: notifications, error } = await supabase
@@ -227,7 +34,7 @@ export async function GET(request: NextRequest) {
       // Check for 1-day reminder (uses reminder2 fields)
       if (
         !notification.reminder2_followup_sent_at &&
-        shouldSendReminder(notification.time_day, 24)
+        shouldSendReminder(notification.time_day, 24, dayToDates)
       ) {
         let success = false
         let errorMessage = ""
@@ -296,7 +103,7 @@ export async function GET(request: NextRequest) {
       // Check for 1-hour reminder (uses reminder3 fields)
       if (
         !notification.reminder3_followup_sent_at &&
-        shouldSendReminder(notification.time_day, 1)
+        shouldSendReminder(notification.time_day, 1, dayToDates)
       ) {
         let success = false
         let errorMessage = ""

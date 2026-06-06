@@ -122,9 +122,6 @@ function parseFrequency(frequency: string): Date | null {
       }
     }
 
-    // Set target day for the rest of the processing
-    const targetDay = nextWeekendDay
-
     // Continue with normal day processing logic
     let eventHour = 9 // default
     let eventMinute = 0 // default
@@ -168,8 +165,8 @@ function parseFrequency(frequency: string): Date | null {
     if (ampm === "am" && eventHour === 12) eventHour = 0
 
     // Use current year, but if the date has already passed this year, use next year
-    let year = nowCentral.getUTCFullYear()
-    let eventDateCentral = new Date()
+    const year = nowCentral.getUTCFullYear()
+    const eventDateCentral = new Date()
     eventDateCentral.setUTCFullYear(year)
     eventDateCentral.setUTCMonth(month)
     eventDateCentral.setUTCDate(day)
@@ -293,7 +290,7 @@ function parseFrequency(frequency: string): Date | null {
 
   // Handle daily patterns
   if (frequencyLower.includes("daily")) {
-    let eventDateCentral = addDays(nowCentral, 1)
+    const eventDateCentral = addDays(nowCentral, 1)
 
     // Extract time or default to 9 AM
     let eventHour = 9
@@ -327,7 +324,7 @@ function parseFrequency(frequency: string): Date | null {
     frequencyLower.includes("first") ||
     frequencyLower.includes("last")
   ) {
-    let eventDateCentral = addMonths(nowCentral, 1)
+    const eventDateCentral = addMonths(nowCentral, 1)
     eventDateCentral.setUTCDate(1) // First day of next month
     eventDateCentral.setUTCHours(9)
     eventDateCentral.setUTCMinutes(0)
@@ -363,11 +360,6 @@ function shouldSendReminder(
   // console.log("now (UTC):", now.toISOString())
 
   // Convert times to Central time for debugging
-  const month = now.getUTCMonth() + 1
-  const isDST = month >= 3 && month <= 11
-  const CENTRAL_OFFSET_MS_DEBUG = isDST
-    ? 5 * 60 * 60 * 1000
-    : 6 * 60 * 60 * 1000
   // const nowCentral = new Date(now.getTime() - CENTRAL_OFFSET_MS_DEBUG)
   // const eventTimeCentral = new Date(
   //   eventTime.getTime() - CENTRAL_OFFSET_MS_DEBUG

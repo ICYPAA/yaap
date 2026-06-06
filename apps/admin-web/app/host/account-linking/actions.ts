@@ -328,8 +328,6 @@ export async function linkChairpersonToUser(chairpersonId: number, userId: strin
 
 // Unlink a chairperson from a user account by removing the user's phone
 export async function unlinkChairpersonFromUser(chairpersonId: number, userId: string) {
-  const supabase = await createClient()
-  
   // Check permissions
   const hasPermission = await checkAccountLinkingPermission()
   if (!hasPermission) {
@@ -357,8 +355,6 @@ export async function unlinkChairpersonFromUser(chairpersonId: number, userId: s
 
 // Update user phone number in metadata
 export async function updateUserPhone(userId: string, phone: string | null) {
-  const supabase = await createClient()
-  
   // Check permissions
   const hasPermission = await checkAccountLinkingPermission()
   if (!hasPermission) {
@@ -397,4 +393,3 @@ function normalizePhone(phone: string): string {
   
   return normalized
 }
-

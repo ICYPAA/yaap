@@ -1,7 +1,9 @@
 "use server"
 
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
 import { getEmailApiHeaders } from "@/lib/email-api"
 import {
+  buildProgramTemplateContext,
   generateOneDayReminderEmailTemplate,
   generateOneDayReminderSMSTemplate,
   generateOneHourReminderEmailTemplate,
@@ -16,7 +18,6 @@ import {
 } from "@/lib/volunteer-notification-templates"
 import { createClient } from "@/utils/supabase/server"
 import { PanelNotification } from "@/app/host/panels/actions"
-import { Shift } from "@/app/host/shift-scheduling/types"
 import twilio from "twilio"
 
 // Test recipients - ALWAYS use these for test notifications
@@ -123,11 +124,12 @@ function formatChairpersonMessage(
   room: string,
   panelTitle: string,
   panelists: number,
-  isHybrid: boolean
+  isHybrid: boolean,
+  programContext: ReturnType<typeof buildProgramTemplateContext>
 ): string {
   const firstName = name.split(" ")[0]
 
-  let message = `Hello ${firstName}, thank you for serving as a chairperson at The 65th ICYPAA!
+  let message = `Hello ${firstName}, thank you for serving as a chairperson at ${programContext.title}!
 
 📅 Day & Time: ${dayTime}
 📍 Room: ${room}
@@ -151,7 +153,7 @@ Expectations:
 Thank you for your service in helping showcase these featured conversations in our new and wonderful world.
 
 In love and service,
-The 65th ICYPAA Host Committee`
+${programContext.committeeName}`
 
   return message
 }
@@ -235,6 +237,9 @@ export async function sendTestNotification({
     let content = ""
     let smsMessages: string[] = []
     let usedData: any = null
+    const programContext = buildProgramTemplateContext(
+      await getCurrentProgramOrNull()
+    )
 
     // Generate content based on notification type
     switch (type) {
@@ -262,30 +267,44 @@ export async function sendTestNotification({
               const confirmationLink =
                 "https://icyhost.org/test-confirmation-link"
               if (method === "email") {
-                subject = "Invitation to Speak - 65th ICYPAA Panel"
+                subject = `Invitation to Speak - ${programContext.title} Panel`
                 content = generateInitialEmailTemplate(
                   testPanel,
-                  confirmationLink
+                  confirmationLink,
+                  programContext
                 )
               } else {
                 smsMessages = generateInitialSMSTemplates(
                   testPanel,
-                  confirmationLink
+                  confirmationLink,
+                  programContext
                 )
               }
             } else if (type === "panel-1day") {
               if (method === "email") {
                 subject = `Reminder: Speaking Tomorrow - ${testPanel.title}`
-                content = generateOneDayReminderEmailTemplate(testPanel)
+                content = generateOneDayReminderEmailTemplate(
+                  testPanel,
+                  programContext
+                )
               } else {
-                content = generateOneDayReminderSMSTemplate(testPanel)
+                content = generateOneDayReminderSMSTemplate(
+                  testPanel,
+                  programContext
+                )
               }
             } else if (type === "panel-1hour") {
               if (method === "email") {
                 subject = `Starting Soon: ${testPanel.title}`
-                content = generateOneHourReminderEmailTemplate(testPanel)
+                content = generateOneHourReminderEmailTemplate(
+                  testPanel,
+                  programContext
+                )
               } else {
-                content = generateOneHourReminderSMSTemplate(testPanel)
+                content = generateOneHourReminderSMSTemplate(
+                  testPanel,
+                  programContext
+                )
               }
             }
           }
@@ -312,7 +331,9 @@ export async function sendTestNotification({
               startTime: shift.start_time,
               endTime: shift.end_time,
               jobType: shift.job_type,
-              location: shift.location
+              location: shift.location,
+              programTitle: programContext.title,
+              committeeName: programContext.committeeName
             }
             usedData = { shift, assignment }
 
@@ -353,7 +374,7 @@ export async function sendTestNotification({
 
             if (customMessage) {
               content = customMessage
-              subject = "Chairperson Notification - 65th ICYPAA"
+              subject = `Chairperson Notification - ${programContext.title}`
             } else {
               content = formatChairpersonMessage(
                 chairperson.name,
@@ -361,9 +382,10 @@ export async function sendTestNotification({
                 linkedPanel?.room || "TBD",
                 linkedPanel?.title || chairperson.panel_name,
                 linkedPanel?.panelists || 4,
-                isHybrid
+                isHybrid,
+                programContext
               )
-              subject = "Chairperson Information - 65th ICYPAA"
+              subject = `Chairperson Information - ${programContext.title}`
             }
           }
         }

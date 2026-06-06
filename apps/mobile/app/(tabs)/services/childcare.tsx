@@ -12,7 +12,7 @@ import {
 } from "react-native"
 import { useTheme } from "../../../context/ThemeContext"
 
-interface ChildcareRequest {
+interface ChildcareRequestForm {
   parentName: string
   email: string
   phone: string
@@ -30,7 +30,7 @@ export default function ChildcareRequest() {
   const router = useRouter()
   const styles = createStyles(theme)
 
-  const [formData, setFormData] = useState<ChildcareRequest>({
+  const [formData, setFormData] = useState<ChildcareRequestForm>({
     parentName: "",
     email: "",
     phone: "",
@@ -67,7 +67,7 @@ export default function ChildcareRequest() {
         "Your childcare request has been submitted. We'll contact you within 24 hours with confirmation and details.",
         [{ text: "OK", onPress: () => resetForm() }]
       )
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Failed to submit request. Please try again.")
     } finally {
       setLoading(false)
@@ -89,7 +89,7 @@ export default function ChildcareRequest() {
     })
   }
 
-  const updateField = (field: keyof ChildcareRequest, value: string) => {
+  const updateField = (field: keyof ChildcareRequestForm, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 

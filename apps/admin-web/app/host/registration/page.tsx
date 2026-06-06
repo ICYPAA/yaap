@@ -61,53 +61,46 @@ import {
 } from "./actions"
 import { COUNTRY_MAPPINGS } from "./constants"
 
-interface RegistrationReport {
-  id: string
-  registrations: number
-  created_at: string
-  countries: number
-  us_states: number
-  scholarships?: {
-    total: number
-    rows: any[]
-  }
-  user: {
-    name: string
-    avatar_url: string
-  }
-}
-
 type ProcessedData = {
   total: number
   countries: Record<string, number>
   us_states: Record<string, number>
-  data: any[]
+  data: RegistrationDataRow[]
   scholarships?: {
     total: number
-    rows: any[]
+    rows: RegistrationDataRow[]
   }
 }
 
-type MonthlyBreakdown = {
-  [key: string]: number
+type RegistrationDataRow = {
+  "Ticket type"?: string
+  "City, State"?: string
+  "Order date": string
+  Committee?: string
+  Country?: string
+}
+
+type RegistrationReport = {
+  id: string
+  registrations: number
+  created_at: string
+  countries?: number
+  us_states?: number
+  data?: RegistrationDataRow[]
+  scholarships?: {
+    total: number
+    rows: RegistrationDataRow[]
+  }
+  user?: {
+    name?: string
+    avatar_url?: string
+  }
 }
 
 type DateBreakdownType = "month" | "day"
 
 type DateBreakdown = {
   [key: string]: number
-}
-
-function normalizeString(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "") // Keep letters and numbers
-    .trim()
-}
-
-function getMonthYearKey(dateStr: string): string {
-  const date = new Date(dateStr)
-  return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`
 }
 
 function getDateKey(dateStr: string, breakdownType: DateBreakdownType): string {
@@ -364,7 +357,7 @@ function CommitteeAssignmentInterface({
               Custom Committee Mappings
             </h4>
             <p className="text-sm text-muted-foreground mb-4">
-              Add custom mappings for committee names that aren't automatically
+              Add custom mappings for committee names that aren&apos;t automatically
               recognized:
             </p>
 
@@ -463,7 +456,7 @@ export default function RegistrationNumbersPage() {
   const [state, formAction] = useFormState(submitRegistrationForm, null)
   const formRef = useRef<HTMLFormElement>(null)
   const t = useTranslations("pages.registration.RegistrationNumbersPage")
-  const [registrations, setRegistrations] = useState<any[]>([])
+  const [registrations, setRegistrations] = useState<RegistrationReport[]>([])
   const [processedData, setProcessedData] = useState<ProcessedData | null>(null)
   const [dateBreakdownType, setDateBreakdownType] =
     useState<DateBreakdownType>("month")
@@ -472,7 +465,7 @@ export default function RegistrationNumbersPage() {
   useEffect(() => {
     const fetchEvents = async () => {
       const reg = await getRegistrations()
-      setRegistrations(reg as any[])
+      setRegistrations(Array.isArray(reg) ? (reg as unknown as RegistrationReport[]) : [])
       formRef.current?.reset()
     }
 
@@ -586,9 +579,9 @@ export default function RegistrationNumbersPage() {
 
     latestReport.data
       .filter(
-        (row: any) => row["Ticket type"] !== "Contribute to Scholarship Fund"
+        (row) => row["Ticket type"] !== "Contribute to Scholarship Fund"
       )
-      .forEach((row: any) => {
+      .forEach((row) => {
         // Count countries
         const normalizedCountry = normalizeCountry(row.Country || "")
         // Only count countries that are in our known country list
@@ -607,7 +600,7 @@ export default function RegistrationNumbersPage() {
 
         // Count states for US entries
         if (normalizedCountry === "United States") {
-          const state = parseLocationData(row["City, State"])
+          const state = parseLocationData(row["City, State"] || "")
           if (state) {
             stateCount[state] = (stateCount[state] || 0) + 1
           } else {
@@ -620,12 +613,12 @@ export default function RegistrationNumbersPage() {
 
         // Count committees (normalize for display using database mappings)
         const rawCommittee = row.Committee || "None/Unaffiliated"
-        const normalizedCommittee = normalizeCommitteeForDisplay(rawCommittee)
+        const normalizedCommittee = normalizeCommitteeForDisplay(rawCommittee || "None/Unaffiliated")
         committeeCount[normalizedCommittee] =
           (committeeCount[normalizedCommittee] || 0) + 1
 
         // Count by date
-        const dateKey = getDateKey(row["Order date"], dateBreakdownType)
+        const dateKey = getDateKey(row["Order date"] || "", dateBreakdownType)
         dateCount[dateKey] = (dateCount[dateKey] || 0) + 1
       })
 
@@ -766,7 +759,7 @@ export default function RegistrationNumbersPage() {
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="text-sm text-muted-foreground mb-2">
-                    These committee entries couldn't be matched to known bid
+                    These committee entries couldn&apos;t be matched to known bid
                     committees and may need review:
                   </div>
                   <Table>
@@ -880,12 +873,12 @@ export default function RegistrationNumbersPage() {
               </TableCell>
               <TableCell className="flex items-center space-x-2">
                 <Avatar>
-                  <AvatarImage src={reg.user.avatar_url} />
+                  <AvatarImage src={reg.user?.avatar_url} />
                   <AvatarFallback>
                     <User className="h-5 w-5" />
                   </AvatarFallback>
                 </Avatar>
-                <span>{reg.user.name}</span>
+                <span>{reg.user?.name}</span>
               </TableCell>
             </TableRow>
           ))}
@@ -988,7 +981,7 @@ export default function RegistrationNumbersPage() {
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="text-sm text-muted-foreground mb-2">
-                            These entries couldn't be matched to known countries
+                            These entries couldn&apos;t be matched to known countries
                             and may need review:
                           </div>
                           <Table>
@@ -1071,7 +1064,7 @@ export default function RegistrationNumbersPage() {
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="text-sm text-muted-foreground mb-2">
-                            These US entries couldn't be matched to known
+                            These US entries couldn&apos;t be matched to known
                             states/cities and may need review:
                           </div>
                           <Table>

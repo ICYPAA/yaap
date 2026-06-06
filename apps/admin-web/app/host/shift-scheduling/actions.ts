@@ -26,8 +26,10 @@ export async function saveShift(shift: Shift) {
       userRole.permissions?.includes("shift:edit"))
 
   if (!hasAccess) throw new Error("Unauthorized")
+  if (!shift.program_id) throw new Error("Missing current program")
 
   const shiftData = {
+    program_id: shift.program_id,
     date: shift.date,
     start_time: shift.start_time,
     end_time: shift.end_time,
@@ -101,7 +103,7 @@ export async function deleteShift(shiftId: string) {
   revalidatePath("/host/shift-scheduling")
 }
 
-export async function fetchVolunteers() {
+export async function fetchVolunteers(programId: number) {
   const supabase = await createClient()
 
   const {
@@ -121,11 +123,12 @@ export async function fetchVolunteers() {
     // Host committee members
     supabase.from("profiles").select("id, full_name").order("full_name"),
 
-    // Regular volunteers (including greeter and cleanup, excluding ic2025)
+    // Regular volunteers (including greeter and cleanup, excluding legacy conference-only volunteers)
     // Include ALL statuses to ensure everyone shows up
     supabase
       .from("volunteering_interest")
       .select("id, name, last_initial, email, phone, type, data, status")
+      .eq("program_id", programId)
       .neq("type", "ic2025")
       .order("name"),
 
@@ -135,6 +138,7 @@ export async function fetchVolunteers() {
       .select(
         "id, group_hosting, group_contact, group_phone, group_email, date_time"
       )
+      .eq("program_id", programId)
       .eq("group_confirmed", true)
       .order("group_hosting"),
 
@@ -213,6 +217,7 @@ export async function addVolunteer(data: {
   lastInitial: string
   email: string
   phone: string
+  programId: number
 }) {
   const supabase = await createClient()
 
@@ -245,6 +250,7 @@ export async function addVolunteer(data: {
       email: data.email || null,
       phone: data.phone || null,
       type: "general",
+      program_id: data.programId,
       data: {
         added_by_host: true,
         added_at: new Date().toISOString()

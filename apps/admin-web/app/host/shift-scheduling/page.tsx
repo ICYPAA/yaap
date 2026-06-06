@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server"
+import { getConferenceState } from "@/lib/conference-state"
 import { redirect } from "next/navigation"
 import ShiftSchedulingClient from "./shift-scheduling-client"
+import { buildConferenceDateRange } from "./types"
 
 export default async function ShiftSchedulingPage() {
   const supabase = await createClient()
@@ -29,19 +31,31 @@ export default async function ShiftSchedulingPage() {
     redirect("/unauthorized")
   }
 
-  // Get venue rooms from program ID 3
-  const { data: program } = await supabase
-    .from("programs")
-    .select("venue_rooms")
-    .eq("id", 3)
-    .single()
+  const conferenceState = await getConferenceState()
+  const program = conferenceState.current_program_id
+    ? conferenceState.programs
+    : null
 
-  // Get all shifts for the conference dates
+  if (!program) {
+    return (
+      <div className="p-8">
+        <div className="rounded-md border p-6">
+          <h1 className="text-2xl font-bold">Shift Scheduling</h1>
+          <p className="mt-2 text-muted-foreground">
+            Select a current conference program before managing shifts.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const conferenceDates = buildConferenceDateRange(program)
+
+  // Get all shifts for the current program
   const { data: shifts } = await supabase
     .from("shifts")
     .select("*")
-    .gte("date", "2025-08-28")
-    .lte("date", "2025-08-31")
+    .eq("program_id", program.id)
     .order("date")
     .order("start_time")
 
@@ -59,11 +73,12 @@ export default async function ShiftSchedulingPage() {
       .select("id, full_name")
       .order("full_name"),
     
-    // Regular volunteers (including greeter and cleanup, excluding ic2025)
+    // Regular volunteers (including greeter and cleanup, excluding legacy conference-only volunteers)
     // Include ALL statuses to ensure everyone shows up
     supabase
       .from("volunteering_interest")
       .select("id, name, last_initial, email, phone, type, data, status")
+      .eq("program_id", program.id)
       .neq("type", "ic2025")
       .order("name"),
     
@@ -71,6 +86,7 @@ export default async function ShiftSchedulingPage() {
     supabase
       .from("hospitality_hours")
       .select("id, group_hosting, group_contact, group_phone, group_email, date_time")
+      .eq("program_id", program.id)
       .eq("group_confirmed", true)
       .order("group_hosting"),
     
@@ -141,6 +157,9 @@ export default async function ShiftSchedulingPage() {
         allVolunteers={allVolunteers}
         currentUserId={user.id}
         venueRooms={program?.venue_rooms || []}
+        programId={program.id}
+        programTitle={program.title}
+        conferenceDates={conferenceDates}
       />
     </div>
   )

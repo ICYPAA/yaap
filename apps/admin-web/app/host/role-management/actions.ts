@@ -218,6 +218,11 @@ export async function updateUserRole(
     .eq("user_id", targetUserId)
     .single()
 
+  if (targetRoleError && targetRoleError.code !== "PGRST116") {
+    console.error("Error fetching target user role:", targetRoleError)
+    return { error: "Failed to fetch target user role" }
+  }
+
   if (targetUserRole?.role === "admin") {
     return { error: "Admin roles cannot be modified through the UI" }
   }
@@ -232,11 +237,6 @@ export async function updateUserRole(
       .select("profile_name")
       .eq("user_id", targetUserId)
       .single()
-
-    const oldValues = {
-      role: targetUserRole?.role,
-      permissions: targetUserRole?.permissions || []
-    }
 
     // For steering role, clear permissions (they get all permissions automatically)
     const finalPermissions = newRole === "steering" ? [] : permissions

@@ -86,9 +86,6 @@ class SimpleI18n {
 
 const i18n = new SimpleI18n()
 
-// Storage key for user's preferred language
-const STORAGE_KEY = "user_preferred_language"
-
 // Initialize i18n (simplified version)
 export const initializeI18n = async () => {
   try {

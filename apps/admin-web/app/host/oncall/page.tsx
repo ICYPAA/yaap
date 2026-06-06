@@ -37,7 +37,6 @@ import {
   Phone,
   Plus,
   Trash2,
-  User,
   Users
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -49,7 +48,6 @@ import {
   updateOncallSchedule,
   type OncallSchedule
 } from "./actions"
-import { createClient } from "@/utils/supabase/client"
 
 export default function OncallPage() {
   const [schedules, setSchedules] = useState<OncallSchedule[]>([])
@@ -171,7 +169,7 @@ export default function OncallPage() {
   }
 
   // Since we're in the host folder, all users here have permission
-  const canEditSchedule = (schedule: OncallSchedule) => {
+  const canEditSchedule = () => {
     return true // All host members can manage schedules
   }
 
@@ -300,7 +298,7 @@ export default function OncallPage() {
                 <TableBody>
                   {schedules.map((schedule) => {
                     const isActive = isCurrentlyOncall(schedule)
-                    const canEdit = canEditSchedule(schedule)
+                    const canEdit = canEditSchedule()
                     
                     return (
                       <TableRow key={schedule.id}>

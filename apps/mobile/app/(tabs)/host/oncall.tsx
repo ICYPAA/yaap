@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useRole } from "../../../context/RoleContext"
 import { UserRole } from "../../../lib/roleChecker"
 import { useTheme } from "../../../context/ThemeContext"
@@ -35,24 +36,26 @@ const SERVICE_TYPES = [
 
 export default function OnCallManagement() {
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const router = useRouter()
   const { isAnyRole } = useRole()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [assignments, setAssignments] = useState<OnCallAssignment[]>([])
-  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [availableUsers, setAvailableUsers] = useState<any[]>([])
   const [selectedService, setSelectedService] = useState<string | null>(null)
   const [modalVisible, setModalVisible] = useState(false)
   const [assigningUser, setAssigningUser] = useState(false)
-  const programId = 3
-
-  useEffect(() => {
-    fetchAssignments()
-    fetchAvailableUsers()
-  }, [])
-
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
+      if (!programId) {
+        setAssignments([])
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await supabaseWithDeviceId
         .from("oncall_assignments")
@@ -72,7 +75,7 @@ export default function OnCallManagement() {
 
         // Get user names for the assigned users
         const assignedUserIds = assignments.map((a) => a.user_id)
-        const { data: authUsers, error: authError } =
+        const { data: authUsers } =
           await supabaseWithDeviceId.rpc("get_auth_user_names", {
             user_ids: assignedUserIds
           })
@@ -105,12 +108,11 @@ export default function OnCallManagement() {
       console.error("Error fetching on-call assignments:", error)
       Alert.alert("Error", "Failed to load on-call assignments")
     } finally {
-      setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [programId])
 
-  const fetchAvailableUsers = async () => {
+  const fetchAvailableUsers = useCallback(async () => {
     try {
       const supabaseWithDeviceId = await withDeviceId()
 
@@ -178,10 +180,20 @@ export default function OnCallManagement() {
     } catch (error) {
       console.error("Error fetching users:", error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchAssignments()
+    fetchAvailableUsers()
+  }, [fetchAssignments, fetchAvailableUsers])
 
   const assignOnCall = async (serviceType: string, userId: string) => {
     try {
+      if (!programId) {
+        Alert.alert("Error", "No active conference program is selected")
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
 
       // First, deactivate any existing assignments for this service

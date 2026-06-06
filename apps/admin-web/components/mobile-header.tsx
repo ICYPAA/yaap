@@ -9,11 +9,9 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle
 } from "@/components/ui/navigation-menu"
-import { Menu, X } from "lucide-react"
+import { Menu } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { useState } from "react"
 export default function MobileHeader({ user }: any) {
-  const [isOpen, setIsOpen] = useState(false)
   const t = useTranslations("components.mobile-header")
 
   return (
@@ -22,11 +20,7 @@ export default function MobileHeader({ user }: any) {
         <NavigationMenuList>
           <NavigationMenuItem>
             <NavigationMenuTrigger className="text-sm font-medium text-muted-foreground hover:text-primary">
-              {isOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
+              <Menu className="h-6 w-6" />
             </NavigationMenuTrigger>
             <NavigationMenuContent>
               {user && (

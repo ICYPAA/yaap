@@ -2,6 +2,8 @@
 
 import { getEmailApiHeaders } from "@/lib/email-api"
 import { logActivity } from "@/lib/audit-logger"
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
+import { buildProgramTemplateContext } from "@/lib/panel-notification-templates"
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 
@@ -31,10 +33,14 @@ export async function getVolunteers() {
   }
 
   try {
+    const currentProgram = await getCurrentProgramOrNull()
+    if (!currentProgram) return []
+
     // Get volunteer interest data with email/phone
     const { data, error } = await supabase
       .from("volunteering_interest")
       .select("*")
+      .eq("program_id", currentProgram.id)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -136,11 +142,15 @@ export async function sendVolunteerNotifications(volunteerIds: number[]) {
 // Helper function to send email notification
 async function sendEmailNotification(volunteer: any) {
   try {
+    const programContext = buildProgramTemplateContext(
+      await getCurrentProgramOrNull()
+    )
+
     // Construct email content
     const emailContent = `
 Hello ${volunteer.name},
 
-Thank you for your interest in volunteering for the 65th ICYPAA!
+Thank you for your interest in volunteering for ${programContext.title}!
 
 We have received your volunteer signup for: ${volunteer.type}
 
@@ -151,7 +161,7 @@ We will be in touch soon with more information about your volunteer assignment.
 If you have any questions, please don't hesitate to reach out.
 
 Thank you for your service!
-65th ICYPAA Host Committee
+${programContext.committeeName}
     `.trim()
 
     // Send email via API
@@ -162,7 +172,7 @@ Thank you for your service!
         headers: getEmailApiHeaders("volunteer-reminder"),
         body: JSON.stringify({
           to: volunteer.email,
-          subject: "65th ICYPAA Volunteer Notification",
+          subject: `${programContext.title} Volunteer Notification`,
           text: emailContent,
           html: emailContent.replace(/\n/g, "<br>")
         })

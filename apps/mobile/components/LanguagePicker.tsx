@@ -22,7 +22,7 @@ export const LanguagePicker: React.FC<LanguagePickerProps> = ({
   onClose
 }) => {
   const { theme } = useTheme()
-  const { currentLanguage, availableLanguages, changeLanguage, t } = useI18n()
+  const { currentLanguage, availableLanguages, changeLanguage } = useI18n()
   const [isChanging, setIsChanging] = useState<string | null>(null)
 
   const styles = createStyles(theme)

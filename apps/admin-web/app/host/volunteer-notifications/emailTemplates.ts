@@ -6,13 +6,21 @@ export interface EmailTemplate {
   body: (data: any) => string
 }
 
+function conferenceTitle(data: any) {
+  return data.programTitle || "the current conference"
+}
+
+function teamName(data: any, team: string) {
+  return data.committeeName || `${conferenceTitle(data)} ${team}`
+}
+
 export const emailTemplates: Record<string, EmailTemplate> = {
   general: {
-    subject: "Thank You for Volunteering at ICYPAA 65!",
+    subject: "Thank You for Volunteering!",
     body: (data) => `
 Dear ${data.name || 'Volunteer'},
 
-Thank you for signing up to volunteer at the 65th International Conference of Young People in Alcoholics Anonymous (ICYPAA)!
+Thank you for signing up to volunteer at ${conferenceTitle(data)}!
 
 We're excited to have you join our team and help make this conference a memorable experience for everyone attending.
 
@@ -26,7 +34,7 @@ We'll be in touch soon with more details about your volunteer assignment and sch
 If you have any questions in the meantime, please don't hesitate to reach out to us.
 
 With gratitude,
-The ICYPAA 65 Volunteer Committee
+${teamName(data, "Volunteer Committee")}
 
 ---
 This email was sent to confirm your volunteer registration. If you did not sign up to volunteer, please let us know immediately.
@@ -34,11 +42,11 @@ This email was sent to confirm your volunteer registration. If you did not sign 
   },
 
   security: {
-    subject: "Security Volunteer Confirmation - ICYPAA 65",
+    subject: "Security Volunteer Confirmation",
     body: (data) => `
 Dear ${data.name || 'Security Volunteer'},
 
-Thank you for signing up to help with security at ICYPAA 65! Your commitment to keeping our conference safe is greatly appreciated.
+Thank you for signing up to help with security at ${conferenceTitle(data)}! Your commitment to keeping our conference safe is greatly appreciated.
 
 Your security volunteer information:
 - Name: ${data.name} ${data.last_initial || ''}
@@ -61,7 +69,7 @@ We'll send you a final schedule confirmation closer to the conference date.
 Thank you for helping us maintain a safe and welcoming environment!
 
 Best regards,
-The ICYPAA 65 Security Team
+${teamName(data, "Security Team")}
 
 ---
 Questions? Reply to this email or contact our security coordinator.
@@ -69,11 +77,11 @@ Questions? Reply to this email or contact our security coordinator.
   },
 
   registration: {
-    subject: "Registration Volunteer Confirmation - ICYPAA 65",
+    subject: "Registration Volunteer Confirmation",
     body: (data) => `
 Dear ${data.name || 'Registration Volunteer'},
 
-Thank you for volunteering to help with registration at ICYPAA 65! Your assistance will help ensure a smooth check-in process for all attendees.
+Thank you for volunteering to help with registration at ${conferenceTitle(data)}! Your assistance will help ensure a smooth check-in process for all attendees.
 
 Your registration volunteer details:
 - Name: ${data.name} ${data.last_initial || ''}
@@ -95,7 +103,7 @@ We'll send you more details about your specific assignment and any training sess
 Looking forward to working with you!
 
 Warm regards,
-The ICYPAA 65 Registration Team
+${teamName(data, "Registration Team")}
 
 ---
 Need to update your availability? Just reply to this email.
@@ -103,11 +111,11 @@ Need to update your availability? Just reply to this email.
   },
 
   hospitality: {
-    subject: "Hospitality Volunteer Confirmation - ICYPAA 65",
+    subject: "Hospitality Volunteer Confirmation",
     body: (data) => `
 Dear ${data.name || 'Hospitality Volunteer'},
 
-Welcome to the ICYPAA 65 Hospitality Team! Thank you for volunteering to help create a warm and welcoming environment for our attendees.
+Welcome to the ${teamName(data, "Hospitality Team")}! Thank you for volunteering to help create a warm and welcoming environment for our attendees.
 
 Your hospitality volunteer information:
 - Name: ${data.name} ${data.last_initial || ''}
@@ -128,7 +136,7 @@ ${data.comments ? `Your additional notes: ${data.comments}` : ''}
 We truly appreciate your service and look forward to working with you!
 
 With gratitude,
-The ICYPAA 65 Hospitality Team
+${teamName(data, "Hospitality Team")}
 
 ---
 Questions about your assignment? We're here to help - just reply to this email.
@@ -136,11 +144,11 @@ Questions about your assignment? We're here to help - just reply to this email.
   },
 
   marathon_meeting: {
-    subject: "Marathon Meeting Volunteer Confirmation - ICYPAA 65",
+    subject: "Marathon Meeting Volunteer Confirmation",
     body: (data) => `
 Dear ${data.name || 'Marathon Meeting Volunteer'},
 
-Thank you for volunteering to support the Marathon Meetings at ICYPAA 65! Your service helps maintain this vital recovery space throughout the conference.
+Thank you for volunteering to support the Marathon Meetings at ${conferenceTitle(data)}! Your service helps maintain this vital recovery space throughout the conference.
 
 Your marathon meeting volunteer details:
 - Name: ${data.name} ${data.last_initial || ''}
@@ -160,7 +168,7 @@ ${data.comments ? `Your notes: ${data.comments}` : ''}
 The Marathon Meetings run continuously throughout the conference, providing 24/7 recovery support. Your contribution is invaluable!
 
 In fellowship,
-The ICYPAA 65 Marathon Meeting Committee
+${teamName(data, "Marathon Meeting Committee")}
 
 ---
 Need to adjust your schedule? Please let us know as soon as possible.
@@ -168,11 +176,11 @@ Need to adjust your schedule? Please let us know as soon as possible.
   },
 
   merch: {
-    subject: "Merchandise Volunteer Confirmation - ICYPAA 65",
+    subject: "Merchandise Volunteer Confirmation",
     body: (data) => `
 Dear ${data.name || 'Merch Volunteer'},
 
-Thank you for signing up to help with merchandise at ICYPAA 65! Your help will ensure attendees can take home memories from this special event.
+Thank you for signing up to help with merchandise at ${conferenceTitle(data)}! Your help will ensure attendees can take home memories from this special event.
 
 Your merchandise volunteer information:
 - Name: ${data.name} ${data.last_initial || ''}
@@ -195,7 +203,7 @@ We'll provide training on our point-of-sale system and merchandise handling proc
 Looking forward to having you on the team!
 
 Best,
-The ICYPAA 65 Merchandise Team
+${teamName(data, "Merchandise Team")}
 
 ---
 Questions about merchandise volunteering? Reply to this email for assistance.
@@ -203,11 +211,11 @@ Questions about merchandise volunteering? Reply to this email for assistance.
   },
 
   outreach: {
-    subject: "Outreach Volunteer Confirmation - ICYPAA 65",
+    subject: "Outreach Volunteer Confirmation",
     body: (data) => `
 Dear ${data.name || 'Outreach Volunteer'},
 
-Thank you for volunteering to help with outreach at ICYPAA 65! Your efforts help spread the message and welcome newcomers to our conference.
+Thank you for volunteering to help with outreach at ${conferenceTitle(data)}! Your efforts help spread the message and welcome newcomers to our conference.
 
 Your outreach volunteer details:
 - Name: ${data.name} ${data.last_initial || ''}
@@ -227,7 +235,7 @@ ${data.comments ? `Your notes: ${data.comments}` : ''}
 Your enthusiasm and willingness to carry the message is what makes ICYPAA special!
 
 In service,
-The ICYPAA 65 Outreach Committee
+${teamName(data, "Outreach Committee")}
 
 ---
 Want to get more involved? Let us know how we can best utilize your talents!
@@ -235,11 +243,11 @@ Want to get more involved? Let us know how we can best utilize your talents!
   },
 
   specific_event: {
-    subject: "Event Volunteer Confirmation - ICYPAA 65",
+    subject: "Event Volunteer Confirmation",
     body: (data) => `
 Dear ${data.name || 'Event Volunteer'},
 
-Thank you for volunteering for specific events at ICYPAA 65! Your support helps make our special events memorable and successful.
+Thank you for volunteering for specific events at ${conferenceTitle(data)}! Your support helps make our special events memorable and successful.
 
 Your event volunteer information:
 - Name: ${data.name} ${data.last_initial || ''}
@@ -262,7 +270,7 @@ We'll contact you with specific event assignments based on your availability and
 Thank you for your flexibility and enthusiasm!
 
 Warmly,
-The ICYPAA 65 Events Team
+${teamName(data, "Events Team")}
 
 ---
 Have a specific event in mind? Let us know your preferences!

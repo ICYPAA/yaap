@@ -1,40 +1,18 @@
 import { Redirect, Stack, usePathname } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React from "react"
 import { StyleSheet, View, Text, ActivityIndicator } from "react-native"
 import { useDebug } from "../../../context/DebugContext"
 import { useRole } from "../../../context/RoleContext"
 import { useTheme } from "../../../context/ThemeContext"
-import { supabase } from "../../../lib/supabase"
 
 export default function HostLayout() {
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
   const { loading, isAuthenticated, canAccessHostTools, isLoggingIn } = useRole()
   const pathname = usePathname()
-  const [sessionChecked, setSessionChecked] = useState(false)
-  const [hasSession, setHasSession] = useState(false)
 
   // Check if current route is the login page
   const isLoginPage = pathname?.includes("/host/login")
-
-  // Check session directly as a fallback
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setHasSession(!!session)
-      setSessionChecked(true)
-    })
-  }, [])
-
-  // Listen for auth changes
-  useEffect(() => {
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasSession(!!session)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
 
   // Log the current state
   console.log(

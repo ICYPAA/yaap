@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Stack, useRouter } from "expo-router"
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Animated,
   FlatList,
@@ -14,6 +14,7 @@ import {
   View
 } from "react-native"
 import { ProtectedComponent } from "../../../components/ProtectedComponent"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { supabase, withDeviceId } from "../../../lib/supabase"
@@ -37,7 +38,12 @@ interface SupportChat {
 
 export default function SupportRequest() {
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const router = useRouter()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [userName, setUserName] = useState("")
   const [supportChats, setSupportChats] = useState<SupportChat[]>([])
@@ -53,10 +59,38 @@ export default function SupportRequest() {
   const drawerAnimation = useRef(new Animated.Value(-300)).current
   const flatListRef = useRef<FlatList>(null)
 
+  const fetchSupportChats = useCallback(async (device_id: string) => {
+    try {
+      if (!programId) return
+
+      const supabaseWithDeviceId = await withDeviceId()
+      const { data, error } = await supabaseWithDeviceId
+        .from("support_chats")
+        .select("*")
+        .eq("device_id", device_id)
+        .eq("program_id", programId)
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+
+      setSupportChats(data || [])
+
+      // Auto-select the first chat if available and none selected
+      setSelectedChat((current) => current ?? (data?.[0] || null))
+    } catch (error) {
+      console.error("Error fetching support chats:", error)
+    }
+  }, [programId])
+
   // Get device ID on mount
   useEffect(() => {
     const getDeviceId = async () => {
       try {
+        if (!programId) {
+          setLoading(false)
+          return
+        }
+
         let storedDeviceId = await AsyncStorage.getItem("device_id")
         if (!storedDeviceId) {
           // Generate a new device ID if none exists
@@ -84,29 +118,7 @@ export default function SupportRequest() {
     }
 
     getDeviceId()
-  }, [])
-
-  const fetchSupportChats = async (device_id: string) => {
-    try {
-      const supabaseWithDeviceId = await withDeviceId()
-      const { data, error } = await supabaseWithDeviceId
-        .from("support_chats")
-        .select("*")
-        .eq("device_id", device_id)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-
-      setSupportChats(data || [])
-
-      // Auto-select the first chat if available and none selected
-      if (data && data.length > 0 && !selectedChat) {
-        setSelectedChat(data[0])
-      }
-    } catch (error) {
-      console.error("Error fetching support chats:", error)
-    }
-  }
+  }, [fetchSupportChats, programId])
 
   const handleSendMessage = async () => {
     if (!selectedChat || !message.trim() || !deviceId) return
@@ -164,6 +176,11 @@ export default function SupportRequest() {
       return
     }
 
+    if (!programId) {
+      setError("No active conference program is selected")
+      return
+    }
+
     setIsCreating(true)
     setError("")
 
@@ -192,7 +209,7 @@ export default function SupportRequest() {
       const { data, error } = await supabaseWithDeviceId
         .from("support_chats")
         .insert({
-          program_id: 3, // Default to program ID 3
+          program_id: programId,
           chat_title: newChatTitle,
           messages: [], // Start with empty messages
           device_id: deviceId,
@@ -214,7 +231,7 @@ export default function SupportRequest() {
       try {
         await sendNotification({
           eventType: "host",
-          programId: 3,
+          programId,
           data: {
             type: "support",
             form_id: newChat.id,

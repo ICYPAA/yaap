@@ -1,3 +1,5 @@
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
+import { buildProgramTemplateContext } from "@/lib/panel-notification-templates"
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
@@ -25,7 +27,7 @@ function getVolunteerTypeDisplayName(volunteerType: string): string {
     general: "General Volunteering Interest",
     marathon: "Marathon Meeting",
     hospitality: "Hospitality",
-    ic2025: "IC 2025 Conference",
+    ic2025: "Conference Volunteering",
     outreach: "Outreach Committee",
     specific: "Specific Event Volunteering"
   }
@@ -145,6 +147,14 @@ export async function POST(req: Request) {
 
     // Parse the form data from the request body
     const data = await req.json()
+    const programContext = buildProgramTemplateContext(
+      await getCurrentProgramOrNull()
+    )
+    const hostCommitteeName = programContext.committeeName
+    const programCommitteeName =
+      programContext.programCommitteeName ||
+      `${programContext.title} Program Committee`
+    const volunteerCommitteeName = `${programContext.title} Volunteer Committee`
 
     // Set up Nodemailer transporter with your email provider details
     const transporter = nodemailer.createTransport({
@@ -163,10 +173,10 @@ export async function POST(req: Request) {
       const { name, email, volunteerType, details } = data
 
       // Create volunteer-specific email content based on type
-      let emailSubject = `Volunteer Signup Confirmation - ${name}`
-      let emailContent = `Dear ${name},
+      const emailSubject = `Volunteer Signup Confirmation - ${name}`
+      const emailContent = `Dear ${name},
 
-Thank you for signing up to volunteer for the 65th ICYPAA Conference!
+Thank you for signing up to volunteer for ${programContext.title}!
 
 Volunteer Type: ${getVolunteerTypeDisplayName(volunteerType)}
 ${formatVolunteerDetails(volunteerType, details)}
@@ -176,13 +186,13 @@ We appreciate your willingness to serve and will be reaching out with more detai
 If you have any questions, please don't hesitate to contact us.
 
 In Unity and Service,
-The 65th ICYPAA Host Committee
+${hostCommitteeName}
 
 ---
 This is an automated confirmation email. Please do not reply to this email.`
 
       mailOptions = {
-        from: '"The 65th ICYPAA Host Committee" <josh@themindfulpug.com>',
+        from: `"${hostCommitteeName}" <josh@themindfulpug.com>`,
         to: email,
         subject: emailSubject,
         text: emailContent
@@ -269,7 +279,7 @@ ${shareInMeeting || "No pertinent items to share"}`
       const { to, subject, emailContent } = data
 
       mailOptions = {
-        from: '"The 65th ICYPAA Program Committee" <josh@themindfulpug.com>',
+        from: `"${programCommitteeName}" <josh@themindfulpug.com>`,
         to: to || undefined,
         subject: subject,
         text: emailContent
@@ -288,7 +298,7 @@ ${shareInMeeting || "No pertinent items to share"}`
       const { to, subject, emailContent, text, html } = data
 
       mailOptions = {
-        from: '"The 65th ICYPAA Volunteer Committee" <josh@themindfulpug.com>',
+        from: `"${volunteerCommitteeName}" <josh@themindfulpug.com>`,
         to: to || undefined,
         subject,
         text: text || emailContent,

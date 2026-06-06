@@ -222,7 +222,6 @@ export async function parseXLSXPanelData(file: File): Promise<ParsedPanelData> {
     const panels: ParsedPanel[] = []
     const errors: string[] = []
     let currentDay = ""
-    let foundStartTime = false
 
     jsonData.forEach((row: any, index: number) => {
       try {
@@ -234,7 +233,6 @@ export async function parseXLSXPanelData(file: File): Promise<ParsedPanelData> {
           row["A"] === "Start Time" ||
           row["A"]?.toLowerCase().includes("start time")
         ) {
-          foundStartTime = true
           return
         }
 

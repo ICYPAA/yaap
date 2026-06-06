@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import { Modal, Platform, View } from "react-native"
+import { Modal, Platform } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { TutorialCarousel } from "./TutorialCarousel"
 

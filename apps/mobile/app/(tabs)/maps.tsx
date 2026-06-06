@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Animated,
@@ -19,6 +19,7 @@ import {
 import type { FlatListProps } from "react-native"
 import RNIImageViewer from "react-native-image-zoom-viewer"
 import { HospitalitySlots } from "../../components/HospitalitySlots"
+import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
 import { withDeviceId } from "../../lib/supabase"
@@ -77,14 +78,6 @@ const remoteAssets: RemoteAssets = {
   walkingMap: `${SUPABASE_URL}walking-map.png`
 }
 
-// Mapping functions to get asset key from DB map name
-const getVenueMapKey = (name: string | undefined | null): string | null => {
-  if (!name) return null
-  const lowerName = name.toLowerCase()
-  if (lowerName.includes("main floor")) return "hotelPlan"
-  return null
-}
-
 // Add helper function to open maps
 const openMaps = (address: string) => {
   const encodedAddress = encodeURIComponent(address)
@@ -121,9 +114,8 @@ const AnimatedCarousel = <T,>({
   const translateX = useRef(new Animated.Value(0)).current
   const viewRef = useRef<View>(null)
   const hasAnimated = useRef(false)
-  const [isInView, setIsInView] = useState(false)
 
-  const runWiggleAnimation = () => {
+  const runWiggleAnimation = useCallback(() => {
     if (hasAnimated.current) return
     hasAnimated.current = true
 
@@ -151,7 +143,7 @@ const AnimatedCarousel = <T,>({
     ])
 
     wiggleAnimation.start()
-  }
+  }, [translateX])
 
   useEffect(() => {
     if (!triggerOnView) {
@@ -161,10 +153,10 @@ const AnimatedCarousel = <T,>({
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [triggerOnView])
+  }, [runWiggleAnimation, triggerOnView])
 
   // Check if component is in view when it's scrolled
-  const checkInView = () => {
+  const checkInView = useCallback(() => {
     if (!triggerOnView || !viewRef.current || hasAnimated.current) return
 
     viewRef.current.measureInWindow((x, y, width, height) => {
@@ -174,13 +166,12 @@ const AnimatedCarousel = <T,>({
       const isVisible = visibleHeight > height * 0.5 && y < screenHeight
 
       if (isVisible && !hasAnimated.current) {
-        setIsInView(true)
         setTimeout(() => {
           runWiggleAnimation()
         }, 300)
       }
     })
-  }
+  }, [runWiggleAnimation, triggerOnView])
 
   // Set up scroll listener for parent ScrollView
   useEffect(() => {
@@ -196,7 +187,7 @@ const AnimatedCarousel = <T,>({
       clearTimeout(initialCheck)
       clearInterval(scrollCheckInterval)
     }
-  }, [triggerOnView])
+  }, [checkInView, triggerOnView])
 
   return (
     <Animated.View
@@ -277,7 +268,7 @@ const MapItem = ({
           // Continue with normal loading if queryCache fails
         })
     }
-  }, [source])
+  }, [isFallback, source])
 
   return (
     <TouchableOpacity
@@ -350,9 +341,6 @@ const ImageViewer = ({
   theme: any
 }) => {
   const [imageError, setImageError] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [imageLoaded, setImageLoaded] = useState(false)
-
   React.useEffect(() => {
     if (visible && image) {
       // Reset error state when modal becomes visible with a new image
@@ -584,6 +572,7 @@ export default function Maps() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const screenWidth = Dimensions.get("window").width
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const { isFeatureEnabled } = useFeatures()
   const router = useRouter()
 
@@ -602,14 +591,25 @@ export default function Maps() {
   const itemWidth = screenWidth * 0.85 // Use 85% of screen width for card
   const itemSpacing = screenWidth * 0.05 // Use 5% for spacing (2.5% on each side)
 
-  // Assume program_id = 3 for now, replace with dynamic value later
-  const programId = 3
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
       setError(null)
       try {
+        if (!programId) {
+          setVenueData(null)
+          setActivitiesData([])
+          setFoodData([])
+          setHospitalityData(null)
+          setChildcareContent(null)
+          return
+        }
+
         // Fetch Venue data
         const supabaseWithDeviceId = await withDeviceId()
         const { data: venueResult, error: venueError } =
@@ -790,8 +790,7 @@ export default function Maps() {
               </View>
             ))}
 
-            {/* Add HospitalitySlots component */}
-            <HospitalitySlots programId={programId} />
+            {programId ? <HospitalitySlots programId={programId} /> : null}
           </View>
         </View>
       )}

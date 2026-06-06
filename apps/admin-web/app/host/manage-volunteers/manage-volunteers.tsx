@@ -846,7 +846,7 @@ export default function ManageVolunteers({ eventId }: { eventId: string }) {
                   No volunteer jobs added yet
                 </p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Click "Add Job" to create your first volunteer position
+                  Click &quot;Add Job&quot; to create your first volunteer position
                 </p>
               </CardContent>
             </Card>
@@ -1012,7 +1012,7 @@ export default function ManageVolunteers({ eventId }: { eventId: string }) {
 
                     {job.time_slots.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        No time slots added yet. Click "Add Time Slot" to create
+                        No time slots added yet. Click &quot;Add Time Slot&quot; to create
                         one.
                       </p>
                     ) : (
@@ -1170,7 +1170,7 @@ export default function ManageVolunteers({ eventId }: { eventId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the "{deleteJobName}" job and all its
+              This will permanently delete the &quot;{deleteJobName}&quot; job and all its
               time slots. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1195,8 +1195,8 @@ export default function ManageVolunteers({ eventId }: { eventId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the "{deleteTimeSlotInfo?.timeSlot}"
-              time slot from "{deleteTimeSlotInfo?.jobName}". This action cannot
+              This will permanently delete the &quot;{deleteTimeSlotInfo?.timeSlot}&quot;
+              time slot from &quot;{deleteTimeSlotInfo?.jobName}&quot;. This action cannot
               be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1228,9 +1228,9 @@ export default function ManageVolunteers({ eventId }: { eventId: string }) {
             <AlertDialogTitle>Remove Volunteer</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to remove{" "}
-              {deleteVolunteerInfo?.volunteerName} from the "
-              {deleteVolunteerInfo?.timeSlot}" time slot of "
-              {deleteVolunteerInfo?.jobName}"? This action cannot be undone.
+              {deleteVolunteerInfo?.volunteerName} from the &quot;
+              {deleteVolunteerInfo?.timeSlot}&quot; time slot of &quot;
+              {deleteVolunteerInfo?.jobName}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

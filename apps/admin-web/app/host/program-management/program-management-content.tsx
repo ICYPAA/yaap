@@ -70,6 +70,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
+  getConferenceState,
+  setConferenceState,
+  type ConferenceStatus
+} from "@/lib/conference-state"
+import {
   ArrowUpDown,
   Building2,
   Calendar,
@@ -116,7 +121,6 @@ import {
   getHospitalityHours,
   getPrograms,
   getVenue,
-  getVenueRooms,
   updateActivity,
   updateEvent,
   updateEventCategory,
@@ -130,7 +134,10 @@ import {
   type Food,
   type HospitalityHour,
   type Program,
-  type Venue
+  type ProgramLocation,
+  type Venue,
+  type VenueAmenity,
+  type VenueFloor
 } from "./actions"
 
 // Central Time utility functions
@@ -443,20 +450,18 @@ interface FilterState {
   times: string[]
 }
 
-interface ProgramManagementContentProps {
-  hasAccess: boolean
-  user: any
-}
-
-export default function ProgramManagementContent({
-  hasAccess,
-  user
-}: ProgramManagementContentProps) {
+export default function ProgramManagementContent() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [selectedProgram, setSelectedProgram] = useState<Program | null>(null)
+  const [currentConferenceStatus, setCurrentConferenceStatus] =
+    useState<ConferenceStatus>("none")
+  const [currentConferenceProgramId, setCurrentConferenceProgramId] =
+    useState<string>("none")
+  const [savedCurrentProgramId, setSavedCurrentProgramId] =
+    useState<number | null>(null)
+  const [savingConferenceState, setSavingConferenceState] = useState(false)
   const [events, setEvents] = useState<Event[]>([])
   const [categories, setCategories] = useState<EventCategory[]>([])
-  const [venueRooms, setVenueRooms] = useState<string[]>([])
   const [venue, setVenue] = useState<Venue | null>(null)
   const [foodItems, setFoodItems] = useState<Food[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -675,7 +680,7 @@ export default function ProgramManagementContent({
   }, [events])
 
   const filteredAndSortedEvents = useMemo(() => {
-    let filtered = events.filter((event) => {
+    const filtered = events.filter((event) => {
       const matchesSearch =
         event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -740,7 +745,7 @@ export default function ProgramManagementContent({
   }, [events, searchTerm, sortField, sortOrder, filters])
 
   // Format location for display
-  const formatLocation = (location: any) => {
+  const formatLocation = (location: ProgramLocation | string | null) => {
     if (!location) return "No location set"
 
     if (typeof location === "string") return location
@@ -830,7 +835,7 @@ export default function ProgramManagementContent({
         menu: ''
       })
     }
-  }, [foodToEdit])
+  }, [foodForm, foodToEdit])
 
   // Populate activity form when editing
   useEffect(() => {
@@ -853,7 +858,7 @@ export default function ProgramManagementContent({
         distance: null
       })
     }
-  }, [activityToEdit])
+  }, [activityForm, activityToEdit])
 
   useEffect(() => {
     if (hospitalityHourToEdit) {
@@ -884,25 +889,91 @@ export default function ProgramManagementContent({
         room: ""
       })
     }
-  }, [hospitalityHourToEdit])
+  }, [hospitalityHourForm, hospitalityHourToEdit])
 
   const loadInitialData = async () => {
     setLoading(true)
-    const { programs } = await getPrograms()
+    const [{ programs }, conferenceState] = await Promise.all([
+      getPrograms(),
+      getConferenceState()
+    ])
     setPrograms(programs)
+    setCurrentConferenceStatus(conferenceState.status)
+    setCurrentConferenceProgramId(
+      conferenceState.current_program_id?.toString() || "none"
+    )
+    setSavedCurrentProgramId(conferenceState.current_program_id)
 
     if (programs.length > 0) {
-      setSelectedProgram(programs[0])
+      const currentProgram = programs.find(
+        (program) => program.id === conferenceState.current_program_id
+      )
+      setSelectedProgram(currentProgram || programs[0])
     }
 
     setLoading(false)
+  }
+
+  const handleSaveConferenceState = async () => {
+    setSavingConferenceState(true)
+    try {
+      const currentProgramId =
+        currentConferenceStatus === "none"
+          ? null
+          : Number(currentConferenceProgramId)
+
+      if (currentConferenceStatus !== "none" && !currentProgramId) {
+        toast({
+          title: "Select a program",
+          description: "Planning and active states require a selected program.",
+          variant: "destructive"
+        })
+        return
+      }
+
+      const result = await setConferenceState({
+        status: currentConferenceStatus,
+        currentProgramId
+      })
+
+      if (result.error) {
+        toast({
+          title: "Current conference not updated",
+          description: result.error,
+          variant: "destructive"
+        })
+        return
+      }
+
+      const nextProgramId = result.state?.current_program_id || null
+      setSavedCurrentProgramId(nextProgramId)
+      setCurrentConferenceProgramId(nextProgramId?.toString() || "none")
+
+      if (nextProgramId) {
+        const currentProgram = programs.find((program) => program.id === nextProgramId)
+        if (currentProgram) {
+          setSelectedProgram(currentProgram)
+        }
+      }
+
+      toast({
+        title: "Current conference updated",
+        description:
+          currentConferenceStatus === "active"
+            ? "The selected program is now live in the mobile app."
+            : currentConferenceStatus === "planning"
+              ? "The mobile app will show the planning page for this program."
+              : "The mobile app will show the no-conference page."
+      })
+    } finally {
+      setSavingConferenceState(false)
+    }
   }
 
   const loadProgramData = async (programId: number) => {
     const [
       eventsResult,
       categoriesResult,
-      venueRoomsResult,
       venueResult,
       foodResult,
       activitiesResult,
@@ -910,7 +981,6 @@ export default function ProgramManagementContent({
     ] = await Promise.all([
       getEvents(programId),
       getEventCategories(programId),
-      getVenueRooms(programId),
       getVenue(programId),
       getFoodItems(programId),
       getActivities(programId),
@@ -919,7 +989,6 @@ export default function ProgramManagementContent({
 
     setEvents(eventsResult.events)
     setCategories(categoriesResult.categories)
-    setVenueRooms(venueRoomsResult.rooms)
     setFoodItems(foodResult.foodItems)
     setActivities(activitiesResult.activities)
     setHospitalityHours(hospitalityResult.hospitalityHours || [])
@@ -1133,7 +1202,10 @@ export default function ProgramManagementContent({
 
   const openEditProgram = () => {
     if (selectedProgram) {
-      const location = selectedProgram.location || {}
+      const location =
+        typeof selectedProgram.location === "string"
+          ? {}
+          : selectedProgram.location || {}
       const address = location.address || {}
 
       console.log("Opening edit program with:", {
@@ -1483,6 +1555,97 @@ export default function ProgramManagementContent({
         </div>
       </div>
 
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Current Conference</CardTitle>
+              <CardDescription>
+                Controls what the mobile app loads for attendees.
+              </CardDescription>
+            </div>
+            <Badge
+              variant={
+                currentConferenceStatus === "active"
+                  ? "default"
+                  : currentConferenceStatus === "planning"
+                    ? "secondary"
+                    : "outline"
+              }
+              className="w-fit capitalize"
+            >
+              {currentConferenceStatus}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-[180px_1fr_auto] md:items-end">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={currentConferenceStatus}
+                onValueChange={(value) => {
+                  const status = value as ConferenceStatus
+                  setCurrentConferenceStatus(status)
+                  if (status === "none") {
+                    setCurrentConferenceProgramId("none")
+                  } else if (
+                    currentConferenceProgramId === "none" &&
+                    selectedProgram
+                  ) {
+                    setCurrentConferenceProgramId(selectedProgram.id.toString())
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Current</SelectItem>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Program</Label>
+              <Select
+                value={currentConferenceProgramId}
+                disabled={currentConferenceStatus === "none"}
+                onValueChange={setCurrentConferenceProgramId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select current program" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" disabled>
+                    Select a program
+                  </SelectItem>
+                  {programs.map((program) => (
+                    <SelectItem key={program.id} value={program.id.toString()}>
+                      {program.title}
+                      {program.id === savedCurrentProgramId ? " (current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Planning shows a branded holding page. Active unlocks the full
+                program in the app.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleSaveConferenceState}
+              disabled={savingConferenceState}
+            >
+              {savingConferenceState ? "Saving..." : "Save State"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {!selectedProgram && (
         <Card>
           <CardHeader>
@@ -1799,7 +1962,7 @@ export default function ProgramManagementContent({
                       </Label>
                       <HostCommitteeEditor 
                         programId={selectedProgram.id} 
-                        initialData={selectedProgram.host_committee}
+                        initialData={selectedProgram.host_committee || undefined}
                       />
                     </div>
                   </CardContent>
@@ -1887,7 +2050,7 @@ export default function ProgramManagementContent({
                         <h4 className="font-semibold text-sm mb-2">Floors</h4>
                         {venue.floors && venue.floors.length > 0 ? (
                           <div className="space-y-2">
-                            {venue.floors.map((floor: any, index: number) => (
+                            {venue.floors.map((floor: VenueFloor, index: number) => (
                               <div key={index} className="text-sm">
                                 <span className="font-medium">{floor.name}</span>
                                 {floor.description && (
@@ -1907,7 +2070,7 @@ export default function ProgramManagementContent({
                         <h4 className="font-semibold text-sm mb-2">Amenities</h4>
                         {venue.amenities && venue.amenities.length > 0 ? (
                           <div className="space-y-2">
-                            {venue.amenities.map((amenity: any, index: number) => (
+                            {venue.amenities.map((amenity: VenueAmenity, index: number) => (
                               <div key={index} className="text-sm">
                                 <span className="font-medium">{amenity.name}</span>
                                 {amenity.description && (
@@ -4486,7 +4649,7 @@ export default function ProgramManagementContent({
                 Add floor maps and descriptions for the venue
               </p>
               <div className="space-y-3">
-                {(venue?.floors || []).map((floor: any, index: number) => (
+                {(venue?.floors || []).map((floor: VenueFloor, index: number) => (
                   <Card key={index}>
                     <CardContent className="pt-4">
                       <div className="grid gap-3">
@@ -4522,7 +4685,8 @@ export default function ProgramManagementContent({
                           size="sm"
                           onClick={() => {
                             if (venue) {
-                              const newFloors = (venue.floors || []).filter((_: any, i: number) => i !== index)
+                              const newFloors = [...(venue.floors || [])]
+                              newFloors.splice(index, 1)
                               setVenue({ ...venue, floors: newFloors })
                             }
                           }}
@@ -4568,7 +4732,7 @@ export default function ProgramManagementContent({
                 List venue amenities and accessibility features
               </p>
               <div className="space-y-3">
-                {(venue?.amenities || []).map((amenity: any, index: number) => (
+                {(venue?.amenities || []).map((amenity: VenueAmenity, index: number) => (
                   <Card key={index}>
                     <CardContent className="pt-4">
                       <div className="grid gap-3">
@@ -4595,7 +4759,8 @@ export default function ProgramManagementContent({
                           size="sm"
                           onClick={() => {
                             if (venue) {
-                              const newAmenities = (venue.amenities || []).filter((_: any, i: number) => i !== index)
+                              const newAmenities = [...(venue.amenities || [])]
+                              newAmenities.splice(index, 1)
                               setVenue({ ...venue, amenities: newAmenities })
                             }
                           }}
@@ -5232,7 +5397,10 @@ export default function ProgramManagementContent({
                   }
 
                   try {
-                    const result = await parseXLSXHospitalityData(file)
+                    const result = await parseXLSXHospitalityData(file, {
+                      startDate: selectedProgram?.start_date,
+                      endDate: selectedProgram?.end_date
+                    })
                     setUploadedHospitalitySlots(result.slots)
                     
                     if (result.errors.length > 0) {
@@ -5369,7 +5537,7 @@ export default function ProgramManagementContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Food Option</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{foodToDelete?.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{foodToDelete?.name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -5399,7 +5567,7 @@ export default function ProgramManagementContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Activity</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{activityToDelete?.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{activityToDelete?.name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

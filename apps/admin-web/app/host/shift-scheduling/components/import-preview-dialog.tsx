@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -9,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertTriangle, CheckCircle, Plus, Edit, Trash, Upload } from "lucide-react"
 import { ImportPreview } from "../schedule-utils"
-import { format } from "date-fns"
 
 interface ImportPreviewDialogProps {
   open: boolean

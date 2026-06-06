@@ -4,6 +4,81 @@ import { logActivity } from "@/lib/audit-logger"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 
+export interface ProgramLocation {
+  name?: string
+  address?: {
+    street?: string
+    suite?: string
+    city?: string
+    state?: string
+    zip?: string
+  }
+}
+
+export interface ProgramHospitality {
+  location?: string
+  times?: Array<{
+    day?: string
+    start_time?: string
+    end_time?: string
+  }>
+}
+
+export interface ProgramDesign {
+  colors?: {
+    primary?: string
+    secondary?: string
+    primaryDark?: string
+    secondaryDark?: string
+    background?: string
+    text?: string
+    info?: string
+    success?: string
+    warning?: string
+    error?: string
+  }
+}
+
+interface ProgramServiceContent {
+  title?: string
+  description?: string
+  internal_description?: string
+}
+
+export interface ProgramContent {
+  faq?: Array<{
+    question?: string
+    answer?: string
+  }>
+  services?: {
+    rides?: ProgramServiceContent
+    support?: ProgramServiceContent
+    hospitality?: ProgramServiceContent
+    volunteering?: ProgramServiceContent
+    accessibility?: ProgramServiceContent
+  }
+}
+
+interface CommitteeMember {
+  name: string
+  role: string
+}
+
+export type HostCommitteeData = Record<string, CommitteeMember[]>
+
+export interface VenueFloor {
+  name?: string
+  description?: string
+  url?: string
+  rooms?: string[]
+}
+
+export interface VenueAmenity {
+  name?: string
+  description?: string
+  location?: string
+}
+
 export interface Program {
   id: number
   title: string
@@ -11,15 +86,15 @@ export interface Program {
   logo: string
   start_date: string
   end_date: string
-  location: any
+  location: ProgramLocation | string | null
   venue_rooms: string[]
-  hospitality: any
+  hospitality: ProgramHospitality | null
   theme: string
   big_book_passage: string
-  design: any
+  design: ProgramDesign | null
   promote: number[]
-  content: any
-  host_committee?: any // JSONB field with committee structure
+  content: ProgramContent | null
+  host_committee?: HostCommitteeData | null // JSONB field with committee structure
 }
 
 export interface Event {
@@ -52,8 +127,8 @@ export interface EventCategory {
 export interface Venue {
   id: number
   program_id: number
-  floors: any
-  amenities: any
+  floors: VenueFloor[]
+  amenities: VenueAmenity[]
 }
 
 export interface Food {

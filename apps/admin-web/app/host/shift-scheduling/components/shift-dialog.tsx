@@ -8,8 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Shift, JOB_TYPES, CONFERENCE_DATES } from "../types"
-import { format } from "date-fns"
+import { Shift, JOB_TYPES, type ConferenceDateRange } from "../types"
 import { X } from "lucide-react"
 
 interface ShiftDialogProps {
@@ -19,6 +18,7 @@ interface ShiftDialogProps {
   onSave: (shift: Partial<Shift>) => void
   onDelete?: (shiftId: string) => void
   venueRooms: string[]
+  conferenceDates: ConferenceDateRange
 }
 
 export default function ShiftDialog({
@@ -27,10 +27,12 @@ export default function ShiftDialog({
   shift,
   onSave,
   onDelete,
-  venueRooms
+  venueRooms,
+  conferenceDates
 }: ShiftDialogProps) {
+  const defaultDate = conferenceDates.start || new Date().toISOString().slice(0, 10)
   const [formData, setFormData] = useState({
-    date: CONFERENCE_DATES.start,
+    date: defaultDate,
     start_time: "09:00",
     end_time: "11:00",
     job_type: JOB_TYPES[0].name,
@@ -55,7 +57,7 @@ export default function ShiftDialog({
       })
     } else {
       setFormData({
-        date: CONFERENCE_DATES.start,
+        date: defaultDate,
         start_time: "09:00",
         end_time: "11:00",
         job_type: JOB_TYPES[0].name,
@@ -65,7 +67,7 @@ export default function ShiftDialog({
         notes: ""
       })
     }
-  }, [shift])
+  }, [shift, defaultDate])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,8 +117,8 @@ export default function ShiftDialog({
             <Input
               id="date"
               type="date"
-              min={CONFERENCE_DATES.start}
-              max={CONFERENCE_DATES.end}
+              min={conferenceDates.start || undefined}
+              max={conferenceDates.end || undefined}
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               required

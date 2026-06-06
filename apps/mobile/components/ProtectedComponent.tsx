@@ -5,8 +5,6 @@ import { useRole } from "../context/RoleContext"
 import { useTheme } from "../context/ThemeContext"
 import { Permission, UserRole } from "../lib/roleChecker"
 
-type FeatureFlag = keyof typeof import("../context/FeatureContext")["useFeatures"] extends () => { features: infer T } ? T : never
-
 interface ProtectedComponentProps {
   children: React.ReactNode
   requiredPermissions?: Permission[]
@@ -50,7 +48,6 @@ export const ProtectedComponent: React.FC<ProtectedComponentProps> = ({
   const {
     loading: roleLoading,
     isAuthenticated,
-    hasPermission,
     hasAllPermissions,
     hasAnyPermission,
     isRole,
@@ -178,7 +175,7 @@ export const withPermissions = (
   requireAll: boolean = false
 ) => {
   return <P extends object>(Component: React.ComponentType<P>) => {
-    return (props: P) => (
+    const WithPermissions = (props: P) => (
       <ProtectedComponent
         requiredPermissions={requiredPermissions}
         requiredRoles={requiredRoles}
@@ -187,6 +184,10 @@ export const withPermissions = (
         <Component {...props} />
       </ProtectedComponent>
     )
+    WithPermissions.displayName = `withPermissions(${
+      Component.displayName || Component.name || "Component"
+    })`
+    return WithPermissions
   }
 }
 
@@ -205,7 +206,7 @@ export const withFeatures = (
   requireAll: boolean = false
 ) => {
   return <P extends object>(Component: React.ComponentType<P>) => {
-    return (props: P) => (
+    const WithFeatures = (props: P) => (
       <ProtectedComponent
         requiredFeatures={requiredFeatures}
         requireAll={requireAll}
@@ -213,5 +214,9 @@ export const withFeatures = (
         <Component {...props} />
       </ProtectedComponent>
     )
+    WithFeatures.displayName = `withFeatures(${
+      Component.displayName || Component.name || "Component"
+    })`
+    return WithFeatures
   }
 }

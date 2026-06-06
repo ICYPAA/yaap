@@ -1,30 +1,36 @@
 import SentryLogger from "@/lib/sentryLogging"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { Session } from "@supabase/supabase-js"
 import { useFonts } from "expo-font"
 import * as Linking from "expo-linking"
 import * as Notifications from "expo-notifications"
-import { Stack, useRouter, useSegments } from "expo-router"
+import { Stack } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { StatusBar } from "expo-status-bar"
 import * as Updates from "expo-updates"
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { AppState, Platform } from "react-native"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
+import { ConferenceStatusScreen } from "../components/ConferenceStatusScreen"
 import { SafetyModal, useSafetyModal } from "../components/SafetyModal"
 import { TutorialModal } from "../components/TutorialModal"
+import {
+  CurrentConferenceProvider,
+  useCurrentConference
+} from "../context/CurrentConferenceContext"
 import { DebugProvider } from "../context/DebugContext"
 import { FeatureProvider } from "../context/FeatureContext"
 import { I18nProvider } from "../context/I18nContext"
 import { RoleProvider } from "../context/RoleContext"
 import { ThemeProvider, useTheme } from "../context/ThemeContext"
+import {
+  CurrentConferenceState,
+  fetchAndStoreCurrentConferenceState
+} from "../lib/currentConference"
 import { getOrCreateDeviceId } from "../lib/security/deviceId"
 import { checkAppIntegrity } from "../lib/security/integrity"
 import { getSessionManager } from "../lib/security/session"
-import { supabase, withDeviceId } from "../lib/supabase"
-import { storeProgramDesign } from "../lib/theme"
-import { Program } from "../types/program"
+import { withDeviceId } from "../lib/supabase"
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync()
@@ -37,15 +43,6 @@ Notifications.setNotificationHandler({
     shouldSetBadge: true
   })
 })
-
-// Helper function to handle registration errors
-function handleRegistrationError(errorMessage: string) {
-  // Consider using a more robust error handling mechanism than alert
-  // For now, logging to console and throwing error as per example
-  console.error("Push Notification Registration Error:", errorMessage)
-  // alert(errorMessage); // Alert can be disruptive, prefer console logging
-  // throw new Error(errorMessage); // Throwing might crash the app depending on context
-}
 
 // Function to register for push notifications
 async function registerForPushNotificationsAsync() {
@@ -102,6 +99,7 @@ async function registerForPushNotificationsAsync() {
 
 function RootLayoutNav() {
   const { theme, isDarkMode } = useTheme()
+  const currentConference = useCurrentConference()
   const { shouldShow: shouldShowSafety, markAsViewed: markSafetyAsViewed } =
     useSafetyModal()
   const [tutorialClosed, setTutorialClosed] = useState(false)
@@ -125,6 +123,15 @@ function RootLayoutNav() {
   const handleSafetyClose = () => {
     setShowSafetyModal(false)
     markSafetyAsViewed()
+  }
+
+  if (currentConference.status !== "active") {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style={isDarkMode ? "light" : "dark"} />
+        <ConferenceStatusScreen />
+      </SafeAreaProvider>
+    )
   }
 
   return (
@@ -171,10 +178,8 @@ export default function RootLayout() {
   const notificationListener = useRef<Notifications.EventSubscription>()
   const responseListener = useRef<Notifications.EventSubscription>()
   const [programLoaded, setProgramLoaded] = useState(false)
-  const [session, setSession] = useState<Session | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const router = useRouter()
-  const segments = useSegments()
+  const [conferenceState, setConferenceState] =
+    useState<CurrentConferenceState | null>(null)
   const appState = useRef(AppState.currentState)
   const schedulePollingInterval = useRef<NodeJS.Timeout | null>(null)
 
@@ -183,60 +188,18 @@ export default function RootLayout() {
   }, [error])
 
   // Function to get device identifier - now uses secure device ID
-  const getIdentifier = async () => {
+  const getIdentifier = useCallback(async () => {
     return await getOrCreateDeviceId()
-  }
-
-  useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then(({ data: { session: initialSession } }) => {
-        setSession(initialSession)
-        setAuthLoading(false)
-      })
-      .catch((err) => {
-        console.error("RootLayout: Error getting initial session:", err)
-        setAuthLoading(false)
-      })
-
-    // Set up the listener
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      // Just update the session state, let individual layouts handle their own navigation
-      setSession(currentSession)
-    })
-
-    // Cleanup function
-    return () => {
-      subscription?.unsubscribe()
-    }
-  }, [router, segments])
+  }, [])
 
   Notifications.requestPermissionsAsync()
 
   useEffect(() => {
     const fetchProgramData = async () => {
       try {
-        const programId = 3
-        const supabaseWithDeviceId = await withDeviceId()
-        const { data, error } = await supabaseWithDeviceId
-          .from("programs")
-          .select("*")
-          .eq("id", programId)
-          .maybeSingle()
-
-        if (error) {
-          console.error("Error fetching program data:", error)
-          setProgramLoaded(true)
-          return
-        }
-
-        if (data) {
-          await storeProgramDesign(data as Program)
-          console.log("Program data stored successfully")
-        }
-
+        const state = await fetchAndStoreCurrentConferenceState()
+        setConferenceState(state)
+        console.log("Current conference state stored successfully")
         setProgramLoaded(true)
       } catch (error) {
         console.error("Error in fetchProgramData:", error)
@@ -355,7 +318,7 @@ export default function RootLayout() {
           Notifications.removeNotificationSubscription(responseListener.current)
       }
     }
-  }, [loaded, programLoaded])
+  }, [getIdentifier, loaded, programLoaded])
 
   // Initialize URL handler
   useEffect(() => {
@@ -388,7 +351,7 @@ export default function RootLayout() {
   }, [])
 
   // Function to fetch user schedule and store it in AsyncStorage
-  const fetchAndStoreUserSchedule = async () => {
+  const fetchAndStoreUserSchedule = useCallback(async () => {
     try {
       const deviceId = await getIdentifier()
       if (!deviceId) {
@@ -437,7 +400,7 @@ export default function RootLayout() {
     } catch (error) {
       console.error("Error in fetchAndStoreUserSchedule:", error)
     }
-  }
+  }, [getIdentifier])
 
   // Setup schedule polling
   useEffect(() => {
@@ -495,7 +458,7 @@ export default function RootLayout() {
         schedulePollingInterval.current = null
       }
     }
-  }, [loaded, programLoaded])
+  }, [fetchAndStoreUserSchedule, loaded, programLoaded])
 
   useEffect(() => {
     SentryLogger.init()
@@ -510,13 +473,15 @@ export default function RootLayout() {
   return (
     <I18nProvider>
       <ThemeProvider>
-        <DebugProvider>
-          <FeatureProvider>
-            <RoleProvider>
-              <RootLayoutNav />
-            </RoleProvider>
-          </FeatureProvider>
-        </DebugProvider>
+        <CurrentConferenceProvider initialState={conferenceState}>
+          <DebugProvider>
+            <FeatureProvider>
+              <RoleProvider>
+                <RootLayoutNav />
+              </RoleProvider>
+            </FeatureProvider>
+          </DebugProvider>
+        </CurrentConferenceProvider>
       </ThemeProvider>
     </I18nProvider>
   )

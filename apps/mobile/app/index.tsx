@@ -4,8 +4,6 @@ import { Image, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useTheme } from "../context/ThemeContext"
 
-const HAS_LAUNCHED_KEY = "hasLaunchedApp"
-
 export default function LandingScreen() {
   const { theme } = useTheme()
   const styles = createStyles(theme)

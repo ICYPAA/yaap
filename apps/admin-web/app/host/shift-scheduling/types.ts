@@ -10,6 +10,7 @@ export interface ShiftAssignment {
 
 export interface Shift {
   id: string
+  program_id?: number | null
   date: string
   start_time: string
   end_time: string
@@ -50,15 +51,55 @@ export const JOB_TYPES = [
   { name: 'Entertainment', color: '#A855F7' }
 ]
 
-// Use CST timezone - dates are already in CST from the database
-// No timezone conversion needed
-export const CONFERENCE_DATES = {
-  start: '2025-08-28',
-  end: '2025-08-31',
-  days: [
-    { date: '2025-08-28', label: 'Thursday, Aug 28' },
-    { date: '2025-08-29', label: 'Friday, Aug 29' },
-    { date: '2025-08-30', label: 'Saturday, Aug 30' },
-    { date: '2025-08-31', label: 'Sunday, Aug 31' }
-  ]
+export interface ConferenceDay {
+  date: string
+  label: string
+}
+
+export interface ConferenceDateRange {
+  start: string
+  end: string
+  days: ConferenceDay[]
+}
+
+export const EMPTY_CONFERENCE_DATES: ConferenceDateRange = {
+  start: "",
+  end: "",
+  days: []
+}
+
+const toDateOnly = (value?: string | null) => {
+  if (!value) return ""
+  return value.split("T")[0]
+}
+
+const formatDayLabel = (date: string) =>
+  new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric"
+  })
+
+export function buildConferenceDateRange(program?: {
+  start_date?: string | null
+  end_date?: string | null
+} | null): ConferenceDateRange {
+  const start = toDateOnly(program?.start_date)
+  const end = toDateOnly(program?.end_date)
+
+  if (!start || !end) {
+    return EMPTY_CONFERENCE_DATES
+  }
+
+  const days: ConferenceDay[] = []
+  const cursor = new Date(`${start}T12:00:00`)
+  const endDate = new Date(`${end}T12:00:00`)
+
+  while (cursor <= endDate) {
+    const date = cursor.toISOString().slice(0, 10)
+    days.push({ date, label: formatDayLabel(date) })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return { start, end, days }
 }

@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react"
 import { parseCleanupSpreadsheet, type CleanupEntry } from "@/utils/xlsx-cleanup-parser"
-import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -19,26 +18,25 @@ import {
 } from "@/components/ui/table"
 
 interface CleanupUploadProps {
+  conferenceDates: string[]
   onUploadSuccess?: (entries: CleanupEntry[]) => Promise<void>
 }
 
-export default function CleanupUpload({ onUploadSuccess }: CleanupUploadProps) {
+export default function CleanupUpload({ conferenceDates, onUploadSuccess }: CleanupUploadProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [previewData, setPreviewData] = useState<CleanupEntry[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [file, setFile] = useState<File | null>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (!selectedFile) return
 
-    setFile(selectedFile)
     setError(null)
     setIsProcessing(true)
 
     try {
-      const entries = await parseCleanupSpreadsheet(selectedFile)
+      const entries = await parseCleanupSpreadsheet(selectedFile, conferenceDates)
       setPreviewData(entries)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse spreadsheet")
@@ -64,7 +62,6 @@ export default function CleanupUpload({ onUploadSuccess }: CleanupUploadProps) {
     setIsDialogOpen(false)
     setPreviewData([])
     setError(null)
-    setFile(null)
   }
 
   // Group entries by person for summary
@@ -100,7 +97,7 @@ export default function CleanupUpload({ onUploadSuccess }: CleanupUploadProps) {
             </DialogTitle>
             <DialogDescription>
               Upload an Excel spreadsheet with cleanup volunteer information.
-              Format: A=Name, B=Location, C=Date/Time (e.g., "Thur-Sat 6pm-6:45pm"), D=Phone
+              Format: A=Name, B=Location, C=Date/Time (e.g., &quot;Thur-Sat 6pm-6:45pm&quot;), D=Phone
             </DialogDescription>
           </DialogHeader>
 

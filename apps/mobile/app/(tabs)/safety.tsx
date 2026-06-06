@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useTheme } from "../../context/ThemeContext"
 import { withDeviceId } from "../../lib/supabase"
 
@@ -30,19 +31,22 @@ interface NDAHContent {
 
 export default function Safety() {
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const styles = createStyles(theme)
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [ndahContent, setNdahContent] = useState<NDAHContent | null>(null)
   const [loading, setLoading] = useState(true)
   const [policyExpanded, setPolicyExpanded] = useState(true)
 
-  useEffect(() => {
-    fetchNDAHContent()
-  }, [])
-
-  const fetchNDAHContent = async () => {
+  const fetchNDAHContent = useCallback(async () => {
     try {
-      // Program ID - hardcoded for now, matching other tabs
-      const programId = 3
+      if (!programId) {
+        setNdahContent(null)
+        return
+      }
 
       const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await supabaseWithDeviceId
@@ -61,7 +65,11 @@ export default function Safety() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [programId])
+
+  useEffect(() => {
+    fetchNDAHContent()
+  }, [fetchNDAHContent])
 
   const openPolicyLink = () => {
     const link = ndahContent?.ndah_link || "https://icypaa.org/ndahp.pdf"

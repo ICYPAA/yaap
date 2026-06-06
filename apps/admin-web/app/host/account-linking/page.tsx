@@ -40,13 +40,12 @@ import {
   Link as LinkIcon,
   Mail,
   Phone,
-  Plus,
   Search,
   Unlink,
   User,
   X
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import {
   checkAccountLinkingPermission,
@@ -66,7 +65,6 @@ export default function AccountLinkingPage() {
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([])
   const [unlinkedChairpeople, setUnlinkedChairpeople] = useState<Chairperson[]>([])
   const [unlinkedVolunteers, setUnlinkedVolunteers] = useState<Volunteer[]>([])
-  const [allVolunteers, setAllVolunteers] = useState<Volunteer[]>([])
   const [allChairpeople, setAllChairpeople] = useState<Chairperson[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedTab, setSelectedTab] = useState("linked")
@@ -74,11 +72,34 @@ export default function AccountLinkingPage() {
   const [selectedUserId, setSelectedUserId] = useState<string>("")
   const [editingPhone, setEditingPhone] = useState<{ userId: string; phone: string } | null>(null)
 
-  useEffect(() => {
-    checkPermissionAndLoadData()
+  const loadData = useCallback(async () => {
+    try {
+      // Load linked accounts
+      const linkedResult = await getUsersWithLinkedAccounts()
+      if (linkedResult.error) {
+        toast.error(linkedResult.error)
+        return
+      }
+      
+      setLinkedAccounts(linkedResult.users || [])
+      setAllChairpeople(linkedResult.chairpeople || [])
+
+      // Load unlinked records
+      const unlinkedResult = await getUnlinkedRecords()
+      if (unlinkedResult.error) {
+        toast.error(unlinkedResult.error)
+        return
+      }
+      
+      setUnlinkedChairpeople(unlinkedResult.unlinkedChairpeople || [])
+      setUnlinkedVolunteers(unlinkedResult.unlinkedVolunteers || [])
+    } catch (error) {
+      console.error("Error loading data:", error)
+      toast.error("Failed to load account data")
+    }
   }, [])
 
-  const checkPermissionAndLoadData = async () => {
+  const checkPermissionAndLoadData = useCallback(async () => {
     try {
       setIsLoading(true)
       
@@ -99,35 +120,11 @@ export default function AccountLinkingPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [loadData])
 
-  const loadData = async () => {
-    try {
-      // Load linked accounts
-      const linkedResult = await getUsersWithLinkedAccounts()
-      if (linkedResult.error) {
-        toast.error(linkedResult.error)
-        return
-      }
-      
-      setLinkedAccounts(linkedResult.users || [])
-      setAllVolunteers(linkedResult.volunteers || [])
-      setAllChairpeople(linkedResult.chairpeople || [])
-
-      // Load unlinked records
-      const unlinkedResult = await getUnlinkedRecords()
-      if (unlinkedResult.error) {
-        toast.error(unlinkedResult.error)
-        return
-      }
-      
-      setUnlinkedChairpeople(unlinkedResult.unlinkedChairpeople || [])
-      setUnlinkedVolunteers(unlinkedResult.unlinkedVolunteers || [])
-    } catch (error) {
-      console.error("Error loading data:", error)
-      toast.error("Failed to load account data")
-    }
-  }
+  useEffect(() => {
+    checkPermissionAndLoadData()
+  }, [checkPermissionAndLoadData])
 
   const handleLinkChairperson = async () => {
     if (!linkingChairperson || !selectedUserId) {
@@ -241,7 +238,7 @@ export default function AccountLinkingPage() {
               Access Denied
             </CardTitle>
             <CardDescription>
-              You don't have permission to access account linking. This feature is only available to administrators and steering committee members.
+              You don&apos;t have permission to access account linking. This feature is only available to administrators and steering committee members.
             </CardDescription>
           </CardHeader>
         </Card>

@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
+import {
+  formatProgramDate,
+  formatProgramDateRange,
+  formatProgramLocation,
+  toDateOnly
+} from "@/lib/program-utils"
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const ALLOWED_DOMAINS = [
@@ -7,10 +14,6 @@ const ALLOWED_DOMAINS = [
   "localhost",
   "icypaa.life"
 ]
-
-// Conference dates
-const CONFERENCE_START_DATE = "2025-08-28"
-const CONFERENCE_END_DATE = "2025-08-31"
 
 export async function POST(request: NextRequest) {
   // Domain validation
@@ -33,10 +36,21 @@ export async function POST(request: NextRequest) {
   try {
     const requestData = await request.json()
     const { location, nearestAirport, startDate, endDate } = requestData
+    const program = await getCurrentProgramOrNull()
 
     // Use provided dates or default to conference dates
-    const travelStartDate = startDate || CONFERENCE_START_DATE
-    const travelEndDate = endDate || CONFERENCE_END_DATE
+    const travelStartDate = startDate || toDateOnly(program?.start_date)
+    const travelEndDate = endDate || toDateOnly(program?.end_date)
+    const conferenceName = program?.title || "the current conference"
+    const conferenceDestination = formatProgramLocation(program)
+    const conferenceDateRange = formatProgramDateRange(program)
+
+    if (!travelStartDate || !travelEndDate) {
+      return NextResponse.json(
+        { error: "Conference travel dates are not configured" },
+        { status: 400 }
+      )
+    }
 
     if (!location && !nearestAirport) {
       return NextResponse.json(
@@ -50,16 +64,16 @@ export async function POST(request: NextRequest) {
       "You are a flight search assistant. Please provide realistic flight information in JSON format "
 
     if (nearestAirport) {
-      prompt += `for flights from ${nearestAirport} to MSP (Minneapolis-Saint Paul International Airport) `
+      prompt += `for flights from ${nearestAirport} to ${conferenceDestination} `
     } else if (location) {
-      prompt += `from the nearest major airport to coordinates ${location.lat},${location.lng} to MSP (Minneapolis-Saint Paul International Airport) `
+      prompt += `from the nearest major airport to coordinates ${location.lat},${location.lng} to ${conferenceDestination} `
     }
 
-    prompt += `for the 65th ICYPAA conference travel dates:
-- Departure: ${travelStartDate} (August 28, 2025)
-- Return: ${travelEndDate} (August 31, 2025)
+    prompt += `for ${conferenceName} travel dates:
+- Departure: ${travelStartDate} (${formatProgramDate(travelStartDate)})
+- Return: ${travelEndDate} (${formatProgramDate(travelEndDate)})
 
-This is for the International Conference of Young People in Alcoholics Anonymous in Minneapolis, Minnesota. Please provide 3-5 realistic flight options with CURRENT MARKET PRICING for these specific dates.
+This is for ${conferenceName} at ${conferenceDestination} (${conferenceDateRange}). Please provide 3-5 realistic flight options with CURRENT MARKET PRICING for these specific dates.
 
 IMPORTANT PRICING GUIDANCE:
 - Use realistic, competitive pricing that reflects today's market rates
@@ -181,7 +195,7 @@ Important:
         conferenceInfo: {
           startDate: travelStartDate,
           endDate: travelEndDate,
-          destination: "Minneapolis, MN - 65th ICYPAA Conference"
+          destination: `${conferenceDestination} - ${conferenceName}`
         }
       })
     } catch (parseError) {
@@ -189,9 +203,7 @@ Important:
       console.error("Raw response:", textResponse)
 
       // Fallback: create some realistic dummy data based on the airport
-      const fallbackFlights = generateFallbackFlights(
-        nearestAirport || "Unknown"
-      )
+      const fallbackFlights = generateFallbackFlights()
 
       return NextResponse.json({
         flights: fallbackFlights,
@@ -200,7 +212,7 @@ Important:
         conferenceInfo: {
           startDate: travelStartDate,
           endDate: travelEndDate,
-          destination: "Minneapolis, MN - 65th ICYPAA Conference"
+          destination: `${conferenceDestination} - ${conferenceName}`
         }
       })
     }
@@ -214,7 +226,7 @@ Important:
 }
 
 // Generate fallback flight data when AI parsing fails
-function generateFallbackFlights(airport: string) {
+function generateFallbackFlights() {
   const airlines = [
     "American Airlines",
     "Delta Air Lines",

@@ -69,9 +69,6 @@ export async function parseXLSXMeetingData(
       throw new Error("No data found in the spreadsheet")
     }
 
-    // Get headers from the first row
-    const headers = Object.keys(jsonData[0])
-
     jsonData.forEach((row, index) => {
       try {
         // Extract basic meeting information based on specific column positions
@@ -81,8 +78,7 @@ export async function parseXLSXMeetingData(
         const membersGoing = rowValues[1]?.toString().trim() || ""
         const time = rowValues[2]?.toString().trim() || ""
         const location = rowValues[3]?.toString().trim() || ""
-        const link = rowValues[4]?.toString().trim() || ""
-        
+
         // Skip row 1 if empty
         if (index === 0 && !meetingName && !membersGoing && !time && !location) {
           return

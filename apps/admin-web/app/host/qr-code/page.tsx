@@ -16,7 +16,7 @@ import QRCode from "qrcode"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 export default function QRGenerator() {
-  const [url, setUrl] = useState("https://65thicypaa.org")
+  const [url, setUrl] = useState("https://icypaa.org")
   const [qrDataUrl, setQrDataUrl] = useState("")
   const [size, setSize] = useState(512)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -101,7 +101,7 @@ export default function QRGenerator() {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://65thicypaa.org"
+              placeholder="https://icypaa.org"
               className="flex-1"
             />
           </div>

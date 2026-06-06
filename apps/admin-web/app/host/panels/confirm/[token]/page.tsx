@@ -6,6 +6,8 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
+import { buildProgramTemplateContext } from "@/lib/panel-notification-templates"
 import { createClient } from "@/utils/supabase/server"
 import { CheckCircle, Clock, MapPin, Users, XCircle } from "lucide-react"
 import { notFound } from "next/navigation"
@@ -76,6 +78,9 @@ export default async function ConfirmPanelPage({ params }: Props) {
 
   const isAlreadyConfirmed = notification.confirmed_at !== null
   const isWithdrawn = notification.denied_at !== null
+  const programContext = buildProgramTemplateContext(
+    await getCurrentProgramOrNull()
+  )
 
   return (
     <div className="min-h-screen bg-background py-12">
@@ -86,8 +91,7 @@ export default async function ConfirmPanelPage({ params }: Props) {
               Panel Confirmation
             </h1>
             <p className="text-muted-foreground">
-              65th International Conference of Young People in Alcoholics
-              Anonymous
+              {programContext.title}
             </p>
             {isTestToken && (
               <div className="mx-auto max-w-md p-3 bg-yellow-100 border border-yellow-300 rounded-lg dark:bg-yellow-900 dark:border-yellow-700">
@@ -261,7 +265,7 @@ export default async function ConfirmPanelPage({ params }: Props) {
             <p className="mt-1">
               In Unity and Service,
               <br />
-              The 65th ICYPAA Program Committee
+              {programContext.programCommitteeName}
             </p>
           </div>
         </div>

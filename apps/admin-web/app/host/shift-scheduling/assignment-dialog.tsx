@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,18 +8,56 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, UserPlus, Clock, MapPin, AlertTriangle, Star, X, CheckCircle } from "lucide-react"
-import { format, differenceInMinutes } from "date-fns"
+import { UserPlus, Clock, MapPin, AlertTriangle, Star, X, CheckCircle } from "lucide-react"
+import { format } from "date-fns"
+
+interface ShiftAssignment {
+  id: string
+  volunteer_id?: string | null
+  volunteer_email?: string | null
+  volunteer_name?: string | null
+  is_host_member?: boolean
+  status?: string | null
+}
+
+interface ShiftOption {
+  id: string
+  name?: string
+  start_time: string
+  end_time: string
+  min_volunteers: number
+  max_volunteers: number
+  location?: string | null
+  job_types?: {
+    name?: string | null
+    color?: string | null
+  } | null
+  shift_assignments: ShiftAssignment[]
+}
+
+interface VolunteerOption {
+  id?: string | null
+  full_name?: string | null
+  volunteer_name?: string | null
+  email?: string | null
+  volunteer_email?: string | null
+  isHost?: boolean
+}
+
+type SuggestedVolunteer = VolunteerOption & {
+  score: number
+  conflicts: ShiftOption[]
+}
 
 interface AssignmentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  shift: any | null
-  registeredVolunteers: any[]
-  previousVolunteers: any[]
-  onAssign: (shift: any, volunteer: any) => void
-  onRemove: (shift: any, assignmentId: string) => void
-  shifts: any[]
+  shift: ShiftOption | null
+  registeredVolunteers: VolunteerOption[]
+  previousVolunteers: VolunteerOption[]
+  onAssign: (shift: ShiftOption, volunteer: VolunteerOption) => void
+  onRemove: (shift: ShiftOption, assignmentId: string) => void
+  shifts: ShiftOption[]
 }
 
 export default function AssignmentDialog({
@@ -36,14 +74,14 @@ export default function AssignmentDialog({
   const [newVolunteerName, setNewVolunteerName] = useState("")
   const [newVolunteerEmail, setNewVolunteerEmail] = useState("")
 
-  const getSuitabilityScore = (volunteer: any) => {
+  const getSuitabilityScore = useCallback((volunteer: VolunteerOption) => {
     if (!shift) return 0
     
     let score = 0
     
     const hasConflict = shifts.some(s => {
       if (s.id === shift.id) return false
-      const hasVolunteer = s.shift_assignments.some((a: any) => 
+      const hasVolunteer = s.shift_assignments.some((a) => 
         (volunteer.id && a.volunteer_id === volunteer.id) ||
         (volunteer.email && a.volunteer_email === volunteer.email)
       )
@@ -60,7 +98,7 @@ export default function AssignmentDialog({
     if (!hasConflict) score += 20
     
     const totalShifts = shifts.filter(s => 
-      s.shift_assignments.some((a: any) => 
+      s.shift_assignments.some((a) => 
         (volunteer.id && a.volunteer_id === volunteer.id) ||
         (volunteer.email && a.volunteer_email === volunteer.email)
       )
@@ -71,14 +109,14 @@ export default function AssignmentDialog({
     if (volunteer.id) score += 3
     
     return score
-  }
+  }, [shift, shifts])
 
-  const getConflicts = (volunteer: any) => {
+  const getConflicts = useCallback((volunteer: VolunteerOption) => {
     if (!shift) return []
     
     return shifts.filter(s => {
       if (s.id === shift.id) return false
-      const hasVolunteer = s.shift_assignments.some((a: any) => 
+      const hasVolunteer = s.shift_assignments.some((a) => 
         (volunteer.id && a.volunteer_id === volunteer.id) ||
         (volunteer.email && a.volunteer_email === volunteer.email)
       )
@@ -91,7 +129,7 @@ export default function AssignmentDialog({
       
       return shiftStart < sEnd && shiftEnd > sStart
     })
-  }
+  }, [shift, shifts])
 
   const suggestions = useMemo(() => {
     if (!shift) return []
@@ -112,7 +150,7 @@ export default function AssignmentDialog({
       }))
     ]
     
-    const alreadyAssigned = shift.shift_assignments.map((a: any) => a.volunteer_email || a.volunteer_id)
+    const alreadyAssigned = shift.shift_assignments.map((a) => a.volunteer_email || a.volunteer_id)
     
     return allVolunteers
       .filter(v => {
@@ -126,13 +164,20 @@ export default function AssignmentDialog({
         return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                email.toLowerCase().includes(searchQuery.toLowerCase())
       })
-      .map(v => ({
+      .map((v): SuggestedVolunteer => ({
         ...v,
         score: getSuitabilityScore(v),
         conflicts: getConflicts(v)
       }))
       .sort((a, b) => b.score - a.score)
-  }, [shift, registeredVolunteers, previousVolunteers, searchQuery, shifts])
+  }, [
+    getConflicts,
+    getSuitabilityScore,
+    shift,
+    registeredVolunteers,
+    previousVolunteers,
+    searchQuery
+  ])
 
   const handleAddNewVolunteer = () => {
     if (!newVolunteerName || !shift) return
@@ -203,7 +248,7 @@ export default function AssignmentDialog({
             {shift.shift_assignments.length > 0 ? (
               <ScrollArea className="h-[300px] w-full">
                 <div className="space-y-2">
-                  {shift.shift_assignments.map((assignment: any) => (
+                  {shift.shift_assignments.map((assignment) => (
                     <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-md">
                       <div className="flex items-center gap-2">
                         {assignment.is_host_member && (
@@ -276,7 +321,7 @@ export default function AssignmentDialog({
                           <div className="flex items-center gap-1 mt-1">
                             <AlertTriangle className="h-3 w-3 text-orange-500" />
                             <span className="text-xs text-orange-500">
-                              Conflicts with: {volunteer.conflicts.map((c: any) => c.name).join(", ")}
+                              Conflicts with: {volunteer.conflicts.map((c) => c.name).join(", ")}
                             </span>
                           </div>
                         )}

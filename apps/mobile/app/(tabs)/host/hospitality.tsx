@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
@@ -71,7 +72,12 @@ interface ThemeType {
 export default function HospitalityNotifications() {
   const router = useRouter()
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const { isDebugMode } = useDebug()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [notifications, setNotifications] = useState<HospitalityNotification[]>(
     []
   )
@@ -87,59 +93,7 @@ export default function HospitalityNotifications() {
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
   const currentUserEmailRef = useRef<string | undefined>(undefined)
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session?.user) {
-        setCurrentUser(data.session.user.id)
-        currentUserEmailRef.current = data.session.user.email
-        
-        // Get user role and check permissions
-        const { role, permissions } = await getUserRoleAndPermissions(
-          data.session.user.id
-        )
-        
-        // Check if user can send notifications
-        const canSend = hasPermission(
-          role,
-          Permission.NOTIFICATIONS_SEND,
-          permissions
-        )
-        setCanSendNotifications(canSend)
-      }
-    }
-
-    getUser()
-    fetchNotifications()
-    setupRealtimeSubscription()
-
-    // Cleanup subscription when component unmounts
-    return () => {
-      if (subscriptionRef.current.unsubscribe) {
-        subscriptionRef.current.unsubscribe()
-      }
-    }
-  }, [])
-
-  // Refetch data when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log("Hospitality screen focused, fetching notifications")
-      fetchNotifications()
-      return () => {
-        // This runs when the screen is unfocused
-        console.log("Hospitality screen unfocused")
-      }
-    }, [])
-  )
-
-  useEffect(() => {
-    if (notifications.length > 0) {
-      filterNotifications(activeFilter)
-    }
-  }, [notifications, activeFilter])
-
-  const filterNotifications = (
+  const filterNotifications = useCallback((
     filter: "all" | "active" | "completed" | "closed"
   ) => {
     switch (filter) {
@@ -168,10 +122,21 @@ export default function HospitalityNotifications() {
         setFilteredNotifications(notifications)
         break
     }
-  }
+  }, [notifications])
 
-  const fetchNotifications = async () => {
+  useEffect(() => {
+    if (notifications.length > 0) {
+      filterNotifications(activeFilter)
+    }
+  }, [activeFilter, filterNotifications, notifications.length])
+
+  const fetchNotifications = useCallback(async () => {
     try {
+      if (!programId) {
+        setNotifications([])
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await makeRequest({
         table: "hospitality_forms",
@@ -180,7 +145,7 @@ export default function HospitalityNotifications() {
           supabaseWithDeviceId
             .from("hospitality_forms")
             .select("*")
-            .eq("program_id", 3)
+            .eq("program_id", programId)
             .order("created_at", { ascending: false })
       })
 
@@ -212,7 +177,19 @@ export default function HospitalityNotifications() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [isDebugMode, programId])
+
+  // Refetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Hospitality screen focused, fetching notifications")
+      fetchNotifications()
+      return () => {
+        // This runs when the screen is unfocused
+        console.log("Hospitality screen unfocused")
+      }
+    }, [fetchNotifications])
+  )
 
   const handleStatusUpdate = async (
     id: string,
@@ -277,8 +254,61 @@ export default function HospitalityNotifications() {
     }
   }
 
-  const setupRealtimeSubscription = async () => {
+  const handleNewNotification = useCallback((newRecord: any) => {
+    if (!newRecord) return
+
+    // Format the new notification with current user info if needed
+    const formattedNotification: HospitalityNotification = {
+      ...newRecord,
+      owner_email:
+        newRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : newRecord.owner_id
+          ? "User " + newRecord.owner_id.substring(0, 6)
+          : undefined
+    }
+
+    // Add to notifications list
+    setNotifications((prev) => [formattedNotification, ...prev])
+  }, [currentUser])
+
+  const handleUpdatedNotification = useCallback((updatedRecord: any) => {
+    if (!updatedRecord) return
+
+    // Format the updated notification with current user info
+    const formattedNotification: HospitalityNotification = {
+      ...updatedRecord,
+      owner_email:
+        updatedRecord.owner_id === currentUser
+          ? currentUserEmailRef.current
+          : updatedRecord.owner_id
+          ? "User " + updatedRecord.owner_id.substring(0, 6)
+          : undefined
+    }
+
+    // Update in the list
+    setNotifications((prev) =>
+      prev.map((notification) =>
+        notification.id === updatedRecord.id
+          ? formattedNotification
+          : notification
+      )
+    )
+  }, [currentUser])
+
+  const handleDeletedNotification = useCallback((id?: string) => {
+    if (!id) return
+
+    // Remove from the list
+    setNotifications((prev) =>
+      prev.filter((notification) => notification.id !== id)
+    )
+  }, [])
+
+  const setupRealtimeSubscription = useCallback(async () => {
     try {
+      if (!programId) return
+
       const supabaseWithDeviceId = await withDeviceId()
 
       const subscription = supabaseWithDeviceId
@@ -289,7 +319,7 @@ export default function HospitalityNotifications() {
             event: "*",
             schema: "public",
             table: "hospitality_forms",
-            filter: "program_id=eq.3"
+            filter: `program_id=eq.${programId}`
           },
           (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload
@@ -313,58 +343,46 @@ export default function HospitalityNotifications() {
     } catch (error) {
       console.error("Error setting up realtime subscription:", error)
     }
-  }
+  }, [
+    handleDeletedNotification,
+    handleNewNotification,
+    handleUpdatedNotification,
+    programId
+  ])
 
-  const handleNewNotification = (newRecord: any) => {
-    if (!newRecord) return
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session?.user) {
+        setCurrentUser(data.session.user.id)
+        currentUserEmailRef.current = data.session.user.email
 
-    // Format the new notification with current user info if needed
-    const formattedNotification: HospitalityNotification = {
-      ...newRecord,
-      owner_email:
-        newRecord.owner_id === currentUser
-          ? currentUserEmailRef.current
-          : newRecord.owner_id
-          ? "User " + newRecord.owner_id.substring(0, 6)
-          : undefined
+        // Get user role and check permissions
+        const { role, permissions } = await getUserRoleAndPermissions(
+          data.session.user.id
+        )
+
+        // Check if user can send notifications
+        const canSend = hasPermission(
+          role,
+          Permission.NOTIFICATIONS_SEND,
+          permissions
+        )
+        setCanSendNotifications(canSend)
+      }
     }
 
-    // Add to notifications list
-    setNotifications((prev) => [formattedNotification, ...prev])
-  }
+    getUser()
+    fetchNotifications()
+    setupRealtimeSubscription()
 
-  const handleUpdatedNotification = (updatedRecord: any) => {
-    if (!updatedRecord) return
-
-    // Format the updated notification with current user info
-    const formattedNotification: HospitalityNotification = {
-      ...updatedRecord,
-      owner_email:
-        updatedRecord.owner_id === currentUser
-          ? currentUserEmailRef.current
-          : updatedRecord.owner_id
-          ? "User " + updatedRecord.owner_id.substring(0, 6)
-          : undefined
+    // Cleanup subscription when component unmounts
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
     }
-
-    // Update in the list
-    setNotifications((prev) =>
-      prev.map((notification) =>
-        notification.id === updatedRecord.id
-          ? formattedNotification
-          : notification
-      )
-    )
-  }
-
-  const handleDeletedNotification = (id?: string) => {
-    if (!id) return
-
-    // Remove from the list
-    setNotifications((prev) =>
-      prev.filter((notification) => notification.id !== id)
-    )
-  }
+  }, [fetchNotifications, setupRealtimeSubscription])
 
   const renderItem = ({ item }: { item: HospitalityNotification }) => (
     <View style={styles(theme).notificationCard}>

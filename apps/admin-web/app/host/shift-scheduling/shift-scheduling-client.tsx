@@ -37,10 +37,8 @@ import {
   ChevronRight,
   Clock,
   Download,
-  Edit2,
   Grid3x3,
   Plus,
-  Trash2,
   Upload,
   User,
   UserPlus,
@@ -53,7 +51,7 @@ import { addVolunteer, deleteShift, saveShift, fetchVolunteers } from "./actions
 import AssignmentDialog from "./components/assignment-dialog"
 import ShiftDialog from "./components/shift-dialog"
 import {
-  CONFERENCE_DATES,
+  type ConferenceDateRange,
   JOB_TYPES,
   Shift,
   ShiftAssignment,
@@ -92,20 +90,23 @@ interface Props {
   allVolunteers: Volunteer[]
   currentUserId: string
   venueRooms: string[]
+  programId: number
+  programTitle: string
+  conferenceDates: ConferenceDateRange
 }
 
 export default function ShiftSchedulingClient({
   initialShifts,
   allVolunteers: initialVolunteers,
-  currentUserId,
-  venueRooms
+  venueRooms,
+  programId,
+  programTitle,
+  conferenceDates
 }: Props) {
   const [shifts, setShifts] = useState<Shift[]>(initialShifts)
   const [allVolunteers, setAllVolunteers] = useState<Volunteer[]>(initialVolunteers)
   const [viewMode, setViewMode] = useState<"day" | "job" | "person">("day")
-  const [selectedJobTypes, setSelectedJobTypes] = useState<string[]>(
-    JOB_TYPES.map((j) => j.name)
-  )
+  const selectedJobTypes = JOB_TYPES.map((j) => j.name)
   const [statusFilter, setStatusFilter] = useState<
     "all" | "unassigned" | "confirmed"
   >("all")
@@ -220,7 +221,7 @@ export default function ShiftSchedulingClient({
 
       // Find a column where this shift doesn't overlap
       let placed = false
-      for (let col of columns) {
+      for (const col of columns) {
         const hasOverlap = col.some((s) => {
           // Check if times overlap
           return shiftStart < s.end_time && shiftEnd > s.start_time
@@ -244,7 +245,10 @@ export default function ShiftSchedulingClient({
 
   const handleSaveShift = async (shiftData: Partial<Shift>) => {
     try {
-      const savedShift = await saveShift(shiftData as Shift)
+      const savedShift = await saveShift({
+        ...shiftData,
+        program_id: programId
+      } as Shift)
       if (selectedShift) {
         setShifts(
           shifts.map((s) => (s.id === selectedShift.id ? savedShift : s))
@@ -263,12 +267,6 @@ export default function ShiftSchedulingClient({
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null)
-
-  const handleDeleteShiftClick = async (shift: Shift, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setShiftToDelete(shift)
-    setDeleteConfirmOpen(true)
-  }
 
   const handleDeleteShift = async (shiftId: string) => {
     const shift = shifts.find(s => s.id === shiftId)
@@ -339,12 +337,6 @@ export default function ShiftSchedulingClient({
     } catch (error) {
       toast.error("Failed to remove assignment")
     }
-  }
-
-  const handleEditShift = (shift: Shift, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setSelectedShift(shift)
-    setShiftDialogOpen(true)
   }
 
   const renderShiftCard = (shift: Shift, compact = false) => {
@@ -467,12 +459,33 @@ export default function ShiftSchedulingClient({
     )
   }
 
+  const conferenceDateLabel =
+    conferenceDates.start && conferenceDates.end
+      ? `${conferenceDates.start} to ${conferenceDates.end}`
+      : "No conference dates configured"
+
+  if (conferenceDates.days.length === 0) {
+    return (
+      <div className="px-6 py-6 w-full">
+        <Card className="p-6">
+          <h1 className="text-2xl font-bold">Shift Scheduling</h1>
+          <p className="mt-2 text-muted-foreground">
+            Select a current program with conference dates before managing
+            shifts.
+          </p>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="px-6 py-6 w-full space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Shift Scheduling</h1>
-          <p className="text-muted-foreground">August 28-31, 2025 (CST)</p>
+          <p className="text-muted-foreground">
+            {programTitle} • {conferenceDateLabel}
+          </p>
         </div>
         <div className="flex gap-2">
           <input
@@ -483,10 +496,13 @@ export default function ShiftSchedulingClient({
               if (file) {
                 try {
                   const importedShifts = await importScheduleFromExcel(file)
+                  const importedShiftsWithProgram = importedShifts.map(
+                    (shift) => ({ ...shift, program_id: programId })
+                  )
 
                   // Merge imported shifts with existing ones
                   const shiftMap = new Map(shifts.map((s) => [s.id, s]))
-                  importedShifts.forEach((importedShift) => {
+                  importedShiftsWithProgram.forEach((importedShift) => {
                     shiftMap.set(importedShift.id, importedShift)
                   })
 
@@ -674,7 +690,7 @@ export default function ShiftSchedulingClient({
                     </Button>
 
                     <h3 className="text-lg font-semibold min-w-[200px] text-center">
-                      {CONFERENCE_DATES.days[selectedDayIndex].label}
+                      {conferenceDates.days[selectedDayIndex].label}
                     </h3>
 
                     <Button
@@ -683,13 +699,13 @@ export default function ShiftSchedulingClient({
                       onClick={() =>
                         setSelectedDayIndex(
                           Math.min(
-                            CONFERENCE_DATES.days.length - 1,
+                            conferenceDates.days.length - 1,
                             selectedDayIndex + 1
                           )
                         )
                       }
                       disabled={
-                        selectedDayIndex === CONFERENCE_DATES.days.length - 1
+                        selectedDayIndex === conferenceDates.days.length - 1
                       }
                     >
                       <ChevronRight className="h-4 w-4" />
@@ -720,7 +736,7 @@ export default function ShiftSchedulingClient({
                       <div className="flex-1 relative">
                         {(() => {
                           const dayShifts = getShiftsForDay(
-                            CONFERENCE_DATES.days[selectedDayIndex].date
+                            conferenceDates.days[selectedDayIndex].date
                           )
 
                           // Group shifts by job type for consistent column placement
@@ -752,7 +768,7 @@ export default function ShiftSchedulingClient({
 
                           // Filter out empty columns and create final column array
                           const columns = Object.entries(jobTypeColumns)
-                            .filter(([_, shifts]) => shifts.length > 0)
+                            .filter(([, shifts]) => shifts.length > 0)
                             .map(([jobType, shifts]) => ({ jobType, shifts }))
 
                           // Use minimum column width of 200px, expand for overlaps
@@ -928,7 +944,7 @@ export default function ShiftSchedulingClient({
 
                       {/* Show all days in a grid */}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {CONFERENCE_DATES.days.map((day) => {
+                        {conferenceDates.days.map((day) => {
                           const personShifts = shifts
                             .filter(
                               (shift) =>
@@ -1029,7 +1045,7 @@ export default function ShiftSchedulingClient({
                           {jobType}
                         </div>
                         <div className="grid grid-cols-4 gap-3">
-                          {CONFERENCE_DATES.days.map((day) => {
+                          {conferenceDates.days.map((day) => {
                             const dayShifts = getShiftsForDay(day.date, jobType)
                             return (
                               <div key={day.date}>
@@ -1069,7 +1085,7 @@ export default function ShiftSchedulingClient({
                 General Interest Volunteers
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                These volunteers signed up for general interest and haven't been
+                These volunteers signed up for general interest and haven&apos;t been
                 assigned to any shifts yet. Click on a volunteer to see
                 suggested shifts.
               </p>
@@ -1128,6 +1144,7 @@ export default function ShiftSchedulingClient({
         onSave={handleSaveShift}
         onDelete={handleDeleteShift}
         venueRooms={venueRooms}
+        conferenceDates={conferenceDates}
       />
 
       <AssignmentDialog
@@ -1241,7 +1258,8 @@ export default function ShiftSchedulingClient({
                       firstName: newVolunteerData.firstName.trim(),
                       lastInitial: newVolunteerData.lastInitial.trim(),
                       email: newVolunteerData.email.trim(),
-                      phone: newVolunteerData.phone.trim()
+                      phone: newVolunteerData.phone.trim(),
+                      programId
                     })
                     
                     const fullName = `${newVolunteerData.firstName} ${newVolunteerData.lastInitial}.`
@@ -1252,7 +1270,7 @@ export default function ShiftSchedulingClient({
                     setVolunteerInfoDialogOpen(false)
                     
                     // Refresh the volunteer list
-                    const updatedVolunteers = await fetchVolunteers()
+                    const updatedVolunteers = await fetchVolunteers(programId)
                     setAllVolunteers(updatedVolunteers)
                   } catch (error) {
                     toast.error("Failed to add volunteer. Please try again.")

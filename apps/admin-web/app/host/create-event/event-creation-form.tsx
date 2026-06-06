@@ -33,10 +33,25 @@ import { createEvent } from "./actions"
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
-export default function EventCreationForm() {
+interface EventCreationFormProps {
+  conferenceStartDate?: string | null
+  conferenceEndDate?: string | null
+}
+
+const toCalendarDate = (value?: string | null) =>
+  value ? new Date(`${value}T00:00:00`) : null
+
+export default function EventCreationForm({
+  conferenceStartDate,
+  conferenceEndDate
+}: EventCreationFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const t = useTranslations("pages.event-creation-form.EventCreationForm")
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const minConferenceDate = toCalendarDate(conferenceStartDate)
+  const maxConferenceDate = toCalendarDate(conferenceEndDate)
 
   const formSchema = z.object({
     title: z.string().min(2, {
@@ -192,7 +207,9 @@ export default function EventCreationForm() {
                     selected={field.value}
                     onSelect={field.onChange}
                     disabled={(date) =>
-                      date < new Date() || date > new Date("2025-08-31")
+                      date < today ||
+                      (!!minConferenceDate && date < minConferenceDate) ||
+                      (!!maxConferenceDate && date > maxConferenceDate)
                     }
                     initialFocus
                   />
@@ -239,21 +256,25 @@ export default function EventCreationForm() {
         <FormField
           control={form.control}
           name="image"
-          render={({ field: { onChange, value, ...rest } }) => (
-            <FormItem>
-              <FormLabel>{t("form.image.label")}</FormLabel>
-              <FormControl>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => onChange(e.target.files)}
-                  {...rest}
-                />
-              </FormControl>
-              <FormDescription>{t("form.image.description")}</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field: { onChange, value, ...rest } }) => {
+            void value
+
+            return (
+              <FormItem>
+                <FormLabel>{t("form.image.label")}</FormLabel>
+                <FormControl>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => onChange(e.target.files)}
+                    {...rest}
+                  />
+                </FormControl>
+                <FormDescription>{t("form.image.description")}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )
+          }}
         />
         <FormField
           control={form.control}

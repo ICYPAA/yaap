@@ -217,8 +217,6 @@ export default function RoleManagementPage() {
                 const isSteeringOrAdmin =
                   user.role === "admin" || user.role === "steering"
                 const isSaving = saving === user.id
-                const isCurrentUser = false // We'll need to pass this from server
-
                 return (
                   <div
                     key={user.id}

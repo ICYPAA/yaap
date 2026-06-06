@@ -8,6 +8,11 @@ import {
   CardTitle
 } from "@/components/ui/card"
 import USGraph from "@/components/us-graph"
+import { getConferenceState } from "@/lib/conference-state"
+import {
+  formatProgramDateRange,
+  formatProgramLocation
+} from "@/lib/program-utils"
 import { createClient } from "@/utils/supabase/server"
 import {
   CalendarDays,
@@ -15,8 +20,6 @@ import {
   FileText,
   Globe2,
   Link2,
-  Mail,
-  MailPlus,
   MapPin,
   QrCode,
   Shield,
@@ -41,25 +44,6 @@ function getPercentChange(current: number, previous: number) {
   const percentChange = (difference / previous) * 100 * sign
 
   return percentChange.toFixed(2)
-}
-
-function getReadableDate(dateString: string) {
-  return new Date(dateString + "T12:00:00Z").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  })
-}
-
-function getReadableTime(time: string) {
-  const timeDate = new Date()
-  const [hours, minutes] = time.split(":")
-  timeDate.setHours(+hours, +minutes)
-  return timeDate.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true
-  })
 }
 
 function timeAgo(isoTimestamp: string) {
@@ -87,12 +71,17 @@ function timeAgo(isoTimestamp: string) {
 
 export default async function ProtectedPage() {
   const supabase = await createClient()
-
-  const { data: events } = await supabase
-    .from("pre-conf-events")
-    .select("*")
-    .gt("date", new Date().toISOString())
-    .order("date", { ascending: false })
+  const conferenceState = await getConferenceState()
+  const currentProgram = conferenceState.current_program_id
+    ? conferenceState.programs
+    : null
+  const conferenceDateRange = currentProgram
+    ? formatProgramDateRange(currentProgram)
+    : "No current conference selected"
+  const conferenceLocation = currentProgram
+    ? formatProgramLocation(currentProgram)
+    : null
+  const hostCalendarEmbedUrl = process.env.NEXT_PUBLIC_HOST_CALENDAR_EMBED_URL
 
   const { data: registrationsList } = await supabase
     .from("registrations")
@@ -115,9 +104,6 @@ export default async function ProtectedPage() {
   const { data: profileNames } = await supabase
     .from("profile-names")
     .select("*")
-
-  // Get latest registration for stats
-  const latestRegistration = registrationsList?.[0]
 
   const activity = activityRaw?.map((a: any) => {
     const user = users.find((u: any) => u.id === a.user)
@@ -221,11 +207,17 @@ export default async function ProtectedPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {t("cards.timeToConference.content", {
-                value: getDaysUntil("2025-08-28")
-              })}
+              {currentProgram?.start_date
+                ? t("cards.timeToConference.content", {
+                    value: getDaysUntil(currentProgram.start_date)
+                  })
+                : "Not set"}
             </div>
-            <p className="text-xs text-muted-foreground">August 28-31, 2025</p>
+            <p className="text-xs text-muted-foreground">
+              {conferenceLocation
+                ? `${conferenceDateRange} • ${conferenceLocation}`
+                : conferenceDateRange}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -424,17 +416,23 @@ export default async function ProtectedPage() {
           <CardDescription>View upcoming host events</CardDescription>
         </CardHeader>
         <CardContent>
-          <iframe
-            src="https://calendar.google.com/calendar/embed?src=the65thicypaahost%40gmail.com&ctz=America%2FChicago&showPrint=0&showNav=1&showTitle=0&showCalendars=0&showTz=1&mode=MONTH&wkst=1&bgcolor=%23ffffff&color=%23039BE5"
-            style={{
-              border: 0,
-              filter: "var(--calendar-filter)",
-              overflow: "hidden"
-            }}
-            className="[--calendar-filter:none] dark:[--calendar-filter:invert(88%)_hue-rotate(180deg)_!important]"
-            width="100%"
-            height="600"
-          />
+          {hostCalendarEmbedUrl ? (
+            <iframe
+              src={hostCalendarEmbedUrl}
+              style={{
+                border: 0,
+                filter: "var(--calendar-filter)",
+                overflow: "hidden"
+              }}
+              className="[--calendar-filter:none] dark:[--calendar-filter:invert(88%)_hue-rotate(180deg)_!important]"
+              width="100%"
+              height="600"
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Set NEXT_PUBLIC_HOST_CALENDAR_EMBED_URL to show a host calendar.
+            </p>
+          )}
         </CardContent>
       </Card>
 

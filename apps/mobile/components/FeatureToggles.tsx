@@ -1,18 +1,17 @@
 import { Ionicons } from "@expo/vector-icons"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
-  TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../context/CurrentConferenceContext"
 import { useFeatures } from "../context/FeatureContext"
 import { useTheme } from "../context/ThemeContext"
-import { supabase, withDeviceId } from "../lib/supabase"
+import { withDeviceId } from "../lib/supabase"
 
 interface Feature {
   id: string
@@ -94,29 +93,36 @@ interface FeatureTogglesProps {
   programId?: number
 }
 
-const FeatureToggles: React.FC<FeatureTogglesProps> = ({ programId = 3 }) => {
+const FeatureToggles: React.FC<FeatureTogglesProps> = ({ programId }) => {
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const { refreshFeatures } = useFeatures()
+  const activeProgramId =
+    programId ||
+    (currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null)
   const [features, setFeatures] = useState<Feature[]>(DEFAULT_FEATURES)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const styles = createStyles(theme)
 
-  useEffect(() => {
-    fetchFeatureSettings()
-  }, [programId])
-
-  const fetchFeatureSettings = async () => {
+  const fetchFeatureSettings = useCallback(async () => {
     try {
       setLoading(true)
+      if (!activeProgramId) {
+        setFeatures(DEFAULT_FEATURES)
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
 
       // Fetch feature settings from the programs table
       const { data, error } = await supabaseWithDeviceId
         .from("programs")
         .select("features")
-        .eq("id", programId)
+        .eq("id", activeProgramId)
         .single()
 
       if (error) {
@@ -139,11 +145,19 @@ const FeatureToggles: React.FC<FeatureTogglesProps> = ({ programId = 3 }) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [activeProgramId])
+
+  useEffect(() => {
+    fetchFeatureSettings()
+  }, [fetchFeatureSettings])
 
   const toggleFeature = async (featureKey: string) => {
     try {
       setSaving(true)
+      if (!activeProgramId) {
+        Alert.alert("Error", "No active conference program is selected")
+        return
+      }
 
       // Find the feature
       const feature = features.find(f => f.key === featureKey)
@@ -164,7 +178,7 @@ const FeatureToggles: React.FC<FeatureTogglesProps> = ({ programId = 3 }) => {
       const { data: current, error: fetchError } = await supabaseWithDeviceId
         .from("programs")
         .select("features")
-        .eq("id", programId)
+        .eq("id", activeProgramId)
         .single()
 
       if (fetchError) throw fetchError
@@ -179,7 +193,7 @@ const FeatureToggles: React.FC<FeatureTogglesProps> = ({ programId = 3 }) => {
       const { error: updateError } = await supabaseWithDeviceId
         .from("programs")
         .update({ features: updatedFeatures })
-        .eq("id", programId)
+        .eq("id", activeProgramId)
 
       if (updateError) throw updateError
 

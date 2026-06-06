@@ -34,7 +34,7 @@ import {
   updateIC2025VolunteerStatus
 } from "./actions"
 
-// Define the structure of an IC2025 volunteer interest record
+// Define the structure of a conference volunteer interest record.
 interface IC2025VolunteerInterest {
   id: string
   name: string
@@ -81,10 +81,10 @@ export default function IC2025VolunteerInterestPage() {
         setHasAccessToSensitiveData(result.hasAccessToSensitive || false)
         setLoading(false)
       } catch (error) {
-        console.error("Error loading IC2025 volunteer interest data:", error)
+        console.error("Error loading conference volunteer interest data:", error)
         toast({
           title: "Error",
-          description: "Failed to load IC2025 volunteer interest data.",
+          description: "Failed to load conference volunteer interest data.",
           variant: "destructive"
         })
         setLoading(false)
@@ -183,45 +183,6 @@ export default function IC2025VolunteerInterestPage() {
     }
   }
 
-  // Function to get time slot badges
-  const getTimeSlotBadges = (timeSlots: string[]) => {
-    if (!timeSlots || timeSlots.length === 0) {
-      return <span className="text-muted-foreground">None</span>
-    }
-
-    return (
-      <div className="flex flex-wrap gap-1">
-        {timeSlots.map((timeSlot, index) => {
-          const [day, slot] = timeSlot.split(" - ")
-          return (
-            <Badge
-              key={index}
-              variant="outline"
-              className="whitespace-nowrap flex items-center gap-1"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="lucide lucide-clock"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              {day} {slot}
-            </Badge>
-          )
-        })}
-      </div>
-    )
-  }
-
   // Function to render comments
   const renderComments = (volunteer: IC2025VolunteerInterest) => {
     if (!volunteer.data.comments) {
@@ -255,11 +216,11 @@ export default function IC2025VolunteerInterestPage() {
 
   return (
     <div className="container py-10">
-      <h1 className="text-2xl font-bold mb-6">IC2025 Volunteer Interest</h1>
+      <h1 className="text-2xl font-bold mb-6">Conference Volunteer Interest</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle>IC2025 Volunteers</CardTitle>
+          <CardTitle>Conference Volunteers</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -426,7 +387,7 @@ export default function IC2025VolunteerInterestPage() {
                           colSpan={hasAccessToSensitiveData ? 8 : 7}
                           className="text-center py-6"
                         >
-                          No IC2025 volunteer interest data found.
+                          No conference volunteer interest data found.
                         </TableCell>
                       </TableRow>
                     )}

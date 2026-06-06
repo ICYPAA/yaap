@@ -16,7 +16,7 @@ import {
   TooltipTrigger
 } from "@/components/ui/tooltip"
 import { Check, Copy, Link2, Plus, Trash2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 type ParamField = {
   id: string
@@ -53,10 +53,6 @@ export default function URLGenerator() {
   const [generatedUrl, setGeneratedUrl] = useState("")
   const [copied, setCopied] = useState(false)
 
-  useEffect(() => {
-    generateURL()
-  }, [baseUrl, params])
-
   const addParam = () => {
     setParams([...params, { id: crypto.randomUUID(), key: "", value: "" }])
   }
@@ -78,7 +74,7 @@ export default function URLGenerator() {
     )
   }
 
-  const generateURL = () => {
+  const generateURL = useCallback(() => {
     if (!baseUrl) return
 
     try {
@@ -108,7 +104,11 @@ export default function URLGenerator() {
       console.error("Invalid URL:", error)
       setGeneratedUrl("")
     }
-  }
+  }, [baseUrl, params])
+
+  useEffect(() => {
+    generateURL()
+  }, [generateURL])
 
   const copyToClipboard = () => {
     if (!generatedUrl) return

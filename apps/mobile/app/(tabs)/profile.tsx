@@ -4,7 +4,7 @@ import * as Application from "expo-application"
 import * as ImagePicker from "expo-image-picker"
 import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
@@ -20,11 +20,9 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
-import { LanguagePicker } from "../../components/LanguagePicker"
 import { TutorialModal } from "../../components/TutorialModal"
 import { SafetyModal } from "../../components/SafetyModal"
 import { useFeatures } from "../../context/FeatureContext"
-import { useI18n } from "../../context/I18nContext"
 import { useTheme } from "../../context/ThemeContext"
 import { sendNotification } from "../../lib/notificationHelper"
 import { clearImageCache, uploadProfilePicture } from "../../lib/profilePicture"
@@ -83,7 +81,6 @@ type DisplayUser = Pick<
 
 export default function Profile() {
   const { theme, isDarkMode, toggleTheme } = useTheme()
-  const { currentLanguage, availableLanguages, changeLanguage } = useI18n()
   const { isFeatureEnabled } = useFeatures()
   const router = useRouter()
 
@@ -110,9 +107,6 @@ export default function Profile() {
   const [hospitalityNotificationsEnabled, setHospitalityNotificationsEnabled] =
     useState(true)
 
-  // Language picker state
-  const [languagePickerVisible, setLanguagePickerVisible] = useState(false)
-  
   // Tutorial modal state
   const [tutorialVisible, setTutorialVisible] = useState(false)
   
@@ -163,8 +157,57 @@ export default function Profile() {
     fetchDeviceId()
   }, [])
 
+  // Function to fetch user details for sharing lists
+  const fetchSharingListsDetails = useCallback(async (schedule: Schedule) => {
+    // Helper to get display details from user IDs
+    const fetchUserDetailsByUserIds = async (
+      userIds: number[]
+    ): Promise<DisplayUser[]> => {
+      if (!userIds || userIds.length === 0) return []
+      try {
+        const { data, error } = await supabase.rpc("get_public_users_info", {
+          user_ids: userIds
+        })
+        if (error) throw error
+        return data || []
+      } catch (error) {
+        console.error("Error fetching user details by user IDs:", error)
+        return [] // Return empty on error
+      }
+    }
+
+    // Fetch details using the user IDs
+    try {
+      const [incoming, sharing, pending, viewing, banned] = await Promise.all([
+        fetchUserDetailsByUserIds(schedule.requested_share || []),
+        fetchUserDetailsByUserIds(schedule.shared_with || []),
+        fetchUserDetailsByUserIds(schedule.pending_share || []),
+        fetchUserDetailsByUserIds(schedule.shared_by || []),
+        fetchUserDetailsByUserIds(schedule.banned || [])
+      ])
+
+      setIncomingRequests(incoming)
+      setSharingWith(sharing)
+      setPendingRequests(pending)
+      setViewingFrom(viewing)
+      setBannedUsers(banned)
+      // console.log("Fetched sharing list details.")
+    } catch (error) {
+      console.error(
+        "Error fetching details for one or more sharing lists:",
+        error
+      )
+      // Optionally set lists to empty or show an error
+      setIncomingRequests([])
+      setSharingWith([])
+      setPendingRequests([])
+      setViewingFrom([])
+      setBannedUsers([])
+    }
+  }, [])
+
   // Function to load schedule from AsyncStorage and update UI
-  const loadScheduleFromStorage = async () => {
+  const loadScheduleFromStorage = useCallback(async () => {
     try {
       const scheduleJson = await AsyncStorage.getItem("userSchedule")
       if (scheduleJson) {
@@ -180,7 +223,7 @@ export default function Profile() {
     } catch (error) {
       console.error("Error loading schedule from AsyncStorage:", error)
     }
-  }
+  }, [fetchSharingListsDetails])
 
   // Listen for changes to userSchedule in AsyncStorage
   useEffect(() => {
@@ -206,7 +249,7 @@ export default function Profile() {
       clearInterval(checkStorageInterval)
       subscription.remove()
     }
-  }, [deviceId]) // Add deviceId as dependency to ensure this effect runs after deviceId is set
+  }, [deviceId, loadScheduleFromStorage]) // Add deviceId as dependency to ensure this effect runs after deviceId is set
 
   // Fetch current user profile data based on deviceId
   useEffect(() => {
@@ -307,57 +350,7 @@ export default function Profile() {
     }
 
     fetchUserData()
-  }, [deviceId]) // Re-run if deviceId changes
-
-
-  // Function to fetch user details for sharing lists
-  const fetchSharingListsDetails = async (schedule: Schedule) => {
-    // Helper to get display details from user IDs
-    const fetchUserDetailsByUserIds = async (
-      userIds: number[]
-    ): Promise<DisplayUser[]> => {
-      if (!userIds || userIds.length === 0) return []
-      try {
-        const { data, error } = await supabase.rpc("get_public_users_info", {
-          user_ids: userIds
-        })
-        if (error) throw error
-        return data || []
-      } catch (error) {
-        console.error("Error fetching user details by user IDs:", error)
-        return [] // Return empty on error
-      }
-    }
-
-    // Fetch details using the user IDs
-    try {
-      const [incoming, sharing, pending, viewing, banned] = await Promise.all([
-        fetchUserDetailsByUserIds(schedule.requested_share || []),
-        fetchUserDetailsByUserIds(schedule.shared_with || []),
-        fetchUserDetailsByUserIds(schedule.pending_share || []),
-        fetchUserDetailsByUserIds(schedule.shared_by || []),
-        fetchUserDetailsByUserIds(schedule.banned || [])
-      ])
-
-      setIncomingRequests(incoming)
-      setSharingWith(sharing)
-      setPendingRequests(pending)
-      setViewingFrom(viewing)
-      setBannedUsers(banned)
-      // console.log("Fetched sharing list details.")
-    } catch (error) {
-      console.error(
-        "Error fetching details for one or more sharing lists:",
-        error
-      )
-      // Optionally set lists to empty or show an error
-      setIncomingRequests([])
-      setSharingWith([])
-      setPendingRequests([])
-      setViewingFrom([])
-      setBannedUsers([])
-    }
-  }
+  }, [deviceId, fetchSharingListsDetails]) // Re-run if deviceId changes
 
   // Request permissions on component mount
   useEffect(() => {

@@ -16,13 +16,13 @@ export default function UnauthorizedPage() {
         <CardHeader>
           <CardTitle className="text-center text-2xl">Access Denied</CardTitle>
           <CardDescription className="text-center">
-            You don't have permission to access this page
+            You don&apos;t have permission to access this page
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center mb-4">
             <p className="mb-4">
-              It looks like you don't have the required Discord roles to access
+              It looks like you don&apos;t have the required Discord roles to access
               this content.
             </p>
             <p>

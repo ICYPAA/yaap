@@ -39,9 +39,7 @@ import {
 import { validatePanelData, type ParsedPanel } from "@/utils/xlsx-panel-parser"
 import {
   AlertCircle,
-  AlertTriangle,
   ArrowRight,
-  Check,
   CheckCircle,
   Edit,
   Loader2,
@@ -578,45 +576,6 @@ export default function PanelsPage() {
     }
   }
 
-  function getReminderFollowupDisplay(notification: PanelNotification) {
-    const sentAt = notification.reminder_followup_sent_at
-    const status = notification.reminder_send_status
-    const error = notification.reminder_send_error
-    
-    if (sentAt) {
-      if (status === 'success') {
-        return {
-          icon: Check,
-          color: "text-green-600",
-          timestamp: `Sent: ${new Date(sentAt).toLocaleString()}`
-        }
-      } else if (status === 'failed') {
-        return {
-          icon: AlertCircle,
-          color: "text-red-600",
-          timestamp: `Failed: ${error || 'Unknown error'}`
-        }
-      } else {
-        return {
-          icon: Check,
-          color: "text-green-600",
-          timestamp: new Date(sentAt).toLocaleString()
-        }
-      }
-    } else if (status === 'failed') {
-      return {
-        icon: AlertCircle,
-        color: "text-red-600",
-        timestamp: `Failed: ${error || 'Unknown error'}`
-      }
-    }
-    return {
-      icon: X,
-      color: "text-gray-400",
-      timestamp: `No reminder sent`
-    }
-  }
-
   const handleShowTestPreview = async (formData: FormData) => {
     const email = formData.get("email") as string
     const phone = formData.get("phone") as string
@@ -667,73 +626,6 @@ export default function PanelsPage() {
   const hasValidationErrors = (panel: ParsedPanel): boolean => {
     return getPanelValidationErrors(panel).length > 0
   }
-
-  function getSentAtDisplay(notification: PanelNotification) {
-    if (notification.notification_sent_at) {
-      // Successfully sent
-      if (notification.send_status === 'success') {
-        return {
-          icon: Check,
-          color: "text-green-600",
-          timestamp: `Sent: ${new Date(notification.notification_sent_at).toLocaleString()}`
-        }
-      } else if (notification.send_status === 'failed') {
-        // Failed to send but has timestamp (shouldn't normally happen)
-        return {
-          icon: AlertCircle,
-          color: "text-red-600",
-          timestamp: `Send failed: ${notification.send_error || 'Unknown error'}`
-        }
-      } else {
-        // Legacy data without send_status
-        return {
-          icon: Check,
-          color: "text-green-600",
-          timestamp: new Date(notification.notification_sent_at).toLocaleString()
-        }
-      }
-    } else if (notification.send_status === 'failed') {
-      // Failed to send
-      return {
-        icon: AlertCircle,
-        color: "text-red-600",
-        timestamp: `Send failed: ${notification.send_error || 'Unknown error'}`
-      }
-    }
-    return {
-      icon: X,
-      color: "text-gray-400",
-      timestamp: "Not sent"
-    }
-  }
-
-  function getConfirmedAtDisplay(notification: PanelNotification) {
-    // Check if panelist has withdrawn first
-    if (notification.denied_at) {
-      return {
-        icon: AlertTriangle,
-        color: "text-yellow-600",
-        timestamp: `Withdrawn on ${new Date(notification.denied_at).toLocaleString()}`
-      }
-    }
-
-    // Then check if confirmed
-    if (notification.confirmed_at) {
-      return {
-        icon: Check,
-        color: "text-green-600",
-        timestamp: new Date(notification.confirmed_at).toLocaleString()
-      }
-    }
-
-    // Not confirmed
-    return {
-      icon: X,
-      color: "text-gray-400",
-      timestamp: "Not confirmed"
-    }
-  }
-
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -809,7 +701,7 @@ export default function PanelsPage() {
               </CardTitle>
               <CardDescription>
                 Upload an Excel file containing panel information. The file
-                should have a "Panels" sheet with the specified format.
+                should have a &quot;Panels&quot; sheet with the specified format.
                 Duplicate combinations of panel title + panelist contact will be
                 skipped.
               </CardDescription>

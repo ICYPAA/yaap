@@ -13,15 +13,12 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import twilio from "twilio"
 import {
+  buildProgramTemplateContext,
   generateInitialEmailTemplate,
   generateInitialSMSTemplates,
   generateFollowUpReminderEmailTemplate,
-  generateFollowUpReminderSMSTemplate,
-  generateOneDayReminderEmailTemplate,
-  generateOneDayReminderSMSTemplate,
-  generateOneHourReminderEmailTemplate,
-  generateOneHourReminderSMSTemplate
-} from "@/lib/panel-notification-templates"
+  generateFollowUpReminderSMSTemplate,} from "@/lib/panel-notification-templates"
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
 
 export interface PanelFormData {
   timeDay: string
@@ -67,6 +64,29 @@ export interface NewPanelistEntry {
   existingPanel: PanelNotification // Reference to any existing notification for this panel
 }
 
+type SmsMessageOptions = {
+  from: string
+  to: string
+  body: string
+  statusCallback: string
+  statusCallbackMethod?: "POST"
+}
+
+type TwilioError = {
+  code?: number
+  message?: string
+}
+
+type PanelNotificationQueryResult = {
+  data: PanelNotification[] | null
+  error: Error | null
+}
+
+type PanelNotificationQuery = PromiseLike<PanelNotificationQueryResult> & {
+  not(column: string, operator: string, value: unknown): PanelNotificationQuery
+  is(column: string, value: unknown): PanelNotificationQuery
+}
+
 // Helper function to normalize phone numbers for SMS
 function normalizePhoneNumber(phone: string): string {
   const digits = phone.replace(/\D/g, "")
@@ -107,7 +127,7 @@ async function sendMultipleSMS(
 
     // Send messages with a small delay between them
     for (let i = 0; i < messages.length; i++) {
-      const messageOptions: any = {
+      const messageOptions: SmsMessageOptions = {
         from: fromNumber,
         to: normalizedPhone,
         body: messages[i],
@@ -135,22 +155,23 @@ async function sendMultipleSMS(
       `${messages.length} SMS messages queued successfully to ${normalizedPhone}. Message IDs: ${messageIds.join(", ")}`
     )
     return { success: true, messageIds }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const twilioError = error as TwilioError
     console.error(`Error sending SMS to ${normalizedPhone}:`, error)
 
     // Extract meaningful error message
     let errorMessage = "Failed to send SMS"
 
-    if (error.code === 21211 || error.code === 21614) {
+    if (twilioError.code === 21211 || twilioError.code === 21614) {
       errorMessage = "Invalid phone number format"
-    } else if (error.code === 21408) {
+    } else if (twilioError.code === 21408) {
       errorMessage = "Permission denied to send to this number"
-    } else if (error.code === 21610) {
+    } else if (twilioError.code === 21610) {
       errorMessage = "Recipient has opted out of messages"
-    } else if (error.code === 21612) {
+    } else if (twilioError.code === 21612) {
       errorMessage = "Not a valid mobile number (may be landline)"
-    } else if (error.message) {
-      errorMessage = error.message
+    } else if (twilioError.message) {
+      errorMessage = twilioError.message
     }
 
     return { success: false, error: errorMessage }
@@ -326,9 +347,6 @@ export async function classifyPanelsFromXLSX(formData: FormData) {
 
       // Panel exists, check for updates and new panelists
       let hasUpdates = false
-      const existingPanelistContacts = new Set(
-        existingPanelNotifications.map((n) => n.panelist_contact)
-      )
 
       // Check for time/room updates using the first existing notification as reference
       const referenceNotification = existingPanelNotifications[0]
@@ -413,7 +431,7 @@ export async function saveClassifiedPanels(
   const newNotifications = []
   const newPanelistNotifications = []
   const updatedNotifications = []
-  const errors: { message: string; data: any }[] = []
+  const errors: { message: string; data: unknown }[] = []
 
   // Process new panels
   for (const panel of newPanels) {
@@ -451,7 +469,7 @@ export async function saveClassifiedPanels(
   }
 
   // Process new panelists for existing panels
-  for (const { panel, panelist, existingPanel } of newPanelists) {
+  for (const { panel, panelist } of newPanelists) {
     const contactType = panelist.email ? "email" : "phone"
     const contactValue = panelist.email || panelist.phone
 
@@ -708,6 +726,10 @@ export async function sendPanelNotifications(notificationIds: number[]) {
   const supabase = await createClient()
 
   try {
+    const templateContext = buildProgramTemplateContext(
+      await getCurrentProgramOrNull()
+    )
+
     // Get the notifications to send (excluding confirmed and withdrawn)
     const { data: notifications, error } = await supabase
       .from("panel_notifications")
@@ -742,7 +764,8 @@ export async function sendPanelNotifications(notificationIds: number[]) {
           // Send email using the email API
           const emailContent = generateInitialEmailTemplate(
             notification,
-            confirmationUrl
+            confirmationUrl,
+            templateContext
           )
 
           const response = await fetch(
@@ -752,7 +775,7 @@ export async function sendPanelNotifications(notificationIds: number[]) {
               headers: getEmailApiHeaders("panel-notification"),
               body: JSON.stringify({
                 to: notification.panelist_contact,
-                subject: `The 65th ICYPAA Panel Invitation: ${notification.title}`,
+                subject: `${templateContext.title} Panel Invitation: ${notification.title}`,
                 panelTitle: notification.title,
                 panelTime: notification.time_day,
                 panelRoom: notification.room,
@@ -768,7 +791,8 @@ export async function sendPanelNotifications(notificationIds: number[]) {
           // Send SMS
           const smsMessages = generateInitialSMSTemplates(
             notification,
-            confirmationUrl
+            confirmationUrl,
+            templateContext
           )
           smsResult = await sendMultipleSMS(
             notification.panelist_contact,
@@ -787,7 +811,7 @@ export async function sendPanelNotifications(notificationIds: number[]) {
 
         if (success) {
           // Update notification as sent with success status
-          const updateData: any = {
+          const updateData: Record<string, string | null> = {
             notification_sent_at: new Date().toISOString(),
             send_status: "success",
             send_error: null
@@ -796,9 +820,9 @@ export async function sendPanelNotifications(notificationIds: number[]) {
           // Store Twilio message SID if SMS was sent
           if (
             notification.contact_type === "phone" &&
-            "messageIds" in (smsResult as any)
+            smsResult?.messageIds
           ) {
-            updateData.twilio_message_sid = (smsResult as any).messageIds?.[0]
+            updateData.twilio_message_sid = smsResult.messageIds[0] || null
           }
 
           const { error: updateError } = await supabase
@@ -888,14 +912,18 @@ export async function sendPanelReminders(
   const supabase = await createClient()
 
   try {
+    const templateContext = buildProgramTemplateContext(
+      await getCurrentProgramOrNull()
+    )
+
     // Get the notifications to send reminders for (excluding confirmed and withdrawn)
-    let query: any = supabase
+    let query = supabase
       .from("panel_notifications")
       .select("*")
       .in("id", notificationIds)
       .not("notification_sent_at", "is", null)
       .is("confirmed_at", null) // Don't send to confirmed
-      .is("denied_at", null) // Don't send to withdrawn
+      .is("denied_at", null) as unknown as PanelNotificationQuery // Don't send to withdrawn
 
     if (isSecondReminder) {
       // For second reminder, must have first reminder sent but not second
@@ -935,7 +963,8 @@ export async function sendPanelReminders(
           // Generate reminder email content using the template
           reminderContent = generateFollowUpReminderEmailTemplate(
             notification,
-            confirmationUrl
+            confirmationUrl,
+            templateContext
           )
 
           const response = await fetch(
@@ -945,7 +974,7 @@ export async function sendPanelReminders(
               headers: getEmailApiHeaders("panel-notification"),
               body: JSON.stringify({
                 to: notification.panelist_contact,
-                subject: `Reminder: The 65th ICYPAA Panel - ${notification.title}`,
+                subject: `Reminder: ${templateContext.title} Panel - ${notification.title}`,
                 emailContent: reminderContent
               })
             }
@@ -955,7 +984,11 @@ export async function sendPanelReminders(
         } else if (notification.contact_type === "phone") {
           // Generate reminder SMS content using the template
           const smsMessages = [
-            generateFollowUpReminderSMSTemplate(notification, confirmationUrl)
+            generateFollowUpReminderSMSTemplate(
+              notification,
+              confirmationUrl,
+              templateContext
+            )
           ]
 
           smsResult = await sendMultipleSMS(
@@ -975,7 +1008,7 @@ export async function sendPanelReminders(
 
         if (success) {
           // Update notification with reminder sent
-          const updateData: any = isSecondReminder
+          const updateData: Record<string, string | null> = isSecondReminder
             ? {
                 reminder2_followup_sent_at: new Date().toISOString(),
                 reminder2_send_status: "success" as const,
@@ -990,16 +1023,12 @@ export async function sendPanelReminders(
           // Store Twilio message SID if SMS was sent
           if (
             notification.contact_type === "phone" &&
-            "messageIds" in (smsResult as any)
+            smsResult?.messageIds
           ) {
             if (isSecondReminder) {
-              updateData.twilio_reminder2_sid = (
-                smsResult as any
-              ).messageIds?.[0]
+              updateData.twilio_reminder2_sid = smsResult.messageIds[0] || null
             } else {
-              updateData.twilio_reminder_sid = (
-                smsResult as any
-              ).messageIds?.[0]
+              updateData.twilio_reminder_sid = smsResult.messageIds[0] || null
             }
           }
 
@@ -1132,17 +1161,21 @@ export async function sendTestNotification(formData: FormData) {
   }
 
   const confirmationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/host/panels/confirm/${mockNotification.confirmation_token}`
+  const templateContext = buildProgramTemplateContext(
+    await getCurrentProgramOrNull()
+  )
 
   try {
     let success = false
     if (email) {
       const emailContent = generateInitialEmailTemplate(
         mockNotification,
-        confirmationUrl
+        confirmationUrl,
+        templateContext
       )
       const emailData = {
         to: email,
-        subject: `The 65th ICYPAA Panel Invitation: ${mockNotification.title}`,
+        subject: `${templateContext.title} Panel Invitation: ${mockNotification.title}`,
         emailContent
       }
       const response = await fetch(
@@ -1159,7 +1192,8 @@ export async function sendTestNotification(formData: FormData) {
     if (phone) {
       const smsContent = generateInitialSMSTemplates(
         mockNotification,
-        confirmationUrl
+        confirmationUrl,
+        templateContext
       )
       const smsResult = await sendMultipleSMS(phone, smsContent)
       success = smsResult.success
@@ -1207,14 +1241,22 @@ export async function getTestNotificationPreview(formData: FormData) {
   }
 
   const confirmationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/host/panels/confirm/${mockNotification.confirmation_token}`
+  const templateContext = buildProgramTemplateContext(
+    await getCurrentProgramOrNull()
+  )
 
   let content: string
   if (email) {
-    content = generateInitialEmailTemplate(mockNotification, confirmationUrl)
+    content = generateInitialEmailTemplate(
+      mockNotification,
+      confirmationUrl,
+      templateContext
+    )
   } else if (phone) {
     const smsMessages = generateInitialSMSTemplates(
       mockNotification,
-      confirmationUrl
+      confirmationUrl,
+      templateContext
     )
     content = smsMessages.join("\\n\\n--- MESSAGE BREAK --\\n\\n")
   } else {
@@ -1273,7 +1315,7 @@ export async function updateNotificationStatus(
 
   try {
     // Prepare update data
-    const updateData: any = {}
+    const updateData: Record<string, string | null> = {}
 
     if (value) {
       // Setting to true - add timestamp

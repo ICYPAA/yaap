@@ -11,6 +11,7 @@ import {
   View
 } from "react-native"
 import { ProtectedComponent } from "../../../components/ProtectedComponent"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { supabase, withDeviceId } from "../../../lib/supabase"
@@ -19,7 +20,12 @@ import { Program } from "../../../types/program"
 
 export default function AccessibilityRequest() {
   const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const router = useRouter()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [formSubmitted, setFormSubmitted] = useState(false)
   const [program, setProgram] = useState<Program | null>(null)
   const [description, setDescription] = useState<string>(
@@ -114,6 +120,11 @@ export default function AccessibilityRequest() {
     }
 
     try {
+      if (!programId) {
+        console.error("No active conference program selected")
+        return
+      }
+
       const {
         data: { session }
       } = await supabase.auth.getSession()
@@ -124,7 +135,7 @@ export default function AccessibilityRequest() {
       const { data: insertedForm, error } = await supabaseWithDeviceId
         .from("accessibility_forms")
         .insert({
-          program_id: 1, // Default to program ID 1
+          program_id: programId,
           name: form.name,
           phone: form.phone,
           email: form.email,
@@ -147,7 +158,7 @@ export default function AccessibilityRequest() {
       try {
         await sendNotification({
           eventType: "host",
-          programId: 1,
+          programId,
           data: {
             type: "accessibility",
             form_id: insertedForm.id,

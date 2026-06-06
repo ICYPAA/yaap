@@ -1,8 +1,8 @@
 import { promises as fs } from "fs"
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import path from "path"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Path to the pkpass file relative to project root
     const pkpassPath = path.join(process.cwd(), "QRCode.pkpass")

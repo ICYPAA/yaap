@@ -38,7 +38,7 @@ export default async function RemindersPage() {
               Access Denied
             </CardTitle>
             <CardDescription>
-              You don't have permission to access this page
+              You don&apos;t have permission to access this page
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -47,7 +47,7 @@ export default async function RemindersPage() {
               <AlertTitle>Insufficient Permissions</AlertTitle>
               <AlertDescription>
                 You need to have admin, steering committee roles, or the
-                'reminders:edit' permission to manage reminders. Please contact
+                &apos;reminders:edit&apos; permission to manage reminders. Please contact
                 an administrator if you believe this is an error.
               </AlertDescription>
             </Alert>
@@ -56,18 +56,6 @@ export default async function RemindersPage() {
       </div>
     )
   }
-
-  // Fetch host meeting reminders data
-  const { data: remindersData } = await supabase.from("reminders").select("*")
-
-  const reminders =
-    remindersData?.reduce(
-      (acc, reminder) => ({
-        ...acc,
-        [reminder.type]: reminder
-      }),
-      {} as Record<string, any>
-    ) || {}
 
   return (
     <div className="flex-1 w-full flex flex-col gap-8 p-8">

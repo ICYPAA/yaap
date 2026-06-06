@@ -41,6 +41,9 @@ export interface VolunteerShiftDetails {
   volunteerId: string
   volunteerName: string
   volunteerContact: string
+  programTitle?: string
+  committeeName?: string
+  supportContact?: string
   shiftDate: string
   startTime: string
   endTime: string
@@ -56,10 +59,13 @@ export function generateVolunteerReminderEmailTemplate(
   const formattedDate = formatDate(details.shiftDate)
   const formattedTime = formatTimeRange(details.startTime, details.endTime)
   const formattedLocation = formatLocation(details.location)
+  const programTitle = details.programTitle || "the current conference"
+  const committeeName = details.committeeName || `${programTitle} Host Committee`
+  const supportContact = details.supportContact || "the volunteer committee"
 
   return `Hi ${firstName},
 
-The 65th ICYPAA is sending you a reminder that you are volunteering!
+${programTitle} is sending you a reminder that you are volunteering!
 
 Shift Details:
 Date: ${formattedDate}
@@ -69,24 +75,25 @@ Location: ${formattedLocation}
 
 Please arrive a few minutes early.
 
-If you have any questions, please reach out to Cornell at (612) 807-4821.
+If you have any questions, please reach out to ${supportContact}.
 
 Thank you for your service!
 
 In love and service,
-The 65th ICYPAA Host Committee`
+${committeeName}`
 }
 
 // Generate 12-hour before shift reminder SMS template
 export function generateVolunteerReminderSMSTemplate(
   details: VolunteerShiftDetails
 ): string {
-  const firstName = getFirstName(details.volunteerName)
   const formattedDate = formatDate(details.shiftDate)
   const formattedTime = formatTimeRange(details.startTime, details.endTime)
   const formattedLocation = formatLocation(details.location)
+  const programTitle = details.programTitle || "the current conference"
+  const supportContact = details.supportContact || "the volunteer committee"
 
-  return `The 65th ICYPAA is sending you a reminder that you are volunteering ${formattedDate} at ${formattedTime} in ${formattedLocation}! If you have any questions reach out to Cornell (612) 807-4821`
+  return `${programTitle} is sending you a reminder that you are volunteering ${formattedDate} at ${formattedTime} in ${formattedLocation}! If you have any questions reach out to ${supportContact}`
 }
 
 // Generate urgent volunteer reminder (1 hour before)
@@ -96,8 +103,9 @@ export function generateUrgentVolunteerReminderSMSTemplate(
   const firstName = getFirstName(details.volunteerName)
   const formattedTime = formatTime(details.startTime)
   const formattedLocation = formatLocation(details.location)
+  const programTitle = details.programTitle || "the current conference"
 
-  return `${firstName}, your volunteer shift starts in 1 hour at ${formattedTime} in ${formattedLocation}. Please arrive a few minutes early. Thank you! - 65th ICYPAA`
+  return `${firstName}, your volunteer shift starts in 1 hour at ${formattedTime} in ${formattedLocation}. Please arrive a few minutes early. Thank you! - ${programTitle}`
 }
 
 // Generate volunteer shift confirmation email
@@ -108,10 +116,13 @@ export function generateVolunteerConfirmationEmailTemplate(
   const formattedDate = formatDate(details.shiftDate)
   const formattedTime = formatTimeRange(details.startTime, details.endTime)
   const formattedLocation = formatLocation(details.location)
+  const programTitle = details.programTitle || "the current conference"
+  const committeeName = details.committeeName || `${programTitle} Host Committee`
+  const supportContact = details.supportContact || "the volunteer committee"
 
   return `Hi ${firstName},
 
-Thank you for signing up to volunteer at the 65th ICYPAA!
+Thank you for signing up to volunteer at ${programTitle}!
 
 You have been scheduled for:
 Date: ${formattedDate}
@@ -121,12 +132,12 @@ Location: ${formattedLocation}
 
 We'll send you a reminder 12 hours before your shift.
 
-If you need to make any changes or have questions, please contact Cornell at (612) 807-4821.
+If you need to make any changes or have questions, please contact ${supportContact}.
 
 Looking forward to seeing you there!
 
 In love and service,
-The 65th ICYPAA Host Committee`
+${committeeName}`
 }
 
 // Generate volunteer shift change notification
@@ -146,6 +157,11 @@ export function generateVolunteerShiftChangeEmailTemplate(
     newDetails.endTime
   )
   const newFormattedLocation = formatLocation(newDetails.location)
+  const programTitle = newDetails.programTitle || "the current conference"
+  const committeeName =
+    newDetails.committeeName || `${programTitle} Host Committee`
+  const supportContact =
+    newDetails.supportContact || "the volunteer committee"
 
   return `Hi ${firstName},
 
@@ -160,10 +176,10 @@ Time: ${newFormattedTime}
 Position: ${newDetails.jobType}
 Location: ${newFormattedLocation}
 
-If you have any questions about this change, please contact Cornell at (612) 807-4821.
+If you have any questions about this change, please contact ${supportContact}.
 
 Thank you for your flexibility!
 
 In love and service,
-The 65th ICYPAA Host Committee`
+${committeeName}`
 }

@@ -1,23 +1,30 @@
 "use server"
 
+import { getCurrentProgramOrNull } from "@/lib/conference-state"
 import { createClient } from "@/utils/supabase/server"
 
-// Helper function to fetch all IC2025 volunteer interest records
+// Helper function to fetch current conference volunteer interest records.
 export async function getIC2025VolunteerInterest() {
   const supabase = await createClient()
+  const currentProgram = await getCurrentProgramOrNull()
+
+  if (!currentProgram) {
+    return { data: [], hasAccessToSensitive: false }
+  }
 
   // Get full record data directly from the table instead of using RPC
   const { data: fullData, error } = await supabase
     .from("volunteering_interest")
     .select("*")
     .eq("type", "ic2025")
+    .eq("program_id", currentProgram.id)
     .order("created_at", { ascending: false })
 
   console.log("data", fullData)
 
   if (error) {
-    console.error("Error fetching IC2025 volunteer interest data:", error)
-    throw new Error("Failed to fetch IC2025 volunteer interest data")
+    console.error("Error fetching conference volunteer interest data:", error)
+    throw new Error("Failed to fetch conference volunteer interest data")
   }
 
   // Check if user has access to sensitive data by examining if email/phone are accessible
@@ -52,7 +59,7 @@ export async function getIC2025VolunteerInterest() {
   }
 }
 
-// Helper function to update an IC2025 volunteer interest record's status
+// Helper function to update a conference volunteer interest record's status
 export async function updateIC2025VolunteerStatus(id: string, status: string) {
   const supabase = await createClient()
 
@@ -63,8 +70,8 @@ export async function updateIC2025VolunteerStatus(id: string, status: string) {
     .eq("type", "ic2025")
 
   if (error) {
-    console.error("Error updating IC2025 volunteer status:", error)
-    throw new Error("Failed to update IC2025 volunteer status")
+    console.error("Error updating conference volunteer status:", error)
+    throw new Error("Failed to update conference volunteer status")
   }
 
   return { success: true }

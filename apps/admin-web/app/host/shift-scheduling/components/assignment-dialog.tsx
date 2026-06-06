@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, Clock, MapPin, AlertTriangle, X, Users, Star, CheckCircle, Info, Edit2, Trash2 } from "lucide-react"
+import { Clock, MapPin, AlertTriangle, X, Users, Star, CheckCircle, Info, Edit2, Trash2 } from "lucide-react"
 import { Shift, Volunteer } from "../types"
 import { getVolunteerSuggestions, findConflictingShifts } from "../utils/scheduling"
 import { formatTime12Hour } from "../utils/time-format"
@@ -203,7 +203,7 @@ export default function AssignmentDialog({
                   <div className="space-y-2 pr-4">
                     {(() => {
                       // Filter volunteers based on search and type
-                      let filteredVolunteers = allVolunteers.filter(v => {
+                      const filteredVolunteers = allVolunteers.filter(v => {
                         // Already assigned volunteers should still show
                         const searchMatch = interestsSearchQuery ? (
                           v.name.toLowerCase().includes(interestsSearchQuery.toLowerCase()) ||

@@ -111,16 +111,6 @@ class AppIntegrityChecker {
   private async checkJailbreakRoot(): Promise<{ isJailbroken: boolean }> {
     try {
       if (Platform.OS === "ios") {
-        // iOS jailbreak detection
-        const suspiciousPaths = [
-          "/Applications/Cydia.app",
-          "/Library/MobileSubstrate/MobileSubstrate.dylib",
-          "/bin/bash",
-          "/usr/sbin/sshd",
-          "/etc/apt",
-          "/private/var/lib/apt/"
-        ]
-
         // Check if we can write to system directories (shouldn't be able to)
         try {
           await AsyncStorage.setItem("/private/test", "test")
@@ -135,27 +125,6 @@ class AppIntegrityChecker {
 
         return { isJailbroken: false }
       } else if (Platform.OS === "android") {
-        // Android root detection
-        const suspiciousPackages = [
-          "com.topjohnwu.magisk",
-          "com.noshufou.android.su",
-          "com.koushikdutta.superuser",
-          "eu.chainfire.supersu",
-          "com.zachspong.temprootremovejb",
-          "com.ramdroid.appquarantine"
-        ]
-
-        // Check for su binary
-        const suPaths = [
-          "/system/app/Superuser.apk",
-          "/sbin/su",
-          "/system/bin/su",
-          "/system/xbin/su",
-          "/data/local/xbin/su",
-          "/data/local/bin/su",
-          "/system/sd/xbin/su"
-        ]
-
         // Check build tags
         const buildTags = Device.osInternalBuildId
         if (buildTags && buildTags.includes("test-keys")) {

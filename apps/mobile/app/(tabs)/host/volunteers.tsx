@@ -21,12 +21,9 @@ import { withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 import {
   getAllVolunteerInterest,
-  getVolunteerInterestByStatus,
   updateVolunteerStatus,
-  updateVolunteerData,
   deleteVolunteerInterest,
   getVolunteerStats,
-  searchVolunteers,
   VolunteeringInterest,
   VolunteerStatus
 } from "../../../lib/volunteerInterestAPI"
@@ -55,34 +52,25 @@ function VolunteerManagementContent() {
   const styles = createStyles(theme)
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
 
-  useEffect(() => {
-    fetchInitialData()
-    setupRealtimeSubscription()
+  const fetchInitialData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [volunteersData, statsData] = await Promise.all([
+        getAllVolunteerInterest(),
+        getVolunteerStats()
+      ])
 
-    return () => {
-      if (subscriptionRef.current.unsubscribe) {
-        subscriptionRef.current.unsubscribe()
-      }
+      setVolunteers(volunteersData)
+      setStats(statsData)
+    } catch (error) {
+      console.error("Error fetching initial data:", error)
+      Alert.alert("Error", "Failed to load volunteer data")
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  // Refetch data when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log("Volunteers screen focused, fetching data")
-      fetchInitialData()
-      return () => {
-        console.log("Volunteers screen unfocused")
-      }
-    }, [])
-  )
-
-  // Filter volunteers when search term or status changes
-  useEffect(() => {
-    filterVolunteers()
-  }, [searchTerm, selectedStatus, volunteers])
-
-  const setupRealtimeSubscription = async () => {
+  const setupRealtimeSubscription = useCallback(async () => {
     try {
       const supabaseWithDeviceId = await withDeviceId()
 
@@ -106,27 +94,31 @@ function VolunteerManagementContent() {
     } catch (error) {
       console.error("Error setting up realtime subscription:", error)
     }
-  }
+  }, [fetchInitialData])
 
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true)
-      const [volunteersData, statsData] = await Promise.all([
-        getAllVolunteerInterest(),
-        getVolunteerStats()
-      ])
+  useEffect(() => {
+    fetchInitialData()
+    setupRealtimeSubscription()
 
-      setVolunteers(volunteersData)
-      setStats(statsData)
-    } catch (error) {
-      console.error("Error fetching initial data:", error)
-      Alert.alert("Error", "Failed to load volunteer data")
-    } finally {
-      setLoading(false)
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe()
+      }
     }
-  }
+  }, [fetchInitialData, setupRealtimeSubscription])
 
-  const filterVolunteers = () => {
+  // Refetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Volunteers screen focused, fetching data")
+      fetchInitialData()
+      return () => {
+        console.log("Volunteers screen unfocused")
+      }
+    }, [fetchInitialData])
+  )
+
+  const filterVolunteers = useCallback(() => {
     let filtered = [...volunteers]
 
     // Filter by status
@@ -146,7 +138,12 @@ function VolunteerManagementContent() {
     }
 
     setFilteredVolunteers(filtered)
-  }
+  }, [searchTerm, selectedStatus, volunteers])
+
+  // Filter volunteers when search term or status changes
+  useEffect(() => {
+    filterVolunteers()
+  }, [filterVolunteers])
 
   const onRefresh = async () => {
     setRefreshing(true)

@@ -28,16 +28,13 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {} from "@/components/ui/tabs"
 import { Toaster } from "@/components/ui/toaster"
 import {
-  AlertCircle,
-  CheckCircle,
   Edit,
   Loader2,
   Mail,
   Phone,
-  Plus,
   Search,
   Send,
   Trash2,
@@ -113,7 +110,7 @@ export default function VolunteerNotificationsPage() {
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
-      // Filter out ic2025 type
+      // Filter out legacy conference-only volunteer type
       if (n.type === 'ic2025') return false
       
       // Apply status filter
@@ -199,8 +196,6 @@ export default function VolunteerNotificationsPage() {
           // For now, just parse as CSV - adjust based on actual format
           const text = e.target?.result as string
           const lines = text.split('\n').filter(line => line.trim())
-          const headers = lines[0]?.split(',').map(h => h.trim())
-          
           const parsed = lines.slice(1).map((line, index) => {
             const values = line.split(',').map(v => v.trim())
             return {

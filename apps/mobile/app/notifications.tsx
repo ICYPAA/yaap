@@ -1,7 +1,6 @@
-import * as Notifications from "expo-notifications"
 import { Stack } from "expo-router"
 import React from "react"
-import { FlatList, Platform, StyleSheet, Text, View } from "react-native"
+import { FlatList, StyleSheet, Text, View } from "react-native"
 import { useTheme } from "../context/ThemeContext"
 
 // Sample notification data
@@ -107,23 +106,3 @@ const createStyles = (theme: any) =>
       color: theme.colors.text.secondary
     }
   })
-
-async function registerForPushNotificationsAsync() {
-  let token
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#FF231F7C"
-    })
-  }
-
-  token = (
-    await Notifications.getExpoPushTokenAsync({
-      projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
-    })
-  ).data
-
-  return token
-}

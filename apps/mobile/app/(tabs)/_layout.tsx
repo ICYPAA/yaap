@@ -5,7 +5,7 @@ import { useTheme } from "../../context/ThemeContext"
 import { TutorialModal } from "../../components/TutorialModal"
 
 export default function TabLayout() {
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
 
   return (
     <>

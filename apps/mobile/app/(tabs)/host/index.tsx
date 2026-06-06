@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useDebug } from "../../../context/DebugContext"
 import { useFeatures } from "../../../context/FeatureContext"
 import { useRole } from "../../../context/RoleContext"
@@ -44,12 +45,6 @@ type ServiceSection = {
   category?: string
 }
 
-interface UserProfile {
-  id: string
-  full_name?: string
-  email?: string
-}
-
 interface OnCallAssignment {
   id: number
   service_type: string
@@ -70,16 +65,21 @@ const ON_CALL_SERVICE_TYPES = [
 
 export default function HostDashboard() {
   const router = useRouter()
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
+  const currentConference = useCurrentConference()
   const { isFeatureEnabled } = useFeatures()
   const { isDebugMode } = useDebug()
   const { isHostAdmin, isSuperAdmin } = useRole()
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
   const [user, setUser] = useState<any>(null)
   const [onCallAssignments, setOnCallAssignments] = useState<
     OnCallAssignment[]
   >([])
 
-  const getServiceSections = () => {
+  const getServiceSections = useCallback(() => {
     const sections: ServiceSection[] = []
 
     if (isFeatureEnabled("accessibility_enabled")) {
@@ -163,44 +163,50 @@ export default function HostDashboard() {
     })
 
     return sections
-  }
+  }, [isFeatureEnabled, isHostAdmin, isSuperAdmin])
 
   const [serviceSections, setServiceSections] =
     useState<ServiceSection[]>(getServiceSections())
   const [loading, setLoading] = useState(true)
   const subscriptionsRef = useRef<{ [key: string]: any }>({})
 
-  useEffect(() => {
-    fetchUserProfile()
-    fetchPendingCounts()
-    fetchOnCallAssignments()
-    setupRealtimeSubscriptions()
-
-    // Cleanup subscriptions when component unmounts
-    return () => {
-      Object.values(subscriptionsRef.current).forEach((subscription: any) => {
-        if (subscription && subscription.unsubscribe) {
-          subscription.unsubscribe()
-        }
-      })
-    }
-  }, [])
-
   // Update sections when features or role change
   useEffect(() => {
     setServiceSections(getServiceSections())
-  }, [isFeatureEnabled, isHostAdmin, isSuperAdmin])
+  }, [getServiceSections])
 
-  // Refresh data when screen gets focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchOnCallAssignments()
-      fetchPendingCounts()
-    }, [])
-  )
+  const updateServiceSectionCount = useCallback((table: string, delta: number) => {
+    setServiceSections((prev) =>
+      prev.map((section) => {
+        if (section.table === table) {
+          return {
+            ...section,
+            count: Math.max(0, (section.count ?? 0) + delta)
+          }
+        }
+        return section
+      })
+    )
+  }, [])
 
-  const setupRealtimeSubscriptions = async () => {
+  const updateServiceSectionFromFetchedCount = useCallback((
+    table: string,
+    count: number
+  ) => {
+    setServiceSections((prev) =>
+      prev.map((section) => {
+        if (section.table === table) {
+          return { ...section, count }
+        }
+        return section
+      })
+    )
+  }, [])
+
+  const setupRealtimeSubscriptions = useCallback(async () => {
     try {
+      if (!programId) return
+
       const supabaseWithDeviceId = await withDeviceId()
 
       // Set up subscriptions for each table
@@ -218,7 +224,7 @@ export default function HostDashboard() {
                 event: "*", // Listen for all events (insert, update, delete)
                 schema: "public",
                 table: section.table,
-                filter: `program_id=eq.3`
+                filter: `program_id=eq.${programId}`
               },
               (payload: any) => {
                 const { eventType } = payload
@@ -275,7 +281,7 @@ export default function HostDashboard() {
               event: "*", // Listen for all events (insert, update, delete)
               schema: "public",
               table: section.table,
-              filter: `program_id=eq.3`
+              filter: `program_id=eq.${programId}`
             },
             (payload: any) => {
               const { eventType } = payload
@@ -328,24 +334,15 @@ export default function HostDashboard() {
     } catch (error) {
       console.error("Error setting up realtime subscriptions:", error)
     }
-  }
+  }, [programId, serviceSections, updateServiceSectionCount])
 
-  const updateServiceSectionCount = (table: string, delta: number) => {
-    setServiceSections((prev) =>
-      prev.map((section) => {
-        if (section.table === table) {
-          return {
-            ...section,
-            count: Math.max(0, (section.count ?? 0) + delta)
-          }
-        }
-        return section
-      })
-    )
-  }
-
-  const fetchCountForTable = async (table: string) => {
+  const fetchCountForTable = useCallback(async (table: string) => {
     try {
+      if (!programId) {
+        updateServiceSectionFromFetchedCount(table, 0)
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
 
       // Handle support chats differently - no status filtering
@@ -357,7 +354,7 @@ export default function HostDashboard() {
             supabaseWithDeviceId
               .from(table)
               .select("*", { count: "exact", head: true })
-              .eq("program_id", 3)
+              .eq("program_id", programId)
               .not("status", "eq", "resolved")
         })
 
@@ -376,7 +373,7 @@ export default function HostDashboard() {
           supabaseWithDeviceId
             .from(table)
             .select("*", { count: "exact", head: true })
-            .eq("program_id", 3)
+            .eq("program_id", programId)
             .or("status.is.null,status.eq.pending,status.eq.in_progress")
       })
 
@@ -401,24 +398,15 @@ export default function HostDashboard() {
     } catch (error) {
       console.error(`Error fetching count for ${table}:`, error)
     }
-  }
+  }, [isDebugMode, programId, updateServiceSectionFromFetchedCount])
 
-  const updateServiceSectionFromFetchedCount = (
-    table: string,
-    count: number
-  ) => {
-    setServiceSections((prev) =>
-      prev.map((section) => {
-        if (section.table === table) {
-          return { ...section, count }
-        }
-        return section
-      })
-    )
-  }
-
-  const fetchOnCallAssignments = async () => {
+  const fetchOnCallAssignments = useCallback(async () => {
     try {
+      if (!programId) {
+        setOnCallAssignments([])
+        return
+      }
+
       const supabaseWithDeviceId = await withDeviceId()
       const { data } = await makeRequest({
         table: "oncall_assignments",
@@ -427,7 +415,7 @@ export default function HostDashboard() {
           supabaseWithDeviceId
             .from("oncall_assignments")
             .select("*")
-            .eq("program_id", 3)
+            .eq("program_id", programId)
             .eq("is_active", true)
       })
 
@@ -479,9 +467,9 @@ export default function HostDashboard() {
     } catch (error) {
       console.error("Error fetching on-call assignments:", error)
     }
-  }
+  }, [isDebugMode, programId])
 
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       // For the auth call, we still use supabase directly (could be modified to support debug in future)
       const {
@@ -508,9 +496,9 @@ export default function HostDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [isDebugMode])
 
-  const fetchPendingCounts = async () => {
+  const fetchPendingCounts = useCallback(async () => {
     // Get fresh service sections to ensure we have latest data
     const sections = getServiceSections()
 
@@ -525,7 +513,38 @@ export default function HostDashboard() {
       // Don't show alert for count fetching errors
       console.log("Could not fetch pending item counts:", error)
     }
-  }
+  }, [fetchCountForTable, getServiceSections])
+
+  useEffect(() => {
+    const subscriptions = subscriptionsRef.current
+
+    fetchUserProfile()
+    fetchPendingCounts()
+    fetchOnCallAssignments()
+    setupRealtimeSubscriptions()
+
+    // Cleanup subscriptions when component unmounts
+    return () => {
+      Object.values(subscriptions).forEach((subscription: any) => {
+        if (subscription && subscription.unsubscribe) {
+          subscription.unsubscribe()
+        }
+      })
+    }
+  }, [
+    fetchOnCallAssignments,
+    fetchPendingCounts,
+    fetchUserProfile,
+    setupRealtimeSubscriptions
+  ])
+
+  // Refresh data when screen gets focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchOnCallAssignments()
+      fetchPendingCounts()
+    }, [fetchOnCallAssignments, fetchPendingCounts])
+  )
 
   const handleLogout = async () => {
     await supabase.auth.signOut()

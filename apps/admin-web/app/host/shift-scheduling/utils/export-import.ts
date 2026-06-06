@@ -1,4 +1,4 @@
-import { Shift, ShiftAssignment } from "../types"
+import { Shift } from "../types"
 import { format } from "date-fns"
 
 /**

@@ -29,6 +29,23 @@ type ProcessedData = {
   }
 }
 
+type RegistrationRecord = {
+  id: string | number
+  [key: string]: unknown
+}
+
+type RegistrationActivity = {
+  user?: string
+  metadata?: {
+    registration_report_id?: string | number
+  }
+}
+
+type ProfileName = {
+  user_id: string
+  profile_name?: string
+}
+
 function normalizeString(str: string | undefined | null): string {
   if (!str || typeof str !== "string") return ""
   return str
@@ -159,7 +176,7 @@ function excelDateToJSDate(serial: number): Date {
 }
 
 export async function submitRegistrationForm(
-  prevState: any,
+  prevState: unknown,
   formData: FormData
 ) {
   try {
@@ -352,15 +369,15 @@ export async function getRegistrations() {
     return { error: "Failed to fetch registrations" }
   }
 
-  return registrations.map((registration: any) => {
-    const action = registrationEvents?.find(
-      (event: any) => event.metadata.registration_report_id === registration.id
+  return (registrations as RegistrationRecord[]).map((registration) => {
+    const action = (registrationEvents as RegistrationActivity[] | null)?.find(
+      (event) => event.metadata?.registration_report_id === registration.id
     )
-    const user = users.find((u: any) => u.id === action?.user)
+    const user = users.find((u) => u.id === action?.user)
     return {
       ...registration,
       user: {
-        name: profileNames?.find((p: any) => p.user_id === user?.id)
+        name: (profileNames as ProfileName[] | null)?.find((p) => p.user_id === user?.id)
           ?.profile_name,
         avatar_url: user?.user_metadata.avatar_url
       }

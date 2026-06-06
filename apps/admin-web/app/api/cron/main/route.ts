@@ -1,12 +1,8 @@
 import { processMessage } from "@/app/host/reminders/components/reminder-utils"
 import { createClient } from "@/utils/supabase/server"
 import {
-  eachDayOfInterval,
-  endOfMonth,
   format,
-  isSunday,
   isToday,
-  startOfMonth,
   subDays
 } from "date-fns"
 import type { NextRequest } from "next/server"
@@ -41,8 +37,6 @@ const SPECIFIC_MEETINGS = [
 ]
 
 function getTodaysSpecificMeeting() {
-  const today = new Date()
-
   // Check if today is the Friday before any of the specific meeting dates
   for (const meeting of SPECIFIC_MEETINGS) {
     const fridayBefore = subDays(meeting.date, 2) // 2 days before Sunday
@@ -52,51 +46,6 @@ function getTodaysSpecificMeeting() {
   }
 
   return null
-}
-
-function isTodayFridayBeforeFourthSunday() {
-  // Get today's date
-  const today = new Date()
-
-  // Get the current year and month
-  const year = today.getFullYear()
-  const month = today.getMonth() // 0-indexed (0 = January, 11 = December)
-
-  // Get all Sundays of the month
-  const daysInMonth = eachDayOfInterval({
-    start: startOfMonth(new Date(year, month, 1)),
-    end: endOfMonth(new Date(year, month, 1))
-  })
-
-  // Find all Sundays
-  const sundays = daysInMonth.filter((day) => isSunday(day))
-
-  if (sundays.length < 4) {
-    return false
-  }
-
-  // Get the 4th Sunday
-  const fourthSunday = sundays[3]
-
-  // Subtract 2 days to get the Friday before the 4th Sunday
-  const fridayBeforeFourthSunday = subDays(fourthSunday, 2)
-
-  // Check if today is the Friday before the 4th Sunday
-  return isToday(fridayBeforeFourthSunday)
-}
-
-function getFourthSunday() {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth()
-
-  const daysInMonth = eachDayOfInterval({
-    start: startOfMonth(new Date(year, month, 1)),
-    end: endOfMonth(new Date(year, month, 1))
-  })
-
-  const sundays = daysInMonth.filter((day) => isSunday(day))
-  return sundays[3] // fourth Sunday
 }
 
 export async function GET(request: NextRequest) {

@@ -14,11 +14,13 @@ interface TimeLeft {
 interface CountdownTimerProps {
   targetDate: string
   title?: string
+  subtitle?: string
 }
 
 export default function CountdownTimer({
   targetDate,
-  title = "Conference Begins In"
+  title = "Conference Begins In",
+  subtitle
 }: CountdownTimerProps) {
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({
     days: 0,
@@ -135,14 +137,16 @@ export default function CountdownTimer({
           ))}
         </div>
 
-        <motion.p
-          className="mt-6 text-lg font-semibold text-primary/80"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-        >
-          August 28-31, 2025 • Minneapolis, Minnesota
-        </motion.p>
+        {subtitle ? (
+          <motion.p
+            className="mt-6 text-lg font-semibold text-primary/80"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
+            {subtitle}
+          </motion.p>
+        ) : null}
       </Card>
     </motion.div>
   )

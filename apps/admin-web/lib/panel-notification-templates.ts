@@ -1,4 +1,75 @@
 import { PanelNotification } from "@/app/host/panels/actions"
+import {
+  buildProgramDayMap,
+  formatProgramDate,
+  formatProgramDateRange,
+  formatProgramLocation
+} from "@/lib/program-utils"
+
+export interface ProgramTemplateContext {
+  title: string
+  dateRange: string
+  location: string
+  committeeName: string
+  programCommitteeName: string
+  programChairName: string
+  programChairPhone: string
+  registrationUrl: string
+  dayMap: Record<string, string>
+}
+
+const DEFAULT_TEMPLATE_CONTEXT: ProgramTemplateContext = {
+  title: "the current conference",
+  dateRange: "Dates TBD",
+  location: "Location TBD",
+  committeeName: "Host Committee",
+  programCommitteeName: "Program Committee",
+  programChairName: "Program Chair",
+  programChairPhone: "",
+  registrationUrl: "https://www.icypaa.org/",
+  dayMap: {}
+}
+
+export function buildProgramTemplateContext(
+  program: any
+): ProgramTemplateContext {
+  const hostCommittee = program?.host_committee || {}
+
+  return {
+    title: program?.title || DEFAULT_TEMPLATE_CONTEXT.title,
+    dateRange: formatProgramDateRange(program),
+    location: formatProgramLocation(program),
+    committeeName:
+      hostCommittee?.name || `${program?.title || "Conference"} Host Committee`,
+    programCommitteeName:
+      hostCommittee?.program_committee_name ||
+      hostCommittee?.programCommitteeName ||
+      `${program?.title || "Conference"} Program Committee`,
+    programChairName:
+      hostCommittee?.program_chair?.name ||
+      hostCommittee?.programChair?.name ||
+      DEFAULT_TEMPLATE_CONTEXT.programChairName,
+    programChairPhone:
+      hostCommittee?.program_chair?.phone ||
+      hostCommittee?.programChair?.phone ||
+      "",
+    registrationUrl:
+      program?.content?.registration_url ||
+      program?.content?.registrationUrl ||
+      DEFAULT_TEMPLATE_CONTEXT.registrationUrl,
+    dayMap: buildProgramDayMap(program)
+  }
+}
+
+function resolveTemplateContext(context?: Partial<ProgramTemplateContext>) {
+  return { ...DEFAULT_TEMPLATE_CONTEXT, ...context }
+}
+
+function signature(context: ProgramTemplateContext) {
+  return [context.programChairName, `${context.title} Program Chair`, context.programChairPhone]
+    .filter(Boolean)
+    .join("\n")
+}
 
 // Helper function to get first name from full name
 function getFirstName(fullName: string): string {
@@ -37,7 +108,10 @@ function formatPanelTime(timeString: string): string {
 }
 
 // Helper function to parse time and day for display
-function parseTimeAndDay(timeDay: string): { time: string; day: string } {
+function parseTimeAndDay(
+  timeDay: string,
+  context?: ProgramTemplateContext
+): { time: string; day: string } {
   // Try to extract day and time from the timeDay string
   const dayMatch = timeDay.match(
     /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i
@@ -47,15 +121,10 @@ function parseTimeAndDay(timeDay: string): { time: string; day: string } {
   const day = dayMatch ? dayMatch[1] : timeDay
   const time = timeMatch ? timeMatch[1] : "TBD"
 
-  // Format the day for display
-  const dayMappings: Record<string, string> = {
-    thursday: "Thursday, Aug 28th",
-    friday: "Friday, Aug 29th",
-    saturday: "Saturday, Aug 30th",
-    sunday: "Sunday, Aug 31st"
-  }
-
-  const formattedDay = dayMappings[day.toLowerCase()] || day
+  const mappedDate = context?.dayMap?.[day.toLowerCase()]
+  const formattedDay = mappedDate
+    ? `${day}, ${formatProgramDate(mappedDate)}`
+    : day
 
   return { time, day: formattedDay }
 }
@@ -63,15 +132,17 @@ function parseTimeAndDay(timeDay: string): { time: string; day: string } {
 // Generate initial invitation email template
 export function generateInitialEmailTemplate(
   notification: PanelNotification,
-  confirmationLink: string
+  confirmationLink: string,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string {
+  const context = resolveTemplateContext(templateContext)
   const firstName = getFirstName(notification.panelist_name)
-  const { time, day } = parseTimeAndDay(notification.time_day)
+  const { time, day } = parseTimeAndDay(notification.time_day, context)
   const formattedTime = formatPanelTime(time)
 
   return `Dear ${firstName}
 
-We are so hyped to formally send this loving invitation on behalf of The 65th ICYPAA Host Committee to be one of the panelists at our "${notification.title}: ${notification.topic || ""}" panel, at The 65th International Conference of Young People in Alcoholics Anonymous in Minneapolis, MN August 28th - August 31st, 2025. Details are as follows:
+We are so hyped to formally send this loving invitation on behalf of ${context.committeeName} to be one of the panelists at our "${notification.title}: ${notification.topic || ""}" panel, at ${context.title} in ${context.location} (${context.dateRange}). Details are as follows:
 
 (Subject to Change) Date of Meeting: ${day}
 Time: ${formattedTime}
@@ -96,30 +167,30 @@ If you're unable to make it to speak on your panel. Please let us know as soon a
 
 Ever mindful that our primary purpose is to stay sober and help other alcoholics to achieve sobriety, we ask all speakers, as they weave the selected topic into their talk, to focus on their experience, strength and hope, as it relates to their recovery in AA from alcoholism. Remember; you may be the first impression on someone hearing AA for the first time.
 
-Don't forget to pre-register, book your room, and buy a pre-con ticket! → https://www.icypaa.org/.
+Don't forget to pre-register, book your room, and buy a pre-con ticket! → ${context.registrationUrl}.
 We do not pay travel expenses or registration fees for AA panelists who participate in the conference, all attendees must be pre-registered or plan to register at the conference.
 
 In love and service,
 
-Danielle J.
-The 65th ICYPAA Program Chair
-(518) 708-7458`
+${signature(context)}`
 }
 
 // Generate initial invitation SMS templates (multiple messages)
 export function generateInitialSMSTemplates(
   notification: PanelNotification,
-  confirmationLink: string
+  confirmationLink: string,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string[] {
+  const context = resolveTemplateContext(templateContext)
   const firstName = getFirstName(notification.panelist_name)
-  const { time, day } = parseTimeAndDay(notification.time_day)
+  const { time, day } = parseTimeAndDay(notification.time_day, context)
   const formattedTime = formatPanelTime(time)
 
   const messages = [
     // Message 1: Invitation and basic details
     `Dear ${firstName}
 
-We are so hyped to formally send this loving invitation on behalf of The 65th ICYPAA Host Committee to be one of the panelists at our "${notification.title}: ${notification.topic || ""}" panel, at The 65th International Conference of Young People in Alcoholics Anonymous in Minneapolis, MN August 28th - August 31st, 2025. Details are as follows:
+We are so hyped to formally send this loving invitation on behalf of ${context.committeeName} to be one of the panelists at our "${notification.title}: ${notification.topic || ""}" panel, at ${context.title} in ${context.location} (${context.dateRange}). Details are as follows:
 
 Date: ${day}
 Time: ${formattedTime}
@@ -144,12 +215,11 @@ ICYPAA strives to provide a safe and welcoming space for all attendees to experi
 
 If unable to attend, please let us know ASAP.
 
-Don't forget to pre-register, book your room, and buy a pre-con ticket! https://www.icypaa.org/
+Don't forget to pre-register, book your room, and buy a pre-con ticket! ${context.registrationUrl}
 We do not pay travel expenses or registration fees for AA panelists who participate in the conference, all attendees must be pre-registered or plan to register at the conference.
 
 In love and service,
-Danielle J. - The 65th ICYPAA Program Chair
-(518) 708-7458
+${signature(context)}
 
 Confirm attendance: ${confirmationLink}`
   ]
@@ -160,11 +230,13 @@ Confirm attendance: ${confirmationLink}`
 // Generate follow-up reminder email template (for unconfirmed panelists)
 export function generateFollowUpReminderEmailTemplate(
   notification: PanelNotification,
-  confirmationLink: string
+  confirmationLink: string,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string {
-  const { time, day } = parseTimeAndDay(notification.time_day)
+  const context = resolveTemplateContext(templateContext)
+  const { time, day } = parseTimeAndDay(notification.time_day, context)
 
-  return `Hello, The 65th ICYPAA Host Committee again, reminding you to confirm your availability for ${notification.title} panel on ${day} ${time}
+  return `Hello, ${context.committeeName} again, reminding you to confirm your availability for ${notification.title} panel on ${day} ${time}
 
 Click link to confirm or withdraw:
 
@@ -173,17 +245,19 @@ ${confirmationLink}
 Time and Date are subject to change.
 
 In service,
-DJ`
+${context.programChairName}`
 }
 
 // Generate follow-up reminder SMS template (for unconfirmed panelists)
 export function generateFollowUpReminderSMSTemplate(
   notification: PanelNotification,
-  confirmationLink: string
+  confirmationLink: string,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string {
-  const { time, day } = parseTimeAndDay(notification.time_day)
+  const context = resolveTemplateContext(templateContext)
+  const { time, day } = parseTimeAndDay(notification.time_day, context)
 
-  return `Hello, The 65th ICYPAA Host Committee again, reminding you to confirm your availability for ${notification.title} panel on ${day} ${time}
+  return `Hello, ${context.committeeName} again, reminding you to confirm your availability for ${notification.title} panel on ${day} ${time}
 
 Click link to confirm or withdraw:
 
@@ -192,18 +266,19 @@ ${confirmationLink}
 Time and Date are subject to change.
 
 In service,
-DJ
-(518) 708-7458
+${signature(context)}
 
 Responding to this text goes to the void!`
 }
 
 // Generate 1-day before panel reminder email template
 export function generateOneDayReminderEmailTemplate(
-  notification: PanelNotification
+  notification: PanelNotification,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string {
+  const context = resolveTemplateContext(templateContext)
   const firstName = getFirstName(notification.panelist_name)
-  const { time, day } = parseTimeAndDay(notification.time_day)
+  const { time, day } = parseTimeAndDay(notification.time_day, context)
   const formattedTime = formatPanelTime(time)
 
   return `Hi ${firstName},
@@ -224,28 +299,30 @@ Please remember to:
 Looking forward to hearing your experience, strength, and hope!
 
 In love and service,
-Danielle J.
-The 65th ICYPAA Program Chair
-(518) 708-7458`
+${signature(context)}`
 }
 
 // Generate 1-day before panel reminder SMS template
 export function generateOneDayReminderSMSTemplate(
-  notification: PanelNotification
+  notification: PanelNotification,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string {
+  const context = resolveTemplateContext(templateContext)
   const firstName = getFirstName(notification.panelist_name)
-  const { time, day } = parseTimeAndDay(notification.time_day)
+  const { time } = parseTimeAndDay(notification.time_day, context)
   const formattedTime = formatPanelTime(time)
 
-  return `Hi ${firstName}! Reminder: You're speaking on the "${notification.title}" panel tomorrow at ${formattedTime} in ${notification.room}. Please arrive 10 minutes early. Looking forward to hearing your share! - DJ, ICYPAA Program Chair`
+  return `Hi ${firstName}! Reminder: You're speaking on the "${notification.title}" panel tomorrow at ${formattedTime} in ${notification.room}. Please arrive 10 minutes early. Looking forward to hearing your share! - ${context.programChairName}, ${context.title} Program Chair`
 }
 
 // Generate 1-hour before panel reminder email template
 export function generateOneHourReminderEmailTemplate(
-  notification: PanelNotification
+  notification: PanelNotification,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string {
+  const context = resolveTemplateContext(templateContext)
   const firstName = getFirstName(notification.panelist_name)
-  const { time } = parseTimeAndDay(notification.time_day)
+  const { time } = parseTimeAndDay(notification.time_day, context)
   const formattedTime = formatPanelTime(time)
 
   return `Hi ${firstName},
@@ -260,30 +337,33 @@ Please head to ${notification.room} soon and introduce yourself to the Host memb
 
 Thank you for your service!
 
-Danielle J.
-The 65th ICYPAA Program Chair`
+${signature(context)}`
 }
 
 // Generate 1-hour before panel reminder SMS template
 export function generateOneHourReminderSMSTemplate(
-  notification: PanelNotification
+  notification: PanelNotification,
+  templateContext?: Partial<ProgramTemplateContext>
 ): string {
+  const context = resolveTemplateContext(templateContext)
   const firstName = getFirstName(notification.panelist_name)
-  const { time } = parseTimeAndDay(notification.time_day)
+  const { time } = parseTimeAndDay(notification.time_day, context)
   const formattedTime = formatPanelTime(time)
 
-  return `${firstName}, your panel "${notification.title}" starts in 1 hour at ${formattedTime} in ${notification.room}. Please arrive 10 minutes early. Thank you! - DJ, ICYPAA`
+  return `${firstName}, your panel "${notification.title}" starts in 1 hour at ${formattedTime} in ${notification.room}. Please arrive 10 minutes early. Thank you! - ${context.title}`
 }
 
 // Generate confirmation notification email to program@ and chair@
 export function generateConfirmationNotificationEmail(
   notification: PanelNotification,
-  isConfirmed: boolean
+  isConfirmed: boolean,
+  templateContext?: Partial<ProgramTemplateContext>
 ): {
   subject: string
   body: string
 } {
-  const { time, day } = parseTimeAndDay(notification.time_day)
+  const context = resolveTemplateContext(templateContext)
+  const { time, day } = parseTimeAndDay(notification.time_day, context)
   const status = isConfirmed ? "CONFIRMED" : "WITHDRAWN"
 
   return {
@@ -302,6 +382,6 @@ Timestamp: ${new Date().toLocaleString()}
 
 ${!isConfirmed ? "Please arrange for a replacement panelist if needed." : ""}
 
-- ICYPAA Panel Management System`
+- ${context.title} Panel Management System`
   }
 }

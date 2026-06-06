@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from "react"
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState
+} from "react"
 import {
   Permission,
   UserRole,
@@ -78,7 +84,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false)
 
-  const loadUser = async () => {
+  const loadUser = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -98,7 +104,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   // Add a method to set user directly from login flow
   const setUserFromLogin = (userWithRole: UserWithRole) => {
@@ -136,7 +142,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
         } else if (event === "SIGNED_IN" && session) {
           // DON'T load user here - let the login flow handle it
           setIsAuthenticated(true)
-        } else if ((event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session && user) {
+        } else if ((event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session) {
           await loadUser()
         }
       }
@@ -148,7 +154,7 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
         authListener.subscription.unsubscribe()
       }
     }
-  }, [])
+  }, [loadUser])
 
   // Permission checking functions
   const checkPermission = (permission: Permission): boolean => {
