@@ -16,7 +16,7 @@ import {
 import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
-import { withDeviceId } from "../../../lib/supabase"
+import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
 
 interface Message {
@@ -182,6 +182,11 @@ export default function SupportRequest() {
         await AsyncStorage.setItem("user_name", userName)
       }
 
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+      const ownerId = session?.user?.id
+
       // Create the chat in Supabase
       const supabaseWithDeviceId = await withDeviceId()
       const { data, error } = await supabaseWithDeviceId
@@ -192,7 +197,8 @@ export default function SupportRequest() {
           messages: [], // Start with empty messages
           device_id: deviceId,
           name: userName || "Anonymous", // Use the username or fallback to "Anonymous"
-          status: "unread" // Set initial status to unread
+          status: "unread", // Set initial status to unread
+          ...(ownerId ? { owner_id: ownerId } : {})
         })
         .select()
 
@@ -208,14 +214,14 @@ export default function SupportRequest() {
       try {
         await sendNotification({
           eventType: "host",
-          programId: 1,
+          programId: 3,
           data: {
             type: "support",
+            form_id: newChat.id,
             name: userName || "Anonymous",
             title: newChatTitle
           }
         })
-        console.log("Sent host notification for new support chat")
       } catch (notifyError) {
         console.error("Error sending host notification:", notifyError)
       }

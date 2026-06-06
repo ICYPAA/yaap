@@ -17,7 +17,6 @@ import { getTextColorForBackground } from "../../../lib/theme"
 export default function ChairpersonPage() {
   const { theme } = useTheme()
   const router = useRouter()
-  const [user, setUser] = React.useState<any>(null)
   const [userIdentifier, setUserIdentifier] = React.useState<string | undefined>(undefined)
 
   React.useEffect(() => {
@@ -28,19 +27,11 @@ export default function ChairpersonPage() {
     const {
       data: { user }
     } = await supabase.auth.getUser()
-    console.log("Chairperson: Auth user data:", {
-      id: user?.id,
-      email: user?.email,
-      phone: user?.phone,
-      metadata: user?.user_metadata
-    })
-    setUser(user)
     
     // Try to use email first, then phone, then ID
     // This gives us the best chance of matching shift assignments
     const identifier = user?.email || user?.phone || user?.id
     setUserIdentifier(identifier)
-    console.log("Using identifier for shift matching:", identifier)
   }
 
   const handleBack = () => {

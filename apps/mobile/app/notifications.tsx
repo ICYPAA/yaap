@@ -26,11 +26,13 @@ const notifications = [
   }
 ]
 
+type NotificationItem = (typeof notifications)[number]
+
 export default function NotificationsScreen() {
   const { theme } = useTheme()
   const styles = createStyles(theme)
 
-  const renderNotification = ({ item }) => (
+  const renderNotification = ({ item }: { item: NotificationItem }) => (
     <View style={styles.notificationItem}>
       <View style={styles.notificationContent}>
         <Text style={styles.notificationTitle}>{item.title}</Text>
@@ -59,7 +61,7 @@ export default function NotificationsScreen() {
   )
 }
 
-const createStyles = (theme) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -122,7 +124,6 @@ async function registerForPushNotificationsAsync() {
       projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
     })
   ).data
-  console.log(token)
 
   return token
 }

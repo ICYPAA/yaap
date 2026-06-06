@@ -1,6 +1,483 @@
 // Setup type definitions for built-in Supabase Runtime APIs
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from "jsr:@supabase/supabase-js@2"
+import "@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from "@supabase/supabase-js"
+
+const STAFF_NOTIFICATION_ROLES = new Set(["admin", "steering", "advisory"])
+const STAFF_NOTIFICATION_PERMISSIONS = new Set([
+  "notifications:send",
+  "send_notifications"
+])
+const SUPPORT_NOTIFICATION_PERMISSIONS = new Set([
+  "support:edit",
+  "support:manage"
+])
+const SUPPORTED_EVENT_TYPES = new Set([
+  "schedule",
+  "event",
+  "main_meeting",
+  "game",
+  "hospitality",
+  "support",
+  "host"
+])
+const SCHEDULE_STATUSES = new Set(["requested", "accepted"])
+const HOST_NOTIFICATION_ROLES = ["admin", "steering", "advisory", "host"]
+const HOST_FORM_TYPES = new Set([
+  "accessibility",
+  "hospitality",
+  "support",
+  "volunteer"
+])
+
+type NotificationUser = {
+  id: number | string
+  expo_push_token: string | null
+  settings?: Record<string, boolean> | null
+}
+
+type SupabaseFetchError = {
+  code?: string
+  message: string
+}
+
+type ExpoMessage = {
+  to: string
+  sound: string
+  title: string
+  body: string
+  data: Record<string, unknown>
+}
+
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    headers: {
+      "Content-Type": "application/json"
+    },
+    status
+  })
+}
+
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function getBearerToken(req) {
+  const authHeader = req.headers.get("Authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return null
+  }
+
+  return authHeader.slice("Bearer ".length).trim()
+}
+
+async function authenticateRequest(req, supabaseClient) {
+  const token = getBearerToken(req)
+  if (!token) {
+    return jsonResponse({ message: "Unauthorized: Missing bearer token" }, 401)
+  }
+
+  const {
+    data: { user },
+    error
+  } = await supabaseClient.auth.getUser(token)
+
+  if (error || !user) {
+    return jsonResponse({ message: "Unauthorized: Invalid session" }, 401)
+  }
+
+  return { user }
+}
+
+async function getCallerContext(supabaseClient, authUser) {
+  const [rolesResult, profileResult] = await Promise.all([
+    supabaseClient
+      .from("roles")
+      .select("role, permissions")
+      .eq("user_id", authUser.id),
+    supabaseClient
+      .from("users")
+      .select("id, user_id, device_id, first_name, last_initial")
+      .eq("user_id", authUser.id)
+      .maybeSingle()
+  ])
+
+  if (rolesResult.error) {
+    console.error("Error loading caller roles:", rolesResult.error)
+    return {
+      response: jsonResponse({ message: "Unable to verify caller role" }, 500)
+    }
+  }
+
+  if (profileResult.error) {
+    console.error("Error loading caller profile:", profileResult.error)
+    return {
+      response: jsonResponse({ message: "Unable to verify caller profile" }, 500)
+    }
+  }
+
+  return {
+    roles: rolesResult.data || [],
+    profile: profileResult.data || null
+  }
+}
+
+function hasStaffNotificationAccess(callerContext) {
+  return callerContext.roles.some((roleRow) => {
+    if (STAFF_NOTIFICATION_ROLES.has(roleRow.role)) {
+      return true
+    }
+
+    const permissions = Array.isArray(roleRow.permissions)
+      ? roleRow.permissions
+      : []
+
+    return permissions.some((permission) =>
+      STAFF_NOTIFICATION_PERMISSIONS.has(permission)
+    )
+  })
+}
+
+function hasAnyPermission(callerContext, allowedPermissions) {
+  return callerContext.roles.some((roleRow) => {
+    const permissions = Array.isArray(roleRow.permissions)
+      ? roleRow.permissions
+      : []
+
+    return permissions.some((permission) => allowedPermissions.has(permission))
+  })
+}
+
+function normalizeRequestData(requestData) {
+  const normalizedData = { ...(requestData || {}) }
+
+  if (normalizedData.deviceId && !normalizedData.device_id) {
+    normalizedData.device_id = normalizedData.deviceId
+  }
+
+  return normalizedData
+}
+
+function scheduleListIncludes(list, userId) {
+  return Array.isArray(list) && list.some((item) => Number(item) === userId)
+}
+
+function isPositiveInteger(value) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+}
+
+function isRecentTimestamp(createdAt, windowMs = 10 * 60 * 1000) {
+  const timestamp = new Date(createdAt).getTime()
+  return Number.isFinite(timestamp) && Date.now() - timestamp <= windowMs
+}
+
+function callerOwnsRow(authUser, callerProfile, row) {
+  if (!row) {
+    return false
+  }
+
+  if (row.owner_id && row.owner_id === authUser.id) {
+    return true
+  }
+
+  if (row.user_id && row.user_id === authUser.id) {
+    return true
+  }
+
+  if (row.device_id && callerProfile?.device_id === row.device_id) {
+    return true
+  }
+
+  return false
+}
+
+async function verifyHostFormNotification({
+  supabaseClient,
+  authUser,
+  callerProfile,
+  programId,
+  requestData
+}) {
+  if (!HOST_FORM_TYPES.has(requestData.type)) {
+    return {
+      response: jsonResponse(
+        { message: "Bad Request: Unsupported host notification type" },
+        400
+      )
+    }
+  }
+
+  if (!isPositiveInteger(requestData.form_id)) {
+    return {
+      response: jsonResponse(
+        { message: "Bad Request: host form notifications require form_id" },
+        400
+      )
+    }
+  }
+
+  let formQuery
+  switch (requestData.type) {
+    case "accessibility":
+      formQuery = supabaseClient
+        .from("accessibility_forms")
+        .select("id, created_at, owner_id, program_id, user_id")
+        .eq("id", requestData.form_id)
+        .eq("program_id", programId)
+        .maybeSingle()
+      break
+    case "hospitality":
+      formQuery = supabaseClient
+        .from("hospitality_forms")
+        .select("id, created_at, owner_id, program_id, user_id")
+        .eq("id", requestData.form_id)
+        .eq("program_id", programId)
+        .maybeSingle()
+      break
+    case "support":
+      formQuery = supabaseClient
+        .from("support_chats")
+        .select("id, created_at, device_id, owner_id, program_id")
+        .eq("id", requestData.form_id)
+        .eq("program_id", programId)
+        .maybeSingle()
+      break
+    case "volunteer":
+      formQuery = supabaseClient
+        .from("volunteering_interest")
+        .select("id, created_at, owner_id, program_id")
+        .eq("id", requestData.form_id)
+        .eq("program_id", programId)
+        .maybeSingle()
+      break
+    default:
+      return {
+        response: jsonResponse(
+          { message: "Bad Request: Unsupported host notification type" },
+          400
+        )
+      }
+  }
+
+  const { data: formRow, error: formError } = await formQuery
+  if (formError) {
+    console.error("Error verifying host form notification:", formError)
+    return {
+      response: jsonResponse(
+        { message: "Unable to verify host form notification" },
+        500
+      )
+    }
+  }
+
+  if (!formRow || !isRecentTimestamp(formRow.created_at)) {
+    return {
+      response: jsonResponse(
+        {
+          message:
+            "Forbidden: Host form notification does not match a recent form"
+        },
+        403
+      )
+    }
+  }
+
+  if (!callerOwnsRow(authUser, callerProfile, formRow)) {
+    return {
+      response: jsonResponse(
+        { message: "Forbidden: Host form notification ownership mismatch" },
+        403
+      )
+    }
+  }
+
+  return { requestData }
+}
+
+async function fetchHostNotificationUsers(supabaseClient) {
+  const { data: roleRows, error: roleError } = await supabaseClient
+    .from("roles")
+    .select("user_id")
+    .in("role", HOST_NOTIFICATION_ROLES)
+
+  if (roleError) {
+    return { data: null, error: roleError }
+  }
+
+  const hostAuthUserIds = [
+    ...new Set((roleRows || []).map((row) => row.user_id).filter(Boolean))
+  ]
+
+  if (hostAuthUserIds.length === 0) {
+    return { data: [], error: null }
+  }
+
+  return await supabaseClient
+    .from("users")
+    .select("id, expo_push_token, settings")
+    .in("user_id", hostAuthUserIds)
+    .eq("settings->>notifications", "true")
+    .not("expo_push_token", "is", null)
+    .not("expo_push_token", "eq", "")
+}
+
+async function authorizeNotificationRequest({
+  supabaseClient,
+  authUser,
+  programId,
+  eventType,
+  userId,
+  requestData
+}) {
+  if (!SUPPORTED_EVENT_TYPES.has(eventType)) {
+    return {
+      response: jsonResponse(
+        { message: `Bad Request: Unsupported event_type '${eventType}'` },
+        400
+      )
+    }
+  }
+
+  const callerContext = await getCallerContext(supabaseClient, authUser)
+  if (callerContext.response) {
+    return callerContext
+  }
+
+  const normalizedData = normalizeRequestData(requestData)
+
+  if (eventType === "schedule") {
+    if (!callerContext.profile) {
+      return {
+        response: jsonResponse(
+          { message: "Forbidden: Schedule notifications require a profile" },
+          403
+        )
+      }
+    }
+
+    if (!SCHEDULE_STATUSES.has(normalizedData.status)) {
+      return {
+        response: jsonResponse(
+          { message: "Bad Request: Invalid schedule notification status" },
+          400
+        )
+      }
+    }
+
+    const { data: shareRows, error: shareError } = await supabaseClient
+      .from("users")
+      .select("id, schedule")
+      .in("id", [callerContext.profile.id, userId])
+
+    if (shareError) {
+      console.error("Error verifying schedule relationship:", shareError)
+      return {
+        response: jsonResponse(
+          { message: "Unable to verify schedule notification ownership" },
+          500
+        )
+      }
+    }
+
+    const callerSchedule = shareRows?.find(
+      (row) => Number(row.id) === Number(callerContext.profile.id)
+    )
+    const targetSchedule = shareRows?.find((row) => Number(row.id) === userId)
+    const targetRequestedCaller = scheduleListIncludes(
+      targetSchedule?.schedule?.requested_share,
+      callerContext.profile.id
+    )
+    const callerSharesWithTarget = scheduleListIncludes(
+      callerSchedule?.schedule?.shared_with,
+      userId
+    )
+
+    if (
+      (normalizedData.status === "requested" && !targetRequestedCaller) ||
+      (normalizedData.status === "accepted" && !callerSharesWithTarget)
+    ) {
+      return {
+        response: jsonResponse(
+          { message: "Forbidden: Schedule notification ownership mismatch" },
+          403
+        )
+      }
+    }
+
+    return {
+      requestData: {
+        ...normalizedData,
+        user: {
+          first_name: callerContext.profile.first_name || "",
+          last_initial: callerContext.profile.last_initial || ""
+        }
+      }
+    }
+  }
+
+  if (eventType === "support") {
+    if (
+      !hasStaffNotificationAccess(callerContext) &&
+      !hasAnyPermission(callerContext, SUPPORT_NOTIFICATION_PERMISSIONS)
+    ) {
+      return {
+        response: jsonResponse(
+          { message: "Forbidden: Support notifications require host access" },
+          403
+        )
+      }
+    }
+
+    if (!normalizedData.device_id) {
+      return {
+        response: jsonResponse(
+          { message: "Bad Request: support notifications require device_id" },
+          400
+        )
+      }
+    }
+
+    return { requestData: normalizedData }
+  }
+
+  if (eventType === "host") {
+    if (normalizedData.type === "general") {
+      if (!hasStaffNotificationAccess(callerContext)) {
+        return {
+          response: jsonResponse(
+            { message: "Forbidden: Notification send permission required" },
+            403
+          )
+        }
+      }
+
+      return { requestData: normalizedData }
+    }
+
+    if (hasStaffNotificationAccess(callerContext)) {
+      return { requestData: normalizedData }
+    }
+
+    return await verifyHostFormNotification({
+      supabaseClient,
+      authUser,
+      callerProfile: callerContext.profile,
+      programId,
+      requestData: normalizedData
+    })
+  }
+
+  if (!hasStaffNotificationAccess(callerContext)) {
+    return {
+      response: jsonResponse(
+        { message: "Forbidden: Notification send permission required" },
+        403
+      )
+    }
+  }
+
+  return { requestData: normalizedData }
+}
+
 // --- Helper Function: Map event type to the setting key ---
 function getNotificationSettingKey(eventType) {
   switch (eventType) {
@@ -87,7 +564,7 @@ function getNotificationContent(eventType, programId, requestData) {
   }
   // Merge baseData with optional requestData. requestData will override baseData keys if they conflict.
   // Filter out user_id from requestData before merging if it exists, as it's handled separately in baseData if needed
-  const { user_id, ...otherRequestData } = requestData || {}
+  const { user_id: _user_id, ...otherRequestData } = requestData || {}
   const finalData = {
     ...baseData,
     ...otherRequestData
@@ -99,9 +576,8 @@ function getNotificationContent(eventType, programId, requestData) {
   }
 }
 // --- Helper Function: Send Notifications via Expo API ---
-async function sendExpoNotifications(messages) {
+async function sendExpoNotifications(messages: ExpoMessage[]) {
   if (messages.length === 0) {
-    console.log("No messages to send.")
     // Return 200 OK, but indicate no one was notified
     return new Response(
       JSON.stringify({
@@ -117,32 +593,25 @@ async function sendExpoNotifications(messages) {
       }
     )
   }
-  console.log(`Attempting to send ${messages.length} notification(s).`)
-  
   // Split messages into batches of 100 (Expo API limit)
   const BATCH_SIZE = 100
-  const batches = []
+  const batches: ExpoMessage[][] = []
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
     batches.push(messages.slice(i, i + BATCH_SIZE))
   }
-  
-  console.log(`Split into ${batches.length} batch(es) of up to ${BATCH_SIZE} notifications each.`)
-  
+
   let totalSuccessful = 0
   let totalFailed = 0
-  const allResponses = []
-  
+  const allResponses: Array<Record<string, unknown>> = []
+
   // Send each batch with delay between batches to avoid rate limiting
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex]
-    console.log(`Sending batch ${batchIndex + 1}/${batches.length} with ${batch.length} notifications...`)
-    
     // Add delay between batches to avoid hitting rate limit (except for first batch)
     if (batchIndex > 0) {
-      console.log(`Waiting 250ms before sending next batch to avoid rate limit...`)
-      await new Promise(resolve => setTimeout(resolve, 250))
+      await new Promise((resolve) => setTimeout(resolve, 250))
     }
-    
+
     try {
       const response = await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
@@ -154,9 +623,13 @@ async function sendExpoNotifications(messages) {
         body: JSON.stringify(batch)
       })
       const responseBody = await response.json()
-      
+
       if (!response.ok) {
-        console.error(`Batch ${batchIndex + 1} failed:`, response.status, responseBody)
+        console.error(
+          `Batch ${batchIndex + 1} failed:`,
+          response.status,
+          responseBody
+        )
         // Continue with other batches even if one fails
         totalFailed += batch.length
         allResponses.push({
@@ -166,44 +639,41 @@ async function sendExpoNotifications(messages) {
         })
         continue
       }
-      
-      console.log(`Batch ${batchIndex + 1} response:`, responseBody)
-      
+
       const successfulSends =
-        responseBody.data?.filter((receipt) => receipt.status === "ok").length ?? 0
+        responseBody.data?.filter((receipt) => receipt.status === "ok")
+          .length ?? 0
       const failedSends = batch.length - successfulSends
-      
+
       totalSuccessful += successfulSends
       totalFailed += failedSends
-      
+
       // Log receipts with errors for debugging
-      responseBody.data?.forEach((receipt: any) => {
+      responseBody.data?.forEach((receipt) => {
         if (receipt.status !== "ok") {
           console.warn(
-            `Notification failed for token ${
-              receipt.__debug?.sentTo ?? "UNKNOWN"
-            }: ${receipt.message} (${receipt.details?.error})`
+            `Notification receipt failed: ${receipt.message} (${receipt.details?.error})`
           )
         }
       })
-      
+
       allResponses.push({
         batch: batchIndex + 1,
         success: true,
-        data: responseBody
+        successful: successfulSends,
+        failed: failedSends
       })
-      
     } catch (error) {
       console.error(`Error sending batch ${batchIndex + 1}:`, error)
       totalFailed += batch.length
       allResponses.push({
         batch: batchIndex + 1,
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       })
     }
   }
-  
+
   // Return overall results
   const overallSuccess = totalFailed === 0
   return new Response(
@@ -227,51 +697,34 @@ async function sendExpoNotifications(messages) {
   )
 }
 // --- Main Edge Function ---
-Deno.serve(async (req) => {
+Deno.serve(async (req): Promise<Response> => {
   const requestTimestamp = new Date().toISOString()
-  console.log(`Received request at: ${requestTimestamp}`)
   let supabase
   try {
-    // Check for basic auth
-    const authHeader = req.headers.get("Authorization")
-    console.log("Auth header:", authHeader)
-    if (!authHeader || !authHeader.startsWith("Basic ")) {
-      return new Response(
-        JSON.stringify({
-          message: "Unauthorized: Missing or invalid authorization"
-        }),
-        {
-          headers: {
-            "Content-Type": "application/json"
-          },
-          status: 401
-        }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+      return jsonResponse(
+        { message: "Internal Server Error: Missing Supabase configuration" },
+        500
       )
     }
-    console.log("Checking creds")
-    // Decode and verify basic auth
-    const base64Credentials = authHeader.split(" ")[1]
-    const credentials = atob(base64Credentials)
-    const expectedAuth = `yaap:${Deno.env.get("EDGE_PASSWORD")}`
-    console.log("Expected:", expectedAuth)
-    console.log("Actual:", credentials)
-    if (credentials !== expectedAuth) {
-      return new Response(
-        JSON.stringify({
-          message: "Unauthorized: Invalid credentials"
-        }),
-        {
-          headers: {
-            "Content-Type": "application/json"
-          },
-          status: 401
-        }
-      )
+
+    supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {})
+
+    const authResult = await authenticateRequest(req, supabase)
+    if (authResult instanceof Response) {
+      return authResult
     }
+    const { user: authUser } = authResult
+
     // 1. Parse Request Body
     if (
-      req.headers.get("content-type")?.toLocaleLowerCase() !==
-      "application/json"
+      !req.headers
+        .get("content-type")
+        ?.toLocaleLowerCase()
+        .startsWith("application/json")
     ) {
       return new Response(
         JSON.stringify({
@@ -290,8 +743,9 @@ Deno.serve(async (req) => {
       program_id,
       event_type,
       user_id,
-      data: requestData
+      data: rawRequestData
     } = await req.json()
+    let requestData = rawRequestData
     // Basic input validation
     if (!program_id || !event_type) {
       return new Response(
@@ -322,7 +776,7 @@ Deno.serve(async (req) => {
     }
     // --- *** NEW: Conditional validation for user_id when event_type is 'schedule' *** ---
     if (event_type === "schedule") {
-      if (!user_id) {
+      if (user_id === undefined || user_id === null) {
         return new Response(
           JSON.stringify({
             message:
@@ -350,9 +804,6 @@ Deno.serve(async (req) => {
           }
         )
       }
-      console.log(
-        `Processing 'schedule' notification targeted at user_id: ${user_id}`
-      )
     } else if (user_id) {
       // Optional: Warn if user_id is provided for non-schedule types where it's ignored for targeting
       console.warn(
@@ -379,37 +830,31 @@ Deno.serve(async (req) => {
         }
       )
     }
-    console.log(
-      `Processing notification for program_id: ${program_id}, event_type: ${event_type}, requestData: ${JSON.stringify(
-        requestData
-      )}`
-    )
-    // 2. Initialize Supabase Client (using Service Role Key)
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")
-    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
-      return new Response(
-        JSON.stringify({
-          message: "Internal Server Error: Missing Supabase configuration"
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
+    const authorizationResult = await authorizeNotificationRequest({
+      supabaseClient: supabase,
+      authUser,
+      programId: program_id,
+      eventType: event_type,
+      userId: user_id,
+      requestData
+    })
+    if (authorizationResult.response instanceof Response) {
+      return authorizationResult.response
+    }
+    if (!("requestData" in authorizationResult)) {
+      return jsonResponse(
+        { message: "Internal Server Error: Invalid authorization result" },
+        500
       )
     }
-    supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {})
+    requestData = authorizationResult.requestData
+
+    // 2. Query Supabase using the service role after caller authentication.
     // --- *** NEW: Conditional User Fetching Logic *** ---
-    let usersToQuery = []
-    let fetchError = null
+    let usersToQuery: NotificationUser[] = []
+    let fetchError: SupabaseFetchError | null = null
     if (event_type === "schedule") {
       // Fetch the specific user passed in the request
-      console.log(
-        `Workspaceing specific user ${user_id} for schedule notification...`
-      )
       const { data: specificUserData, error: specificUserError } =
         await supabase
           .from("users")
@@ -440,25 +885,13 @@ Deno.serve(async (req) => {
         usersToQuery = allUsersData || []
         fetchError = allUsersError
       } else {
-        // Modified logic: Fetch users with general notifications enabled,
-        // a valid push token, AND a defined user_id.
-        console.log(
-          "Fetching users with notifications enabled, valid token, and defined user_id..."
-        )
-        const { data: allUsersData, error: allUsersError } = await supabase
-          .from("users")
-          .select("id, expo_push_token, settings") // Select needed columns
-          .eq("settings->>notifications", "true") // Check general notification setting
-          .not("expo_push_token", "is", null) // Ensure push token exists
-          .not("expo_push_token", "eq", "") // Ensure push token is not empty
-          .not("user_id", "is", null) // *** NEW: Ensure user_id is defined (not null) ***
-        // The rest of your logic remains the same
-        usersToQuery = allUsersData || []
-        fetchError = allUsersError
+        const { data: hostUsersData, error: hostUsersError } =
+          await fetchHostNotificationUsers(supabase)
+        usersToQuery = hostUsersData || []
+        fetchError = hostUsersError
       }
     } else {
       // Original logic: Fetch all users with general notifications enabled for other event types
-      console.log("Fetching users with general notifications enabled...")
       const { data: allUsersData, error: allUsersError } = await supabase
         .from("users")
         .select("id, expo_push_token, settings")
@@ -494,7 +927,6 @@ Deno.serve(async (req) => {
         event_type === "schedule"
           ? `Target user ${user_id} not found or has no valid push token.`
           : "No users found with general notifications enabled or valid push tokens."
-      console.log(message)
       return new Response(
         JSON.stringify({
           success: true,
@@ -508,9 +940,6 @@ Deno.serve(async (req) => {
         }
       )
     }
-    console.log(
-      `Found ${usersToQuery.length} potential user(s) after initial fetch.`
-    )
     // 5. Filter Users by Specific Event Type Notification Setting (This logic remains the same)
     const settingKey = getNotificationSettingKey(event_type)
     if (!settingKey) {
@@ -527,7 +956,8 @@ Deno.serve(async (req) => {
         }
       )
     }
-    const filteredUsers = usersToQuery.filter((user: any) => {
+    const filteredUsers = usersToQuery.filter(
+      (user): user is NotificationUser & { expo_push_token: string } => {
       // Check if the specific notification type (e.g., 'schedule_notifications') is explicitly true
       const specificSettingEnabled =
         event_type !== "host" && event_type !== "support"
@@ -542,7 +972,7 @@ Deno.serve(async (req) => {
       if (!isValidToken && specificSettingEnabled && generalSettingEnabled) {
         // Log if a user *should* receive it based on settings but has a bad token
         console.warn(
-          `User ${user.id} opted in for ${settingKey} but has invalid or missing expo_push_token: ${user.expo_push_token}`
+          `User ${user.id} opted in for ${settingKey} but has invalid or missing expo_push_token`
         )
       }
       // For 'schedule' type, we also implicitly checked general settings via the fetch if we didn't change that part.
@@ -550,22 +980,6 @@ Deno.serve(async (req) => {
       // User must have general notifications ON, *and* specific notification type ON, *and* a valid token.
       return generalSettingEnabled && specificSettingEnabled && isValidToken
     })
-    // Refine log message based on event type
-    if (event_type === "schedule") {
-      if (filteredUsers.length === 1) {
-        console.log(
-          `User ${user_id} is opted-in for '${settingKey}' and has a valid token.`
-        )
-      } else {
-        console.log(
-          `User ${user_id} was fetched but is not opted-in for '${settingKey}' or lacks a valid token.`
-        )
-      }
-    } else {
-      console.log(
-        `Filtered down to ${filteredUsers.length} users opted-in for event_type '${event_type}' (${settingKey}) with valid tokens.`
-      )
-    }
     // 6. Prepare Expo Notification Payloads using dynamic content
     const notificationContent = getNotificationContent(event_type, program_id, {
       ...requestData,
@@ -585,7 +999,7 @@ Deno.serve(async (req) => {
         }
       )
     }
-    const expoMessages = filteredUsers.map((user: any) => ({
+    const expoMessages = filteredUsers.map((user) => ({
       to: user.expo_push_token,
       sound: "default",
       title: notificationContent.title,
@@ -613,7 +1027,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        message: `Internal Server Error: ${error.message}`
+        message: `Internal Server Error: ${getErrorMessage(error)}`
       }),
       {
         status: 500,
@@ -624,4 +1038,3 @@ Deno.serve(async (req) => {
     )
   }
 })
-console.log("Notification function initialized with conditional user fetching.")

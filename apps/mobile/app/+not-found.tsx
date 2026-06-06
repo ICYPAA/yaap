@@ -22,7 +22,7 @@ export default function NotFoundScreen() {
   )
 }
 
-const createStyles = (theme) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,

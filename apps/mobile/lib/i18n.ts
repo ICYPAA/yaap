@@ -104,10 +104,10 @@ export const initializeI18n = async () => {
 // Get available locales
 export const getAvailableLocales = () => {
   return [
-    { code: "en", name: "English" },
-    { code: "es", name: "Español" },
-    { code: "so", name: "Soomaali" },
-    { code: "hmn", name: "Hmong" }
+    { code: "en", name: "English", nativeName: "English" },
+    { code: "es", name: "Spanish", nativeName: "Español" },
+    { code: "so", name: "Somali", nativeName: "Soomaali" },
+    { code: "hmn", name: "Hmong", nativeName: "Hmong" }
   ]
 }
 

@@ -23,7 +23,7 @@ interface OnCallAssignment {
   id: number
   service_type: string
   user_id: string
-  user_name?: string  // Will be populated with the actual user name
+  user_name?: string // Will be populated with the actual user name
 }
 
 const SERVICE_TYPES = [
@@ -63,27 +63,37 @@ export default function OnCallManagement() {
       if (error) throw error
 
       if (data && data.length > 0) {
+        type AuthUserRow = {
+          id: string
+          email?: string
+          full_name?: string
+        }
+        const assignments = data as OnCallAssignment[]
+
         // Get user names for the assigned users
-        const assignedUserIds = data.map(a => a.user_id)
-        const { data: authUsers, error: authError } = await supabaseWithDeviceId
-          .rpc("get_auth_user_names", {
+        const assignedUserIds = assignments.map((a) => a.user_id)
+        const { data: authUsers, error: authError } =
+          await supabaseWithDeviceId.rpc("get_auth_user_names", {
             user_ids: assignedUserIds
           })
 
         // Create a map for easy lookup
-        const authUsersMap = new Map()
+        const authUsersMap = new Map<string, AuthUserRow>()
         if (authUsers) {
-          authUsers.forEach(u => {
+          ;(authUsers as AuthUserRow[]).forEach((u) => {
             authUsersMap.set(u.id, u)
           })
         }
 
         // Add user names to assignments
-        const assignmentsWithNames = data.map(assignment => {
+        const assignmentsWithNames = assignments.map((assignment) => {
           const authUser = authUsersMap.get(assignment.user_id)
           return {
             ...assignment,
-            user_name: authUser?.full_name || authUser?.email || `User ID: ${assignment.user_id.slice(0, 8)}...`
+            user_name:
+              authUser?.full_name ||
+              authUser?.email ||
+              `User ID: ${assignment.user_id.slice(0, 8)}...`
           }
         })
 
@@ -103,7 +113,7 @@ export default function OnCallManagement() {
   const fetchAvailableUsers = async () => {
     try {
       const supabaseWithDeviceId = await withDeviceId()
-      
+
       // First get users with roles from the roles table
       const { data: rolesData, error: rolesError } = await supabaseWithDeviceId
         .from("roles")
@@ -118,11 +128,11 @@ export default function OnCallManagement() {
       }
 
       // Get user IDs to fetch their names
-      const userIds = rolesData.map(r => r.user_id)
-      
+      const userIds = rolesData.map((r) => r.user_id)
+
       // Get user names from auth.users using the RPC function
-      const { data: authUsers, error: authError } = await supabaseWithDeviceId
-        .rpc("get_auth_user_names", {
+      const { data: authUsers, error: authError } =
+        await supabaseWithDeviceId.rpc("get_auth_user_names", {
           user_ids: userIds
         })
 
@@ -132,30 +142,38 @@ export default function OnCallManagement() {
       }
 
       // Create a map for easy lookup
-      const authUsersMap = new Map()
+      type AuthUserRow = {
+        id: string
+        email?: string
+        full_name?: string
+      }
+      const authUsersMap = new Map<string, AuthUserRow>()
       if (authUsers) {
-        authUsers.forEach(u => {
+        ;(authUsers as AuthUserRow[]).forEach((u) => {
           authUsersMap.set(u.id, u)
         })
       }
 
       // Combine the data
-      const users = rolesData.map(r => {
+      const users = rolesData.map((r) => {
         const authUser = authUsersMap.get(r.user_id)
-        let displayName = authUser?.full_name || authUser?.email || `${r.role.charAt(0).toUpperCase() + r.role.slice(1)} User`
-        
+        let displayName =
+          authUser?.full_name ||
+          authUser?.email ||
+          `${r.role.charAt(0).toUpperCase() + r.role.slice(1)} User`
+
         // Add role to the name for clarity
         if (authUser?.full_name || authUser?.email) {
           displayName = `${displayName} (${r.role})`
         }
-        
+
         return {
           id: r.user_id,
           email: displayName,
           role: r.role
         }
       })
-      
+
       setAvailableUsers(users)
     } catch (error) {
       console.error("Error fetching users:", error)
@@ -165,7 +183,7 @@ export default function OnCallManagement() {
   const assignOnCall = async (serviceType: string, userId: string) => {
     try {
       const supabaseWithDeviceId = await withDeviceId()
-      
+
       // First, deactivate any existing assignments for this service
       await supabaseWithDeviceId
         .from("oncall_assignments")
@@ -175,7 +193,9 @@ export default function OnCallManagement() {
         .eq("is_active", true)
 
       // Create new assignment
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user }
+      } = await supabase.auth.getUser()
       const { error } = await supabaseWithDeviceId
         .from("oncall_assignments")
         .insert({
@@ -214,7 +234,7 @@ export default function OnCallManagement() {
                 .eq("id", assignmentId)
 
               if (error) throw error
-              
+
               Alert.alert("Success", "Assignment removed successfully")
               fetchAssignments()
             } catch (error) {
@@ -234,7 +254,7 @@ export default function OnCallManagement() {
 
   const handleUserSelection = async (userId: string) => {
     if (!selectedService) return
-    
+
     setAssigningUser(true)
     await assignOnCall(selectedService, userId)
     setAssigningUser(false)
@@ -249,8 +269,15 @@ export default function OnCallManagement() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={theme.colors.primary} />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={28}
+            color={theme.colors.primary}
+          />
         </TouchableOpacity>
         <Text style={styles.headerText}>On-Call Management</Text>
         <View style={styles.headerRightPlaceholder} />
@@ -259,21 +286,27 @@ export default function OnCallManagement() {
       <ScrollView
         style={styles.scrollContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => {
-            setRefreshing(true)
-            fetchAssignments()
-          }} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true)
+              fetchAssignments()
+            }}
+          />
         }
       >
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Current On-Call Assignments</Text>
           <Text style={styles.sectionDescription}>
-            Users assigned here will receive push notifications for their service area
+            Users assigned here will receive push notifications for their
+            service area
           </Text>
 
-          {SERVICE_TYPES.map(service => {
-            const assignment = assignments.find(a => a.service_type === service.key)
-            
+          {SERVICE_TYPES.map((service) => {
+            const assignment = assignments.find(
+              (a) => a.service_type === service.key
+            )
+
             return (
               <View key={service.key} style={styles.serviceCard}>
                 <View style={styles.serviceHeader}>
@@ -287,7 +320,7 @@ export default function OnCallManagement() {
                     <Text style={styles.serviceLabel}>{service.label}</Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.assignmentInfo}>
                   {assignment ? (
                     <View style={styles.assignedUser}>
@@ -299,14 +332,18 @@ export default function OnCallManagement() {
                           onPress={() => removeAssignment(assignment.id)}
                           style={styles.removeButton}
                         >
-                          <Ionicons name="close-circle" size={20} color={theme.colors.error} />
+                          <Ionicons
+                            name="close-circle"
+                            size={20}
+                            color={theme.colors.error}
+                          />
                         </TouchableOpacity>
                       )}
                     </View>
                   ) : (
                     <Text style={styles.unassignedText}>No one assigned</Text>
                   )}
-                  
+
                   {isAdmin && (
                     <TouchableOpacity
                       style={styles.assignButton}
@@ -324,11 +361,15 @@ export default function OnCallManagement() {
         </View>
 
         <View style={styles.infoSection}>
-          <Ionicons name="information-circle" size={20} color={theme.colors.primary} />
+          <Ionicons
+            name="information-circle"
+            size={20}
+            color={theme.colors.primary}
+          />
           <Text style={styles.infoText}>
-            On-call users will automatically receive push notifications when new requests
-            come in for their assigned service area. Make sure assigned users have
-            notifications enabled.
+            On-call users will automatically receive push notifications when new
+            requests come in for their assigned service area. Make sure assigned
+            users have notifications enabled.
           </Text>
         </View>
       </ScrollView>
@@ -347,7 +388,8 @@ export default function OnCallManagement() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Assign On-Call for {SERVICE_TYPES.find(s => s.key === selectedService)?.label}
+                Assign On-Call for{" "}
+                {SERVICE_TYPES.find((s) => s.key === selectedService)?.label}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -356,13 +398,17 @@ export default function OnCallManagement() {
                 }}
                 style={styles.modalCloseButton}
               >
-                <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+                <Ionicons
+                  name="close"
+                  size={24}
+                  color={theme.colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalUserList}>
               {availableUsers.length > 0 ? (
-                availableUsers.map(user => (
+                availableUsers.map((user) => (
                   <TouchableOpacity
                     key={user.id}
                     style={styles.modalUserItem}
@@ -370,30 +416,27 @@ export default function OnCallManagement() {
                     disabled={assigningUser}
                   >
                     <View style={styles.modalUserInfo}>
-                      <Ionicons 
-                        name="person-circle" 
-                        size={32} 
-                        color={theme.colors.primary} 
+                      <Ionicons
+                        name="person-circle"
+                        size={32}
+                        color={theme.colors.primary}
                       />
                       <View style={styles.modalUserText}>
-                        <Text style={styles.modalUserName}>
-                          {user.email}
-                        </Text>
-                        <Text style={styles.modalUserRole}>
-                          {user.role}
-                        </Text>
+                        <Text style={styles.modalUserName}>{user.email}</Text>
+                        <Text style={styles.modalUserRole}>{user.role}</Text>
                       </View>
                     </View>
                     {assigningUser && (
-                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                      <ActivityIndicator
+                        size="small"
+                        color={theme.colors.primary}
+                      />
                     )}
                   </TouchableOpacity>
                 ))
               ) : (
                 <View style={styles.modalEmptyState}>
-                  <Text style={styles.modalEmptyText}>
-                    No users available
-                  </Text>
+                  <Text style={styles.modalEmptyText}>No users available</Text>
                 </View>
               )}
             </ScrollView>
@@ -524,26 +567,26 @@ const createStyles = (theme: any) =>
     // Modal styles
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
-      alignItems: 'center'
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center"
     },
     modalContent: {
       backgroundColor: theme.colors.background,
       borderRadius: theme.borderRadius.lg,
-      width: '90%',
-      maxHeight: '70%',
+      width: "90%",
+      maxHeight: "70%",
       padding: theme.spacing.lg
     },
     modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
       marginBottom: theme.spacing.lg
     },
     modalTitle: {
       fontSize: 18,
-      fontWeight: 'bold',
+      fontWeight: "bold",
       color: theme.colors.text.primary,
       flex: 1
     },
@@ -554,17 +597,17 @@ const createStyles = (theme: any) =>
       maxHeight: 400
     },
     modalUserItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       paddingVertical: theme.spacing.md,
       paddingHorizontal: theme.spacing.sm,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border
     },
     modalUserInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       flex: 1
     },
     modalUserText: {
@@ -574,7 +617,7 @@ const createStyles = (theme: any) =>
     modalUserName: {
       fontSize: 16,
       color: theme.colors.text.primary,
-      fontWeight: '500'
+      fontWeight: "500"
     },
     modalUserRole: {
       fontSize: 14,
@@ -583,7 +626,7 @@ const createStyles = (theme: any) =>
     },
     modalEmptyState: {
       padding: theme.spacing.xl,
-      alignItems: 'center'
+      alignItems: "center"
     },
     modalEmptyText: {
       fontSize: 16,

@@ -23,10 +23,7 @@
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production",
-      "env": {
-        "SENTRY_AUTH_TOKEN": "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"
-      }
+      "channel": "production"
     }
   },
   "submit": {

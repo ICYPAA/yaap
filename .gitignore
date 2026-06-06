@@ -17,6 +17,7 @@ node_modules/
 coverage/
 dist/
 build/
+*.tsbuildinfo
 apps/*/.turbo/
 apps/admin-web/.next/
 

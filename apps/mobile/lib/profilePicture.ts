@@ -1,13 +1,27 @@
 import * as ImagePicker from "expo-image-picker"
 import { Image } from "react-native"
-import { getDeviceId } from "./supabase"
+import { getDeviceId, supabase } from "./supabase"
 
 const EDGE_FUNCTION_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
   ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/profile_pictures`
   : ""
 
-// Use a hardcoded password to ensure it works
-const EDGE_PASSWORD = process.env.EDGE_PASSWORD || "hacypaa9"
+async function getAuthHeaders(
+  deviceId: string
+): Promise<Record<string, string>> {
+  const {
+    data: { session }
+  } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    throw new Error("Please sign in before updating your profile picture.")
+  }
+
+  return {
+    Authorization: `Bearer ${session.access_token}`,
+    "x-device-id": deviceId
+  }
+}
 
 /**
  * Picks an image from the device gallery and uploads it as profile picture
@@ -54,7 +68,6 @@ export async function uploadProfilePicture() {
 
     // Get the selected image URI
     const imageUri = result.assets[0].uri
-    console.log("Selected image URI:", imageUri)
 
     // Create form data with the image
     const formData = new FormData()
@@ -70,30 +83,19 @@ export async function uploadProfilePicture() {
       type: `image/${fileType}`
     } as any)
 
-    // Create Basic Auth credentials - using fixed password
-    const basicAuth = btoa(`yaap:${EDGE_PASSWORD}`)
+    const authHeaders = await getAuthHeaders(deviceId)
 
-    console.log("Uploading profile picture for device:", deviceId)
-    console.log("Auth header:", `Basic ${basicAuth.substring(0, 10)}...`)
-
-    // Upload to edge function with Basic Auth
-    console.log("Sending request to:", EDGE_FUNCTION_URL)
+    // Upload to edge function with the user's Supabase session.
     const response = await fetch(EDGE_FUNCTION_URL, {
       method: "POST",
-      headers: {
-        Authorization: `Basic ${basicAuth}`,
-        "x-device-id": deviceId
-      },
+      headers: authHeaders,
       body: formData
     })
 
-    console.log("Response status:", response.status)
     const data = await response.json()
-    console.log("Response data:", JSON.stringify(data))
 
     if (!response.ok) {
       console.error("Upload failed with status:", response.status)
-      console.error("Response data:", data)
       return {
         success: false,
         error: data.error || data.message || "Failed to upload profile picture"
@@ -101,14 +103,13 @@ export async function uploadProfilePicture() {
     }
 
     if (!data.publicUrl) {
-      console.error("Missing publicUrl in response:", data)
+      console.error("Missing publicUrl in profile picture response")
       return {
         success: false,
         error: "Server returned success but no image URL was provided"
       }
     }
 
-    console.log("Profile picture uploaded successfully, URL:", data.publicUrl)
     return {
       success: true,
       imageUrl: data.publicUrl
@@ -139,16 +140,11 @@ export async function deleteProfilePicture() {
       }
     }
 
-    // Create Basic Auth credentials - using fixed password
-    const basicAuth = btoa(`yaap:${EDGE_PASSWORD}`)
+    const authHeaders = await getAuthHeaders(deviceId)
 
-    // Delete using edge function with Basic Auth
     const response = await fetch(EDGE_FUNCTION_URL, {
       method: "DELETE",
-      headers: {
-        Authorization: `Basic ${basicAuth}`,
-        "x-device-id": deviceId
-      }
+      headers: authHeaders
     })
 
     const data = await response.json()
@@ -185,7 +181,6 @@ export function clearImageCache(url: string): void {
     // Clear the in-memory cache for this specific image
     if (Image.queryCache) {
       Image.queryCache([url])
-        .then(() => console.log("Image cache cleared for:", url))
         .catch((error) => console.error("Error clearing image cache:", error))
     } else {
       console.log("Image.queryCache not available on this platform")

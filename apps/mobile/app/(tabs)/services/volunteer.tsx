@@ -13,7 +13,7 @@ import {
 import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
-import { withDeviceId } from "../../../lib/supabase"
+import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
@@ -48,7 +48,7 @@ type VolunteerInterestFormData = {
 }
 
 export default function VolunteerSignup() {
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
   const router = useRouter()
   const [formSubmitted, setFormSubmitted] = useState(false)
   const [program, setProgram] = useState<Program | null>(null)
@@ -204,9 +204,14 @@ export default function VolunteerSignup() {
     }
 
     try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+      const ownerId = session?.user?.id
+
       // Submit form data to Supabase
       const supabaseWithDeviceId = await withDeviceId()
-      const { error } = await supabaseWithDeviceId
+      const { data: insertedForm, error } = await supabaseWithDeviceId
         .from("volunteering_interest")
         .insert({
           name: formData.name,
@@ -215,6 +220,7 @@ export default function VolunteerSignup() {
           email: formData.email,
           type: "general",
           program_id: 3, // Default to program ID 3
+          ...(ownerId ? { owner_id: ownerId } : {}),
           data: {
             interests: {
               greeter: formData.interests.greeter,
@@ -240,13 +246,13 @@ export default function VolunteerSignup() {
             comments: formData.comments
           }
         })
+        .select("id")
+        .single()
 
-      if (error) {
+      if (error || !insertedForm) {
         console.error("Error submitting volunteer signup:", error)
         return
       }
-
-      console.log("Successfully submitted volunteer signup")
 
       // Send notification to host
       try {
@@ -258,14 +264,14 @@ export default function VolunteerSignup() {
 
         await sendNotification({
           eventType: "host",
-          programId: 1,
+          programId: 3,
           data: {
             type: "volunteer",
+            form_id: insertedForm.id,
             name: `${formData.name} ${formData.lastInitial}`,
             interests: selectedInterests
           }
         })
-        console.log("Sent host notification for volunteer signup")
       } catch (notifyError) {
         console.error("Error sending host notification:", notifyError)
       }
@@ -287,8 +293,8 @@ export default function VolunteerSignup() {
         greeter: false,
         security: false,
         cleanup: false,
-        setup: false,
-        hostCommittee: false,
+        merch: false,
+        registration: false,
         wherever: false
       },
       timeSlots: {
@@ -463,503 +469,508 @@ export default function VolunteerSignup() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
       >
-      <ScrollView
-        style={{
-          flex: 1,
-          backgroundColor: theme.colors.background,
-          padding: theme.spacing.lg
-        }}
-        contentContainerStyle={{ paddingBottom: theme.spacing.xl * 3 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Stack.Screen
-          options={{
-            title:
-              program?.content?.services?.volunteering?.title ||
-              "Volunteer Signup",
-            headerStyle: {
-              backgroundColor: theme.colors.background
-            },
-            headerTitleStyle: {
-              color: theme.colors.text.primary
-            },
-            headerLeft: () => (
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={{
-                  padding: 8
-                }}
-              >
-                <Ionicons
-                  name="chevron-back"
-                  size={28}
-                  color={theme.colors.text.secondary}
-                />
-              </TouchableOpacity>
-            )
-          }}
-        />
-        <Text
+        <ScrollView
           style={{
-            ...theme.typography.body,
-            color: theme.colors.text.secondary,
-            marginBottom: theme.spacing.xl
+            flex: 1,
+            backgroundColor: theme.colors.background,
+            padding: theme.spacing.lg
           }}
+          contentContainerStyle={{ paddingBottom: theme.spacing.xl * 3 }}
+          keyboardShouldPersistTaps="handled"
         >
-          {description}
-        </Text>
-
-        <View style={{ gap: theme.spacing.lg }}>
-          {/* Name field */}
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500"
-              }}
-            >
-              Name <Text style={{ color: theme.colors.error }}>*</Text>
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: theme.colors.surface,
-                padding: theme.spacing.md,
-                borderRadius: theme.borderRadius.sm,
-                borderWidth: 1,
-                borderColor: formErrors.name
-                  ? theme.colors.error
-                  : theme.colors.border,
+          <Stack.Screen
+            options={{
+              title:
+                program?.content?.services?.volunteering?.title ||
+                "Volunteer Signup",
+              headerStyle: {
+                backgroundColor: theme.colors.background
+              },
+              headerTitleStyle: {
                 color: theme.colors.text.primary
-              }}
-              value={formData.name}
-              onChangeText={(text) => {
-                handleInputChange("name", text)
-                if (formErrors.name) {
-                  setFormErrors((prev) => ({ ...prev, name: undefined }))
-                }
-              }}
-              placeholder="Your name"
-              placeholderTextColor={theme.colors.text.secondary}
-            />
-            {formErrors.name && (
-              <Text
-                style={{
-                  color: theme.colors.error,
-                  fontSize: 12,
-                  marginTop: 4
-                }}
-              >
-                {formErrors.name}
-              </Text>
-            )}
-          </View>
-
-          {/* Last Initial field */}
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500"
-              }}
-            >
-              Last Initial <Text style={{ color: theme.colors.error }}>*</Text>
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: theme.colors.surface,
-                padding: theme.spacing.md,
-                borderRadius: theme.borderRadius.sm,
-                borderWidth: 1,
-                borderColor: formErrors.lastInitial
-                  ? theme.colors.error
-                  : theme.colors.border,
-                color: theme.colors.text.primary
-              }}
-              value={formData.lastInitial}
-              onChangeText={(text) => {
-                handleInputChange("lastInitial", text)
-                if (formErrors.lastInitial) {
-                  setFormErrors((prev) => ({ ...prev, lastInitial: undefined }))
-                }
-              }}
-              placeholder="Your last initial"
-              placeholderTextColor={theme.colors.text.secondary}
-              maxLength={3}
-            />
-            {formErrors.lastInitial && (
-              <Text
-                style={{
-                  color: theme.colors.error,
-                  fontSize: 12,
-                  marginTop: 4
-                }}
-              >
-                {formErrors.lastInitial}
-              </Text>
-            )}
-          </View>
-
-          {/* Phone field */}
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500"
-              }}
-            >
-              Phone <Text style={{ color: theme.colors.error }}>*</Text>
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: theme.colors.surface,
-                padding: theme.spacing.md,
-                borderRadius: theme.borderRadius.sm,
-                borderWidth: 1,
-                borderColor: formErrors.phone
-                  ? theme.colors.error
-                  : theme.colors.border,
-                color: theme.colors.text.primary
-              }}
-              value={formData.phone}
-              onChangeText={(text) => {
-                handleInputChange("phone", text)
-                if (formErrors.phone) {
-                  setFormErrors((prev) => ({ ...prev, phone: undefined }))
-                }
-              }}
-              placeholder="Your contact number"
-              placeholderTextColor={theme.colors.text.secondary}
-              keyboardType="phone-pad"
-            />
-            {formErrors.phone && (
-              <Text
-                style={{
-                  color: theme.colors.error,
-                  fontSize: 12,
-                  marginTop: 4
-                }}
-              >
-                {formErrors.phone}
-              </Text>
-            )}
-          </View>
-
-          {/* Email field */}
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500"
-              }}
-            >
-              Email <Text style={{ color: theme.colors.error }}>*</Text>
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: theme.colors.surface,
-                padding: theme.spacing.md,
-                borderRadius: theme.borderRadius.sm,
-                borderWidth: 1,
-                borderColor: formErrors.email
-                  ? theme.colors.error
-                  : theme.colors.border,
-                color: theme.colors.text.primary
-              }}
-              value={formData.email}
-              onChangeText={(text) => {
-                handleInputChange("email", text)
-                if (formErrors.email) {
-                  setFormErrors((prev) => ({ ...prev, email: undefined }))
-                }
-              }}
-              placeholder="Your email address"
-              placeholderTextColor={theme.colors.text.secondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            {formErrors.email && (
-              <Text
-                style={{
-                  color: theme.colors.error,
-                  fontSize: 12,
-                  marginTop: 4
-                }}
-              >
-                {formErrors.email}
-              </Text>
-            )}
-          </View>
-
-          {/* Interests section */}
-          <View style={{ gap: theme.spacing.md }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500",
-                marginBottom: theme.spacing.md
-              }}
-            >
-              Volunteer Interests{" "}
-              <Text style={{ color: theme.colors.error }}>*</Text>
-            </Text>
-
-            {formErrors.interests && (
-              <Text
-                style={{
-                  color: theme.colors.error,
-                  fontSize: 12,
-                  marginBottom: theme.spacing.sm
-                }}
-              >
-                {formErrors.interests}
-              </Text>
-            )}
-            <View style={{ gap: theme.spacing.sm }}>
-              <Checkbox
-                id="greeter"
-                checked={formData.interests.greeter}
-                onCheckedChange={(checked) =>
-                  handleInterestChange("greeter", checked)
-                }
-                label="Greeter"
-              />
-              <Checkbox
-                id="security"
-                checked={formData.interests.security}
-                onCheckedChange={(checked) =>
-                  handleInterestChange("security", checked)
-                }
-                label="Security"
-              />
-              <Checkbox
-                id="cleanup"
-                checked={formData.interests.cleanup}
-                onCheckedChange={(checked) =>
-                  handleInterestChange("cleanup", checked)
-                }
-                label="Cleanup"
-              />
-              <Checkbox
-                id="merch"
-                checked={formData.interests.merch}
-                onCheckedChange={(checked) =>
-                  handleInterestChange("merch", checked)
-                }
-                label="Merchandise"
-              />
-              <Checkbox
-                id="registration"
-                checked={formData.interests.registration}
-                onCheckedChange={(checked) =>
-                  handleInterestChange("registration", checked)
-                }
-                label="Registration"
-              />
-              <Checkbox
-                id="wherever"
-                checked={formData.interests.wherever}
-                onCheckedChange={(checked) =>
-                  handleInterestChange("wherever", checked)
-                }
-                label="Wherever I'm Needed!"
-              />
-            </View>
-          </View>
-
-          {/* Time Slots section */}
-          <View style={{ gap: theme.spacing.md }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500",
-                marginBottom: theme.spacing.md
-              }}
-            >
-              Availability <Text style={{ color: theme.colors.error }}>*</Text>
-            </Text>
-
-            {formErrors.timeSlots && (
-              <Text
-                style={{
-                  color: theme.colors.error,
-                  fontSize: 12,
-                  marginBottom: theme.spacing.sm
-                }}
-              >
-                {formErrors.timeSlots}
-              </Text>
-            )}
-            <View style={{ gap: theme.spacing.sm }}>
-              <Checkbox
-                id="thursdayPM"
-                checked={formData.timeSlots.thursdayPM}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("thursdayPM", checked)
-                }
-                label="Thursday 08/28 PM"
-              />
-              <Checkbox
-                id="fridayAM"
-                checked={formData.timeSlots.fridayAM}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("fridayAM", checked)
-                }
-                label="Friday 08/29 AM"
-              />
-              <Checkbox
-                id="fridayMidday"
-                checked={formData.timeSlots.fridayMidday}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("fridayMidday", checked)
-                }
-                label="Friday 08/29 Midday"
-              />
-              <Checkbox
-                id="fridayPM"
-                checked={formData.timeSlots.fridayPM}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("fridayPM", checked)
-                }
-                label="Friday 08/29 PM"
-              />
-              <Checkbox
-                id="saturdayAM"
-                checked={formData.timeSlots.saturdayAM}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("saturdayAM", checked)
-                }
-                label="Saturday 08/30 AM"
-              />
-              <Checkbox
-                id="saturdayMidday"
-                checked={formData.timeSlots.saturdayMidday}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("saturdayMidday", checked)
-                }
-                label="Saturday 08/30 Midday"
-              />
-              <Checkbox
-                id="saturdayPM"
-                checked={formData.timeSlots.saturdayPM}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("saturdayPM", checked)
-                }
-                label="Saturday 08/30 PM"
-              />
-              <Checkbox
-                id="sundayAM"
-                checked={formData.timeSlots.sundayAM}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("sundayAM", checked)
-                }
-                label="Sunday 08/31 AM"
-              />
-              <Checkbox
-                id="sundayMidday"
-                checked={formData.timeSlots.sundayMidday}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("sundayMidday", checked)
-                }
-                label="Sunday 08/31 Midday"
-              />
-              <Checkbox
-                id="sundayPM"
-                checked={formData.timeSlots.sundayPM}
-                onCheckedChange={(checked) =>
-                  handleTimeSlotChange("sundayPM", checked)
-                }
-                label="Sunday 08/31 PM"
-              />
-            </View>
-          </View>
-
-          {/* Other Time Slot field */}
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500"
-              }}
-            >
-              Other Time Slot
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: theme.colors.surface,
-                padding: theme.spacing.md,
-                borderRadius: theme.borderRadius.sm,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
-                color: theme.colors.text.primary
-              }}
-              value={formData.timeSlots.other}
-              onChangeText={(text) => handleTimeSlotChange("other", text)}
-              placeholder="Enter any other time slot"
-              placeholderTextColor={theme.colors.text.secondary}
-            />
-          </View>
-
-          {/* Comments field */}
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text
-              style={{
-                ...theme.typography.body,
-                color: theme.colors.text.primary,
-                fontWeight: "500"
-              }}
-            >
-              Additional Comments
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: theme.colors.surface,
-                padding: theme.spacing.md,
-                borderRadius: theme.borderRadius.sm,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
-                color: theme.colors.text.primary,
-                minHeight: 100,
-                textAlignVertical: "top"
-              }}
-              value={formData.comments}
-              onChangeText={(text) => handleInputChange("comments", text)}
-              placeholder="Any additional comments or questions"
-              placeholderTextColor={theme.colors.text.secondary}
-              multiline
-            />
-          </View>
-
-          {/* Submit button */}
-          <TouchableOpacity
-            style={{
-              backgroundColor: theme.colors.primary,
-              padding: theme.spacing.md,
-              borderRadius: theme.borderRadius.sm,
-              alignItems: "center",
-              marginTop: theme.spacing.xl
+              },
+              headerLeft: () => (
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={{
+                    padding: 8
+                  }}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={28}
+                    color={theme.colors.text.secondary}
+                  />
+                </TouchableOpacity>
+              )
             }}
-            onPress={handleSubmit}
-            activeOpacity={0.8}
+          />
+          <Text
+            style={{
+              ...theme.typography.body,
+              color: theme.colors.text.secondary,
+              marginBottom: theme.spacing.xl
+            }}
           >
-            <Text
+            {description}
+          </Text>
+
+          <View style={{ gap: theme.spacing.lg }}>
+            {/* Name field */}
+            <View style={{ gap: theme.spacing.xs }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500"
+                }}
+              >
+                Name <Text style={{ color: theme.colors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  padding: theme.spacing.md,
+                  borderRadius: theme.borderRadius.sm,
+                  borderWidth: 1,
+                  borderColor: formErrors.name
+                    ? theme.colors.error
+                    : theme.colors.border,
+                  color: theme.colors.text.primary
+                }}
+                value={formData.name}
+                onChangeText={(text) => {
+                  handleInputChange("name", text)
+                  if (formErrors.name) {
+                    setFormErrors((prev) => ({ ...prev, name: undefined }))
+                  }
+                }}
+                placeholder="Your name"
+                placeholderTextColor={theme.colors.text.secondary}
+              />
+              {formErrors.name && (
+                <Text
+                  style={{
+                    color: theme.colors.error,
+                    fontSize: 12,
+                    marginTop: 4
+                  }}
+                >
+                  {formErrors.name}
+                </Text>
+              )}
+            </View>
+
+            {/* Last Initial field */}
+            <View style={{ gap: theme.spacing.xs }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500"
+                }}
+              >
+                Last Initial{" "}
+                <Text style={{ color: theme.colors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  padding: theme.spacing.md,
+                  borderRadius: theme.borderRadius.sm,
+                  borderWidth: 1,
+                  borderColor: formErrors.lastInitial
+                    ? theme.colors.error
+                    : theme.colors.border,
+                  color: theme.colors.text.primary
+                }}
+                value={formData.lastInitial}
+                onChangeText={(text) => {
+                  handleInputChange("lastInitial", text)
+                  if (formErrors.lastInitial) {
+                    setFormErrors((prev) => ({
+                      ...prev,
+                      lastInitial: undefined
+                    }))
+                  }
+                }}
+                placeholder="Your last initial"
+                placeholderTextColor={theme.colors.text.secondary}
+                maxLength={3}
+              />
+              {formErrors.lastInitial && (
+                <Text
+                  style={{
+                    color: theme.colors.error,
+                    fontSize: 12,
+                    marginTop: 4
+                  }}
+                >
+                  {formErrors.lastInitial}
+                </Text>
+              )}
+            </View>
+
+            {/* Phone field */}
+            <View style={{ gap: theme.spacing.xs }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500"
+                }}
+              >
+                Phone <Text style={{ color: theme.colors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  padding: theme.spacing.md,
+                  borderRadius: theme.borderRadius.sm,
+                  borderWidth: 1,
+                  borderColor: formErrors.phone
+                    ? theme.colors.error
+                    : theme.colors.border,
+                  color: theme.colors.text.primary
+                }}
+                value={formData.phone}
+                onChangeText={(text) => {
+                  handleInputChange("phone", text)
+                  if (formErrors.phone) {
+                    setFormErrors((prev) => ({ ...prev, phone: undefined }))
+                  }
+                }}
+                placeholder="Your contact number"
+                placeholderTextColor={theme.colors.text.secondary}
+                keyboardType="phone-pad"
+              />
+              {formErrors.phone && (
+                <Text
+                  style={{
+                    color: theme.colors.error,
+                    fontSize: 12,
+                    marginTop: 4
+                  }}
+                >
+                  {formErrors.phone}
+                </Text>
+              )}
+            </View>
+
+            {/* Email field */}
+            <View style={{ gap: theme.spacing.xs }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500"
+                }}
+              >
+                Email <Text style={{ color: theme.colors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  padding: theme.spacing.md,
+                  borderRadius: theme.borderRadius.sm,
+                  borderWidth: 1,
+                  borderColor: formErrors.email
+                    ? theme.colors.error
+                    : theme.colors.border,
+                  color: theme.colors.text.primary
+                }}
+                value={formData.email}
+                onChangeText={(text) => {
+                  handleInputChange("email", text)
+                  if (formErrors.email) {
+                    setFormErrors((prev) => ({ ...prev, email: undefined }))
+                  }
+                }}
+                placeholder="Your email address"
+                placeholderTextColor={theme.colors.text.secondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              {formErrors.email && (
+                <Text
+                  style={{
+                    color: theme.colors.error,
+                    fontSize: 12,
+                    marginTop: 4
+                  }}
+                >
+                  {formErrors.email}
+                </Text>
+              )}
+            </View>
+
+            {/* Interests section */}
+            <View style={{ gap: theme.spacing.md }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500",
+                  marginBottom: theme.spacing.md
+                }}
+              >
+                Volunteer Interests{" "}
+                <Text style={{ color: theme.colors.error }}>*</Text>
+              </Text>
+
+              {formErrors.interests && (
+                <Text
+                  style={{
+                    color: theme.colors.error,
+                    fontSize: 12,
+                    marginBottom: theme.spacing.sm
+                  }}
+                >
+                  {formErrors.interests}
+                </Text>
+              )}
+              <View style={{ gap: theme.spacing.sm }}>
+                <Checkbox
+                  id="greeter"
+                  checked={formData.interests.greeter}
+                  onCheckedChange={(checked) =>
+                    handleInterestChange("greeter", checked)
+                  }
+                  label="Greeter"
+                />
+                <Checkbox
+                  id="security"
+                  checked={formData.interests.security}
+                  onCheckedChange={(checked) =>
+                    handleInterestChange("security", checked)
+                  }
+                  label="Security"
+                />
+                <Checkbox
+                  id="cleanup"
+                  checked={formData.interests.cleanup}
+                  onCheckedChange={(checked) =>
+                    handleInterestChange("cleanup", checked)
+                  }
+                  label="Cleanup"
+                />
+                <Checkbox
+                  id="merch"
+                  checked={formData.interests.merch}
+                  onCheckedChange={(checked) =>
+                    handleInterestChange("merch", checked)
+                  }
+                  label="Merchandise"
+                />
+                <Checkbox
+                  id="registration"
+                  checked={formData.interests.registration}
+                  onCheckedChange={(checked) =>
+                    handleInterestChange("registration", checked)
+                  }
+                  label="Registration"
+                />
+                <Checkbox
+                  id="wherever"
+                  checked={formData.interests.wherever}
+                  onCheckedChange={(checked) =>
+                    handleInterestChange("wherever", checked)
+                  }
+                  label="Wherever I'm Needed!"
+                />
+              </View>
+            </View>
+
+            {/* Time Slots section */}
+            <View style={{ gap: theme.spacing.md }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500",
+                  marginBottom: theme.spacing.md
+                }}
+              >
+                Availability{" "}
+                <Text style={{ color: theme.colors.error }}>*</Text>
+              </Text>
+
+              {formErrors.timeSlots && (
+                <Text
+                  style={{
+                    color: theme.colors.error,
+                    fontSize: 12,
+                    marginBottom: theme.spacing.sm
+                  }}
+                >
+                  {formErrors.timeSlots}
+                </Text>
+              )}
+              <View style={{ gap: theme.spacing.sm }}>
+                <Checkbox
+                  id="thursdayPM"
+                  checked={formData.timeSlots.thursdayPM}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("thursdayPM", checked)
+                  }
+                  label="Thursday 08/28 PM"
+                />
+                <Checkbox
+                  id="fridayAM"
+                  checked={formData.timeSlots.fridayAM}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("fridayAM", checked)
+                  }
+                  label="Friday 08/29 AM"
+                />
+                <Checkbox
+                  id="fridayMidday"
+                  checked={formData.timeSlots.fridayMidday}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("fridayMidday", checked)
+                  }
+                  label="Friday 08/29 Midday"
+                />
+                <Checkbox
+                  id="fridayPM"
+                  checked={formData.timeSlots.fridayPM}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("fridayPM", checked)
+                  }
+                  label="Friday 08/29 PM"
+                />
+                <Checkbox
+                  id="saturdayAM"
+                  checked={formData.timeSlots.saturdayAM}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("saturdayAM", checked)
+                  }
+                  label="Saturday 08/30 AM"
+                />
+                <Checkbox
+                  id="saturdayMidday"
+                  checked={formData.timeSlots.saturdayMidday}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("saturdayMidday", checked)
+                  }
+                  label="Saturday 08/30 Midday"
+                />
+                <Checkbox
+                  id="saturdayPM"
+                  checked={formData.timeSlots.saturdayPM}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("saturdayPM", checked)
+                  }
+                  label="Saturday 08/30 PM"
+                />
+                <Checkbox
+                  id="sundayAM"
+                  checked={formData.timeSlots.sundayAM}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("sundayAM", checked)
+                  }
+                  label="Sunday 08/31 AM"
+                />
+                <Checkbox
+                  id="sundayMidday"
+                  checked={formData.timeSlots.sundayMidday}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("sundayMidday", checked)
+                  }
+                  label="Sunday 08/31 Midday"
+                />
+                <Checkbox
+                  id="sundayPM"
+                  checked={formData.timeSlots.sundayPM}
+                  onCheckedChange={(checked) =>
+                    handleTimeSlotChange("sundayPM", checked)
+                  }
+                  label="Sunday 08/31 PM"
+                />
+              </View>
+            </View>
+
+            {/* Other Time Slot field */}
+            <View style={{ gap: theme.spacing.xs }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500"
+                }}
+              >
+                Other Time Slot
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  padding: theme.spacing.md,
+                  borderRadius: theme.borderRadius.sm,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  color: theme.colors.text.primary
+                }}
+                value={formData.timeSlots.other}
+                onChangeText={(text) => handleTimeSlotChange("other", text)}
+                placeholder="Enter any other time slot"
+                placeholderTextColor={theme.colors.text.secondary}
+              />
+            </View>
+
+            {/* Comments field */}
+            <View style={{ gap: theme.spacing.xs }}>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: theme.colors.text.primary,
+                  fontWeight: "500"
+                }}
+              >
+                Additional Comments
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  padding: theme.spacing.md,
+                  borderRadius: theme.borderRadius.sm,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  color: theme.colors.text.primary,
+                  minHeight: 100,
+                  textAlignVertical: "top"
+                }}
+                value={formData.comments}
+                onChangeText={(text) => handleInputChange("comments", text)}
+                placeholder="Any additional comments or questions"
+                placeholderTextColor={theme.colors.text.secondary}
+                multiline
+              />
+            </View>
+
+            {/* Submit button */}
+            <TouchableOpacity
               style={{
-                ...theme.typography.body,
-                color: getTextColorForBackground(theme.colors.primary),
-                fontWeight: "500"
+                backgroundColor: theme.colors.primary,
+                padding: theme.spacing.md,
+                borderRadius: theme.borderRadius.sm,
+                alignItems: "center",
+                marginTop: theme.spacing.xl
               }}
+              onPress={handleSubmit}
+              activeOpacity={0.8}
             >
-              Submit Volunteer Interest
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+              <Text
+                style={{
+                  ...theme.typography.body,
+                  color: getTextColorForBackground(theme.colors.primary),
+                  fontWeight: "500"
+                }}
+              >
+                Submit Volunteer Interest
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </ProtectedComponent>
   )

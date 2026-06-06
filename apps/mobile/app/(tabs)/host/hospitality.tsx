@@ -15,10 +15,9 @@ import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
 import { makeRequest } from "../../../lib/requestHelper"
 import { 
-  getUserRole, 
+  getUserRoleAndPermissions,
   hasPermission, 
-  Permission, 
-  UserRole 
+  Permission
 } from "../../../lib/roleChecker"
 import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getTextColorForBackground } from "../../../lib/theme"
@@ -84,7 +83,6 @@ export default function HospitalityNotifications() {
   const [activeFilter, setActiveFilter] = useState<
     "all" | "active" | "completed" | "closed"
   >("all")
-  const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [canSendNotifications, setCanSendNotifications] = useState(false)
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({})
   const currentUserEmailRef = useRef<string | undefined>(undefined)
@@ -97,11 +95,16 @@ export default function HospitalityNotifications() {
         currentUserEmailRef.current = data.session.user.email
         
         // Get user role and check permissions
-        const role = await getUserRole(data.session.user.id)
-        setUserRole(role)
+        const { role, permissions } = await getUserRoleAndPermissions(
+          data.session.user.id
+        )
         
         // Check if user can send notifications
-        const canSend = hasPermission(role, Permission.NOTIFICATIONS_SEND)
+        const canSend = hasPermission(
+          role,
+          Permission.NOTIFICATIONS_SEND,
+          permissions
+        )
         setCanSendNotifications(canSend)
       }
     }

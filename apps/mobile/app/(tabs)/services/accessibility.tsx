@@ -13,12 +13,12 @@ import {
 import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
-import { withDeviceId } from "../../../lib/supabase"
+import { supabase, withDeviceId } from "../../../lib/supabase"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
 export default function AccessibilityRequest() {
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
   const router = useRouter()
   const [formSubmitted, setFormSubmitted] = useState(false)
   const [program, setProgram] = useState<Program | null>(null)
@@ -114,9 +114,14 @@ export default function AccessibilityRequest() {
     }
 
     try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+      const ownerId = session?.user?.id
+
       // Submit form data to Supabase
       const supabaseWithDeviceId = await withDeviceId()
-      const { error } = await supabaseWithDeviceId
+      const { data: insertedForm, error } = await supabaseWithDeviceId
         .from("accessibility_forms")
         .insert({
           program_id: 1, // Default to program ID 1
@@ -127,15 +132,16 @@ export default function AccessibilityRequest() {
           details: form.details,
           arrival_date: form.arrivalDate,
           duration: form.duration,
-          status: "pending" // Set initial status to pending
+          status: "pending", // Set initial status to pending
+          ...(ownerId ? { owner_id: ownerId, user_id: ownerId } : {})
         })
+        .select("id")
+        .single()
 
-      if (error) {
+      if (error || !insertedForm) {
         console.error("Error submitting accessibility request:", error)
         return
       }
-
-      console.log("Successfully submitted accessibility request")
 
       // Send notification to host
       try {
@@ -144,11 +150,11 @@ export default function AccessibilityRequest() {
           programId: 1,
           data: {
             type: "accessibility",
+            form_id: insertedForm.id,
             name: form.name,
             details: form.details?.substring(0, 100)
           }
         })
-        console.log("Sent host notification for accessibility request")
       } catch (notifyError) {
         console.error("Error sending host notification:", notifyError)
       }

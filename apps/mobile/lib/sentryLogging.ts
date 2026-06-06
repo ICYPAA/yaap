@@ -105,7 +105,6 @@ const SentryLogger = {
       if (!__DEV__) {
         Sentry.setUser({ id })
       }
-      console.log("[User] Set ID:", id.substring(0, 8) + "...")
     } catch (e) {
       console.error("Failed to set user:", e)
     }

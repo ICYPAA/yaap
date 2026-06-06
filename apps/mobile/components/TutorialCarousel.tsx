@@ -31,66 +31,76 @@ const tutorialPages: TutorialPage[] = [
     id: "welcome",
     icon: "hand.wave",
     title: "Welcome to YAAP!",
-    description: "Your conference companion app with features to enhance your ICYPAA experience"
+    description:
+      "Your conference companion app with features to enhance your ICYPAA experience"
   },
   {
     id: "program",
     icon: "calendar",
     title: "Customized Program",
-    description: "Browse the full conference schedule, save events to create your personal schedule, and filter by event type"
+    description:
+      "Browse the full conference schedule, save events to create your personal schedule, and filter by event type"
   },
   {
     id: "sharing",
     icon: "square.and.arrow.up",
     title: "Program Sharing",
-    description: "Share your schedule with friends using QR codes and see which events your friends are attending",
+    description:
+      "Share your schedule with friends using QR codes and see which events your friends are attending",
     featureKey: "schedule_sharing_enabled"
   },
   {
     id: "notifications",
     icon: "bell",
     title: "Push Notifications",
-    description: "Stay updated with schedule changes, hospitality updates, and important announcements",
+    description:
+      "Stay updated with schedule changes, hospitality updates, and important announcements",
     featureKey: "push_notifications_enabled"
   },
   {
     id: "maps",
     icon: "map",
     title: "Floor Maps",
-    description: "Navigate the venue with interactive floor maps showing meeting rooms, amenities, and important locations"
+    description:
+      "Navigate the venue with interactive floor maps showing meeting rooms, amenities, and important locations"
   },
   {
     id: "accessibility",
     icon: "accessibility",
     title: "Accessibility Services",
-    description: "Request accessibility accommodations to ensure you have the support you need during the conference",
+    description:
+      "Request accessibility accommodations to ensure you have the support you need during the conference",
     featureKey: "accessibility_enabled"
   },
   {
     id: "childcare",
     icon: "figure.and.child.holdinghands",
     title: "Childcare Services",
-    description: "Information about childcare services available during conference hours for parents attending",
+    description:
+      "Information about childcare services available during conference hours for parents attending",
     featureKey: "child_care_enabled"
   },
   {
     id: "support",
     icon: "message",
     title: "Support Chat",
-    description: "Get help from the host committee through our support chat feature for any questions or concerns",
+    description:
+      "Get help from the host committee through our support chat feature for any questions or concerns",
     featureKey: "support_chat_enabled"
   },
   {
     id: "activities",
     icon: "fork.knife",
     title: "Local Activities & Dining",
-    description: "Discover nearby restaurants, attractions, and activities recommended for conference attendees"
+    description:
+      "Discover nearby restaurants, attractions, and activities recommended for conference attendees"
   },
   {
     id: "done",
     icon: "checkmark.circle",
     title: "You're All Set!",
-    description: "Enjoy the conference! You can always revisit this tutorial from your profile settings"
+    description:
+      "Enjoy the conference! You can always revisit this tutorial from your profile settings"
   }
 ]
 
@@ -98,14 +108,16 @@ interface TutorialCarouselProps {
   onClose: () => void
 }
 
-export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({ onClose }) => {
+export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({
+  onClose
+}) => {
   const { theme, isDarkMode } = useTheme()
   const { isFeatureEnabled } = useFeatures()
   const [currentPage, setCurrentPage] = useState(0)
   const scrollViewRef = useRef<ScrollView>(null)
 
   // Filter pages based on feature toggles
-  const visiblePages = tutorialPages.filter(page => {
+  const visiblePages = tutorialPages.filter((page) => {
     if (!page.featureKey) return true
     return isFeatureEnabled(page.featureKey)
   })
@@ -127,27 +139,38 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({ onClose }) =
   }
 
   const goToPage = (pageIndex: number) => {
-    scrollViewRef.current?.scrollTo({ x: pageIndex * SCREEN_WIDTH, animated: true })
+    scrollViewRef.current?.scrollTo({
+      x: pageIndex * SCREEN_WIDTH,
+      animated: true
+    })
   }
 
   const isLastPage = currentPage === visiblePages.length - 1
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[
-        styles.header,
-        Platform.OS === 'android' && { marginTop: StatusBar.currentHeight || 0 }
-      ]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <View
+        style={[
+          styles.header,
+          Platform.OS === "android" && {
+            marginTop: StatusBar.currentHeight || 0
+          }
+        ]}
+      >
         {!isLastPage && (
-          <TouchableOpacity 
-            onPress={handleSkip} 
+          <TouchableOpacity
+            onPress={handleSkip}
             style={[
               styles.skipButton,
-              Platform.OS === 'android' && styles.skipButtonAndroid
+              Platform.OS === "android" && styles.skipButtonAndroid
             ]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={[styles.skipText, { color: theme.colors.text.secondary }]}>
+            <Text
+              style={[styles.skipText, { color: theme.colors.text.secondary }]}
+            >
               Skip
             </Text>
           </TouchableOpacity>
@@ -165,17 +188,29 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({ onClose }) =
         {visiblePages.map((page, index) => (
           <View key={page.id} style={styles.page}>
             <View style={styles.content}>
-              <View style={[styles.iconContainer, { backgroundColor: theme.colors.primary + "20" }]}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  { backgroundColor: theme.colors.primary + "20" }
+                ]}
+              >
                 <IconSymbol
                   name={page.icon as any}
                   size={60}
                   color={theme.colors.primary}
                 />
               </View>
-              <Text style={[styles.title, { color: theme.colors.text.primary }]}>
+              <Text
+                style={[styles.title, { color: theme.colors.text.primary }]}
+              >
                 {page.title}
               </Text>
-              <Text style={[styles.description, { color: theme.colors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.description,
+                  { color: theme.colors.text.secondary }
+                ]}
+              >
                 {page.description}
               </Text>
             </View>
@@ -192,9 +227,10 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({ onClose }) =
               style={[
                 styles.dot,
                 {
-                  backgroundColor: index === currentPage
-                    ? theme.colors.primary
-                    : theme.colors.text.secondary + "40",
+                  backgroundColor:
+                    index === currentPage
+                      ? theme.colors.primary
+                      : theme.colors.text.secondary + "40",
                   width: index === currentPage ? 24 : 8
                 }
               ]}
@@ -205,9 +241,17 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({ onClose }) =
         {isLastPage && (
           <TouchableOpacity
             onPress={handleDone}
-            style={[styles.doneButton, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.doneButton,
+              { backgroundColor: theme.colors.primary }
+            ]}
           >
-            <Text style={[styles.doneButtonText, { color: theme.colors.background }]}>
+            <Text
+              style={[
+                styles.doneButtonText,
+                { color: theme.colors.background }
+              ]}
+            >
               Get Started
             </Text>
           </TouchableOpacity>
@@ -232,7 +276,7 @@ const styles = StyleSheet.create({
   },
   skipButtonAndroid: {
     padding: 15,
-    position: 'relative',
+    position: "relative",
     zIndex: 10
   },
   skipText: {
@@ -282,8 +326,7 @@ const styles = StyleSheet.create({
   },
   dot: {
     height: 8,
-    borderRadius: 4,
-    transition: "width 0.3s"
+    borderRadius: 4
   },
   doneButton: {
     paddingVertical: 16,

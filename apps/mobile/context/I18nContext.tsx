@@ -8,12 +8,14 @@ import i18n, {
 interface Language {
   code: string
   name: string
+  nativeName?: string
 }
 
 interface I18nContextType {
   t: (key: string, options?: Record<string, any>) => string
   currentLanguage: string
   setLanguage: (langCode: string) => Promise<void>
+  changeLanguage: (langCode: string) => Promise<void>
   availableLanguages: Language[]
 }
 
@@ -42,7 +44,13 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <I18nContext.Provider
-      value={{ t, currentLanguage, setLanguage, availableLanguages }}
+      value={{
+        t,
+        currentLanguage,
+        setLanguage,
+        changeLanguage: setLanguage,
+        availableLanguages
+      }}
     >
       {children}
     </I18nContext.Provider>

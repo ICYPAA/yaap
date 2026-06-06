@@ -1,4 +1,4 @@
-import { withDeviceId } from "@/lib/supabase"
+import { supabase, withDeviceId } from "@/lib/supabase"
 import { Ionicons } from "@expo/vector-icons"
 import { Stack, useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
@@ -18,7 +18,7 @@ import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
 export default function HospitalityUpdate() {
-  const { theme, isDarkMode } = useTheme()
+  const { theme } = useTheme()
   const router = useRouter()
   const [formSubmitted, setFormSubmitted] = useState(false)
   const [program, setProgram] = useState<Program | null>(null)
@@ -81,9 +81,14 @@ export default function HospitalityUpdate() {
     }
 
     try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+      const ownerId = session?.user?.id
+
       // Submit form data to Supabase
       const supabaseWithDeviceId = await withDeviceId()
-      const { error } = await supabaseWithDeviceId
+      const { data: insertedForm, error } = await supabaseWithDeviceId
         .from("hospitality_forms")
         .insert({
           program_id: 3, // Default to program ID 3
@@ -91,28 +96,29 @@ export default function HospitalityUpdate() {
           item_description: form.itemDescription,
           allergies: form.allergies,
           notes: form.notes,
-          status: "pending" // Set initial status to pending
+          status: "pending", // Set initial status to pending
+          ...(ownerId ? { owner_id: ownerId, user_id: ownerId } : {})
         })
+        .select("id")
+        .single()
 
-      if (error) {
+      if (error || !insertedForm) {
         console.error("Error submitting hospitality update:", error)
         return
       }
-
-      console.log("Successfully submitted hospitality update")
 
       // Send notification to host
       try {
         await sendNotification({
           eventType: "host",
-          programId: 1,
+          programId: 3,
           data: {
             type: "hospitality",
+            form_id: insertedForm.id,
             group_name: form.groupName,
             item_description: form.itemDescription
           }
         })
-        console.log("Sent host notification for hospitality update")
       } catch (notifyError) {
         console.error("Error sending host notification:", notifyError)
       }

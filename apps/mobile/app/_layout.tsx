@@ -25,7 +25,6 @@ import { getSessionManager } from "../lib/security/session"
 import { supabase, withDeviceId } from "../lib/supabase"
 import { storeProgramDesign } from "../lib/theme"
 import { Program } from "../types/program"
-import linking from "./linking"
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync()
@@ -89,7 +88,6 @@ async function registerForPushNotificationsAsync() {
         projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
       })
     ).data
-    console.log("Expo push token:", token)
     return token
   } catch (error) {
     console.error("Error getting push token:", error)
@@ -129,20 +127,11 @@ function RootLayoutNav() {
     markSafetyAsViewed()
   }
 
-  // Debug logging removed - not needed in production
-  if (__DEV__) {
-    console.log("RootLayoutNav: Attempting to pass linking config to Stack", {
-      hasLinkingConfig: !!linking,
-      configKeys: linking ? Object.keys(linking) : null
-    })
-  }
-
   return (
     <>
       <SafeAreaProvider>
         <StatusBar style={isDarkMode ? "light" : "dark"} />
         <Stack
-          linking={linking}
           screenOptions={{
             headerStyle: {
               backgroundColor: theme.colors.background
@@ -202,7 +191,6 @@ export default function RootLayout() {
     supabase.auth
       .getSession()
       .then(({ data: { session: initialSession } }) => {
-        console.log("RootLayout: Initial session check:", !!initialSession)
         setSession(initialSession)
         setAuthLoading(false)
       })
@@ -215,8 +203,6 @@ export default function RootLayout() {
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      console.log(`RootLayout: Auth state changed: ${_event}`, !!currentSession)
-
       // Just update the session state, let individual layouts handle their own navigation
       setSession(currentSession)
     })
@@ -277,7 +263,7 @@ export default function RootLayout() {
       }
 
       initSecurity()
-      
+
       // Check for OTA updates
       const checkForUpdates = async () => {
         try {
@@ -296,7 +282,7 @@ export default function RootLayout() {
           console.error("Error checking for OTA updates:", error)
         }
       }
-      
+
       checkForUpdates()
       SplashScreen.hideAsync()
 
@@ -311,8 +297,6 @@ export default function RootLayout() {
 
           const token = await registerForPushNotificationsAsync()
           if (token) {
-            console.log("Push token obtained:", token)
-
             // Check if a user profile exists for this device
             const supabaseWithDeviceId = await withDeviceId()
             const { data: userData, error: userError } =
@@ -340,13 +324,9 @@ export default function RootLayout() {
               } else {
                 console.log("Push token updated in user profile")
               }
-            } else {
-              console.log(
-                "No user profile found for this device. Token will be saved when profile is created."
-              )
+              }
             }
-          }
-        } catch (error) {
+          } catch (error) {
           console.error("Error updating push token:", error)
         }
       }
@@ -355,15 +335,14 @@ export default function RootLayout() {
 
       notificationListener.current =
         Notifications.addNotificationReceivedListener((notification) => {
-          console.log("Notification Received:", notification)
+          SentryLogger.addBreadcrumb("notification", "Push notification received")
         })
 
       responseListener.current =
         Notifications.addNotificationResponseReceivedListener((response) => {
-          console.log("Notification Response Received:", response)
           const screen = response.notification.request.content.data?.screen
           if (screen) {
-            console.log(`Navigating to screen: ${screen}`)
+            SentryLogger.addBreadcrumb("notification", "Push notification opened")
           }
         })
 
@@ -378,14 +357,6 @@ export default function RootLayout() {
     }
   }, [loaded, programLoaded])
 
-  // Log initial segments
-  useEffect(() => {
-    // Debug logging removed - not needed in production
-    if (__DEV__) {
-      console.log("RootLayout: Initial segments", { segments })
-    }
-  }, []) // Log only on initial mount
-
   // Initialize URL handler
   useEffect(() => {
     // Setup deep linking handling
@@ -393,17 +364,8 @@ export default function RootLayout() {
       // Log initial URL here as well for confirmation
       try {
         const initialUrl = await Linking.getInitialURL()
-        // Debug logging removed - not needed in production
-        if (__DEV__) {
-          console.log("RootLayout: initializeUrlHandler initial URL", {
-            initialUrl: initialUrl || "null"
-          })
-        }
         if (initialUrl) {
-          console.log("App opened with URL:", initialUrl)
           // Process the URL (our linking.tsx SHOULD handle this now)
-        } else {
-          console.log("App opened without an initial URL")
         }
       } catch (error) {
         SentryLogger.captureError(error, {
@@ -414,7 +376,6 @@ export default function RootLayout() {
 
       // Add event listener for URL changes when app is open
       const subscription = Linking.addEventListener("url", (event) => {
-        console.log("Received URL event:", event.url)
         // Process the URL (our linking.tsx will handle this)
       })
 
@@ -486,32 +447,37 @@ export default function RootLayout() {
     fetchAndStoreUserSchedule()
 
     // Setup AppState listener to handle app going to background/foreground
-    const subscription = AppState.addEventListener("change", async (nextAppState) => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === "active"
-      ) {
-        console.log("App has come to the foreground, fetching schedule")
-        fetchAndStoreUserSchedule()
-        
-        // Check for OTA updates when app becomes active
-        if (!__DEV__) {
-          try {
-            const update = await Updates.checkForUpdateAsync()
-            if (update.isAvailable) {
-              console.log("OTA update available on app resume, downloading...")
-              await Updates.fetchUpdateAsync()
-              console.log("OTA update downloaded, reloading app...")
-              await Updates.reloadAsync()
+    const subscription = AppState.addEventListener(
+      "change",
+      async (nextAppState) => {
+        if (
+          appState.current.match(/inactive|background/) &&
+          nextAppState === "active"
+        ) {
+          console.log("App has come to the foreground, fetching schedule")
+          fetchAndStoreUserSchedule()
+
+          // Check for OTA updates when app becomes active
+          if (!__DEV__) {
+            try {
+              const update = await Updates.checkForUpdateAsync()
+              if (update.isAvailable) {
+                console.log(
+                  "OTA update available on app resume, downloading..."
+                )
+                await Updates.fetchUpdateAsync()
+                console.log("OTA update downloaded, reloading app...")
+                await Updates.reloadAsync()
+              }
+            } catch (error) {
+              console.error("Error checking for OTA updates on resume:", error)
             }
-          } catch (error) {
-            console.error("Error checking for OTA updates on resume:", error)
           }
         }
-      }
 
-      appState.current = nextAppState
-    })
+        appState.current = nextAppState
+      }
+    )
 
     // Start polling when component mounts
     schedulePollingInterval.current = setInterval(() => {

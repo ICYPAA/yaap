@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod
+
+      - name: Check edge functions
+        run: pnpm --filter @yaap/functions check
+
+      - name: Check Expo dependency compatibility
+        run: pnpm --filter @yaap/mobile exec expo install --check
+
+      - name: Typecheck admin web
+        run: pnpm --filter @yaap/admin-web typecheck
+
+      - name: Typecheck mobile
+        run: pnpm --filter @yaap/mobile typecheck
+
+      - name: Lint admin web
+        run: pnpm --filter @yaap/admin-web lint
+
+      - name: Lint mobile
+        run: pnpm --filter @yaap/mobile lint
+
+      - name: Test admin web
+        run: pnpm --filter @yaap/admin-web test
+
+      - name: Test mobile
+        run: pnpm --filter @yaap/mobile test
+
+      - name: Build admin web
+        run: pnpm --filter @yaap/admin-web build

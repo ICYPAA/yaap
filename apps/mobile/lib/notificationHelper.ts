@@ -1,3 +1,9 @@
+import { supabase } from "./supabase"
+
+const NOTIFICATION_SERVICE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
+  ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/notification_service`
+  : ""
+
 /**
  * Send a notification using the Edge Function notification service
  * @param eventType The type of notification ('hospitality', 'schedule', or 'host')
@@ -17,6 +23,20 @@ export async function sendNotification({
   userId?: number
 }) {
   try {
+    const {
+      data: { session }
+    } = await supabase.auth.getSession()
+
+    if (!session?.access_token) {
+      console.warn("Skipping notification send because no user session exists")
+      return
+    }
+
+    if (!NOTIFICATION_SERVICE_URL) {
+      console.error("Missing EXPO_PUBLIC_SUPABASE_URL for notification service")
+      return
+    }
+
     // Prepare the request body
     const body: any = {
       program_id: programId,
@@ -32,19 +52,14 @@ export async function sendNotification({
       return
     }
 
-    // Call the edge function
-    const response = await fetch(
-      "https://oolqeopfhhiuvsmamxln.supabase.co/functions/v1/notification_service",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            "Basic " + btoa(`yaap:${process.env.EDGE_PASSWORD ?? "hacypaa9"}`)
-        },
-        body: JSON.stringify(body)
-      }
-    )
+    const response = await fetch(NOTIFICATION_SERVICE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify(body)
+    })
 
     if (!response.ok) {
       console.error("Failed to send notification:", await response.text())

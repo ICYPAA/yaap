@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { getEmailApiHeaders } from "@/lib/email-api"
 import {
   parseXLSXPanelData,
   type PanelPanelist,
@@ -79,7 +80,6 @@ function normalizePhoneNumber(phone: string): string {
   }
 }
 
-
 // Helper function to send multiple SMS messages with enhanced tracking
 async function sendMultipleSMS(
   to: string,
@@ -156,7 +156,6 @@ async function sendMultipleSMS(
     return { success: false, error: errorMessage }
   }
 }
-
 
 export async function savePanelsFromXLSX(formData: FormData) {
   const supabase = await createClient()
@@ -750,10 +749,7 @@ export async function sendPanelNotifications(notificationIds: number[]) {
             `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "email-type": "panel-notification"
-              },
+              headers: getEmailApiHeaders("panel-notification"),
               body: JSON.stringify({
                 to: notification.panelist_contact,
                 subject: `The 65th ICYPAA Panel Invitation: ${notification.title}`,
@@ -893,7 +889,7 @@ export async function sendPanelReminders(
 
   try {
     // Get the notifications to send reminders for (excluding confirmed and withdrawn)
-    let query = supabase
+    let query: any = supabase
       .from("panel_notifications")
       .select("*")
       .in("id", notificationIds)
@@ -946,10 +942,7 @@ export async function sendPanelReminders(
             `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "email-type": "panel-notification"
-              },
+              headers: getEmailApiHeaders("panel-notification"),
               body: JSON.stringify({
                 to: notification.panelist_contact,
                 subject: `Reminder: The 65th ICYPAA Panel - ${notification.title}`,
@@ -1156,10 +1149,7 @@ export async function sendTestNotification(formData: FormData) {
         `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "email-type": "panel-notification"
-          },
+          headers: getEmailApiHeaders("panel-notification"),
           body: JSON.stringify(emailData)
         }
       )
@@ -1167,7 +1157,10 @@ export async function sendTestNotification(formData: FormData) {
     }
 
     if (phone) {
-      const smsContent = generateInitialSMSTemplates(mockNotification, confirmationUrl)
+      const smsContent = generateInitialSMSTemplates(
+        mockNotification,
+        confirmationUrl
+      )
       const smsResult = await sendMultipleSMS(phone, smsContent)
       success = smsResult.success
     }
@@ -1219,7 +1212,10 @@ export async function getTestNotificationPreview(formData: FormData) {
   if (email) {
     content = generateInitialEmailTemplate(mockNotification, confirmationUrl)
   } else if (phone) {
-    const smsMessages = generateInitialSMSTemplates(mockNotification, confirmationUrl)
+    const smsMessages = generateInitialSMSTemplates(
+      mockNotification,
+      confirmationUrl
+    )
     content = smsMessages.join("\\n\\n--- MESSAGE BREAK --\\n\\n")
   } else {
     return { error: "No contact method provided." }
@@ -1264,11 +1260,11 @@ export async function updateNotificationStatus(
 
   // Define allowed fields for safety
   const allowedFields = [
-    'notification_sent_at',
-    'confirmed_at', 
-    'denied_at',
-    'reminder_followup_sent_at',
-    'reminder2_followup_sent_at'
+    "notification_sent_at",
+    "confirmed_at",
+    "denied_at",
+    "reminder_followup_sent_at",
+    "reminder2_followup_sent_at"
   ]
 
   if (!allowedFields.includes(field)) {
@@ -1278,43 +1274,43 @@ export async function updateNotificationStatus(
   try {
     // Prepare update data
     const updateData: any = {}
-    
+
     if (value) {
       // Setting to true - add timestamp
       updateData[field] = new Date().toISOString()
-      
+
       // Also set corresponding status fields to success if they exist
-      if (field === 'notification_sent_at') {
-        updateData.send_status = 'success'
+      if (field === "notification_sent_at") {
+        updateData.send_status = "success"
         updateData.send_error = null
-      } else if (field === 'reminder_followup_sent_at') {
-        updateData.reminder_send_status = 'success'
+      } else if (field === "reminder_followup_sent_at") {
+        updateData.reminder_send_status = "success"
         updateData.reminder_send_error = null
-      } else if (field === 'reminder2_followup_sent_at') {
-        updateData.reminder2_send_status = 'success'
+      } else if (field === "reminder2_followup_sent_at") {
+        updateData.reminder2_send_status = "success"
         updateData.reminder2_send_error = null
       }
     } else {
       // Setting to false - remove timestamp
       updateData[field] = null
-      
+
       // Also clear corresponding status fields
-      if (field === 'notification_sent_at') {
+      if (field === "notification_sent_at") {
         updateData.send_status = null
         updateData.send_error = null
-      } else if (field === 'reminder_followup_sent_at') {
+      } else if (field === "reminder_followup_sent_at") {
         updateData.reminder_send_status = null
         updateData.reminder_send_error = null
-      } else if (field === 'reminder2_followup_sent_at') {
+      } else if (field === "reminder2_followup_sent_at") {
         updateData.reminder2_send_status = null
         updateData.reminder2_send_error = null
       }
     }
 
     // Handle special logic for confirmed_at and denied_at (mutually exclusive)
-    if (field === 'confirmed_at' && value) {
+    if (field === "confirmed_at" && value) {
       updateData.denied_at = null
-    } else if (field === 'denied_at' && value) {
+    } else if (field === "denied_at" && value) {
       updateData.confirmed_at = null
     }
 
@@ -1466,12 +1462,12 @@ export async function updatePanelNotification(
 ) {
   try {
     const supabase = await createClient()
-    
+
     // Get current user for audit log
     const {
       data: { user }
     } = await supabase.auth.getUser()
-    
+
     if (!user) {
       redirect("/login")
     }
@@ -1482,13 +1478,22 @@ export async function updatePanelNotification(
     const title = formData.get("title") as string
     const topic = formData.get("topic") as string | null
     const description = formData.get("description") as string | null
-    const literatureReference = formData.get("literature_reference") as string | null
+    const literatureReference = formData.get("literature_reference") as
+      | string
+      | null
     const panelistName = formData.get("panelist_name") as string
     const contactType = formData.get("contact_type") as string
     const panelistContact = formData.get("panelist_contact") as string
 
     // Validate required fields
-    if (!timeDay || !room || !title || !panelistName || !contactType || !panelistContact) {
+    if (
+      !timeDay ||
+      !room ||
+      !title ||
+      !panelistName ||
+      !contactType ||
+      !panelistContact
+    ) {
       return { error: "Missing required fields" }
     }
 

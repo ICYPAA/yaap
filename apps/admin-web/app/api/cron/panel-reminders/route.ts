@@ -1,5 +1,6 @@
 import { PanelNotification } from "@/app/host/panels/actions"
 import { Shift, ShiftAssignment } from "@/app/host/shift-scheduling/types"
+import { getEmailApiHeaders } from "@/lib/email-api"
 import {
   generateOneDayReminderEmailTemplate,
   generateOneDayReminderSMSTemplate,
@@ -241,10 +242,7 @@ export async function GET(request: NextRequest) {
               `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
               {
                 method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "email-type": "panel-notification"
-                },
+                headers: getEmailApiHeaders("panel-notification"),
                 body: JSON.stringify({
                   to: notification.panelist_contact,
                   subject: `Reminder: Speaking Tomorrow - ${notification.title}`,
@@ -313,10 +311,7 @@ export async function GET(request: NextRequest) {
               `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
               {
                 method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "email-type": "panel-notification"
-                },
+                headers: getEmailApiHeaders("panel-notification"),
                 body: JSON.stringify({
                   to: notification.panelist_contact,
                   subject: `Starting Soon: ${notification.title}`,
@@ -424,10 +419,7 @@ export async function GET(request: NextRequest) {
                   `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
                   {
                     method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "email-type": "volunteer-reminder"
-                    },
+                    headers: getEmailApiHeaders("volunteer-reminder"),
                     body: JSON.stringify({
                       to: assignment.contact,
                       subject: `Volunteer Reminder: ${shift.job_type} Tomorrow`,

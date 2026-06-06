@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7"
+import "@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from "@supabase/supabase-js"
 
 // CORS headers to allow cross-origin requests
 const corsHeaders = {
@@ -16,12 +16,88 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
 // Initialize Supabase client with service role key for admin actions
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status
+  })
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function getBearerToken(request: Request): string | null {
+  const authHeader = request.headers.get("Authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return null
+  }
+
+  return authHeader.slice("Bearer ".length).trim()
+}
+
+async function authenticateDeviceOwner(
+  request: Request,
+  deviceId: string
+): Promise<Response | null> {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Missing Supabase configuration")
+    return jsonResponse({ message: "Internal server error" }, 500)
+  }
+
+  const token = getBearerToken(request)
+  if (!token) {
+    return jsonResponse({ message: "Unauthorized: Missing bearer token" }, 401)
+  }
+
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser(token)
+
+  if (authError || !user) {
+    return jsonResponse({ message: "Unauthorized: Invalid session" }, 401)
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("users")
+    .select("id, user_id")
+    .eq("device_id", deviceId)
+    .maybeSingle()
+
+  if (profileError) {
+    console.error("Error loading profile owner:", profileError)
+    return jsonResponse({ message: "Unable to verify profile owner" }, 500)
+  }
+
+  if (!profile) {
+    return jsonResponse({ message: "Profile not found" }, 404)
+  }
+
+  if (profile.user_id && profile.user_id !== user.id) {
+    return jsonResponse({ message: "Forbidden: Device profile mismatch" }, 403)
+  }
+
+  if (!profile.user_id) {
+    const { error: linkError } = await supabase
+      .from("users")
+      .update({ user_id: user.id })
+      .eq("id", profile.id)
+
+    if (linkError) {
+      console.error("Error linking profile owner:", linkError)
+      return jsonResponse({ message: "Unable to link profile owner" }, 500)
+    }
+  }
+
+  return null
+}
+
 async function handleUpload(
   request: Request,
   deviceId: string
 ): Promise<Response> {
   try {
-    console.log("Processing upload for device ID:", deviceId)
     const formData = await request.formData()
     const file = formData.get("file") as File
 
@@ -38,9 +114,8 @@ async function handleUpload(
 
     // Upload to Supabase Storage with device_id as filename
     const filePath = `profile-${deviceId}`
-    console.log("Uploading to storage path:", filePath)
 
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from("profile-images")
       .upload(filePath, fileBuffer, {
         upsert: true,
@@ -60,8 +135,6 @@ async function handleUpload(
       .from("profile-images")
       .getPublicUrl(filePath)
 
-    console.log("Generated public URL:", publicUrlData)
-
     if (!publicUrlData || !publicUrlData.publicUrl) {
       console.error("Failed to get public URL")
       return new Response(
@@ -74,10 +147,6 @@ async function handleUpload(
     }
 
     // Update user profile with the profile pic URL - using device_id to identify user
-    console.log(
-      "Updating user profile with image URL:",
-      publicUrlData.publicUrl
-    )
     const { error: updateError } = await supabase
       .from("users")
       .update({ profile_image: publicUrlData.publicUrl })
@@ -91,8 +160,6 @@ async function handleUpload(
       })
     }
 
-    // Return the successful response with the public URL
-    console.log("Successfully processed profile picture upload")
     return new Response(
       JSON.stringify({
         success: true,
@@ -102,9 +169,9 @@ async function handleUpload(
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     )
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error handling upload:", error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: getErrorMessage(error) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500
     })
@@ -113,8 +180,6 @@ async function handleUpload(
 
 async function handleDelete(deviceId: string): Promise<Response> {
   try {
-    console.log("Processing delete for device ID:", deviceId)
-
     // Delete the file from storage
     const filePath = `profile-${deviceId}`
     const { error: deleteError } = await supabase.storage
@@ -146,64 +211,22 @@ async function handleDelete(deviceId: string): Promise<Response> {
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error deleting profile picture:", error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: getErrorMessage(error) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500
     })
   }
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }
 
   try {
-    console.log("Starting request")
-    // Check for basic auth
-    const authHeader = req.headers.get("Authorization")
-    console.log("Auth header:", authHeader)
-    if (!authHeader || !authHeader.startsWith("Basic ")) {
-      return new Response(
-        JSON.stringify({
-          message: "Unauthorized: Missing or invalid authorization"
-        }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json"
-          },
-          status: 401
-        }
-      )
-    }
-
-    console.log("Checking creds")
-    // Decode and verify basic auth
-    const base64Credentials = authHeader.split(" ")[1]
-    const credentials = atob(base64Credentials)
-    const expectedAuth = `yaap:${Deno.env.get("EDGE_PASSWORD")}`
-    console.log("Expected:", expectedAuth)
-    console.log("Actual:", credentials)
-    if (credentials !== expectedAuth) {
-      return new Response(
-        JSON.stringify({
-          message: "Unauthorized: Invalid credentials"
-        }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json"
-          },
-          status: 401
-        }
-      )
-    }
-
-    console.log("Getting device ID")
     // Get the device ID from the header instead of query param
     const deviceId = req.headers.get("x-device-id")
 
@@ -219,7 +242,11 @@ serve(async (req: Request) => {
       )
     }
 
-    console.log("Processing request for device ID:", deviceId)
+    const authError = await authenticateDeviceOwner(req, deviceId)
+    if (authError) {
+      return authError
+    }
+
     // Handle different operations based on request method
     if (req.method === "POST") {
       return await handleUpload(req, deviceId)
@@ -231,9 +258,9 @@ serve(async (req: Request) => {
         status: 405
       })
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Unhandled error:", error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: getErrorMessage(error) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500
     })

@@ -4,7 +4,6 @@ import {
   UserRole,
   UserWithRole,
   getCurrentUserWithRole,
-  getUserPermissions,
   hasAllPermissions,
   hasAnyPermission,
   hasPermission
@@ -82,16 +81,13 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
   const loadUser = async () => {
     try {
       setLoading(true)
-      console.log("RoleContext: Starting to load user role...")
       
       const userWithRole = await getCurrentUserWithRole()
       
       if (userWithRole) {
-        console.log("RoleContext: User role loaded successfully:", userWithRole.role)
         setUser(userWithRole)
         setIsAuthenticated(true)
       } else {
-        console.log("RoleContext: No user role found")
         setUser(null)
         setIsAuthenticated(false)
       }
@@ -100,14 +96,12 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
       setUser(null)
       setIsAuthenticated(false)
     } finally {
-      console.log("RoleContext: Setting loading to false - COMPLETE")
       setLoading(false)
     }
   }
 
   // Add a method to set user directly from login flow
   const setUserFromLogin = (userWithRole: UserWithRole) => {
-    console.log("RoleContext: Setting user from login:", userWithRole.role)
     setUser(userWithRole)
     setIsAuthenticated(true)
     setLoading(false)
@@ -121,10 +115,8 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     const checkInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session && mounted) {
-        console.log("RoleContext: Initial session found, loading user")
         await loadUser()
       } else if (mounted) {
-        console.log("RoleContext: No initial session")
         setLoading(false)
       }
     }
@@ -136,8 +128,6 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-        
-        console.log("RoleContext: Auth state changed:", event, !!session)
 
         if (event === "SIGNED_OUT" || !session) {
           setUser(null)
@@ -145,10 +135,8 @@ export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
           setLoading(false)
         } else if (event === "SIGNED_IN" && session) {
           // DON'T load user here - let the login flow handle it
-          console.log("RoleContext: SIGNED_IN event - waiting for login flow to complete")
           setIsAuthenticated(true)
         } else if ((event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session && user) {
-          console.log("RoleContext: Token refreshed or user updated, reloading role")
           await loadUser()
         }
       }

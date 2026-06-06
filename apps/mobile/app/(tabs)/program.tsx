@@ -2930,7 +2930,6 @@ export default function Program() {
         }
 
         setDeviceId(storedDeviceId)
-        console.log("Initial mount - using device ID:", storedDeviceId)
 
         // Load shared events from AsyncStorage
         const sharedEventsJson = await AsyncStorage.getItem("sharedEvents")
@@ -3025,10 +3024,8 @@ export default function Program() {
   useEffect(() => {
     const checkUserProfile = async () => {
       if (!deviceId) {
-        console.log("No device ID available for profile check")
         return
       }
-      console.log("Checking user profile for device ID:", deviceId)
 
       setCheckingProfile(true)
       try {
@@ -3045,7 +3042,6 @@ export default function Program() {
 
         if (data) {
           // User profile exists
-          console.log("User profile found:", data.first_name)
           setHasProfile(true)
           setUserId(data.id)
 
@@ -3064,7 +3060,6 @@ export default function Program() {
           }
         } else {
           // No profile
-          console.log("No user profile found for device ID:", deviceId)
           setHasProfile(false)
           setUserId(null)
           // Don't clear saved items here - let them load from AsyncStorage
@@ -3104,7 +3099,6 @@ export default function Program() {
       }
 
       if (!currentDeviceId) {
-        console.log("Still no device ID available on focus")
         return
       }
 
@@ -4884,7 +4878,6 @@ async function registerForPushNotificationsAsync() {
         projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
       })
     ).data
-    console.log("Expo push token:", token)
     return token
   } catch (error) {
     console.error("Error getting push token:", error)

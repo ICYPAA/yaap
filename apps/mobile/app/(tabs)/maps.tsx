@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import type { FlatListProps } from "react-native"
 import RNIImageViewer from "react-native-image-zoom-viewer"
 import { HospitalitySlots } from "../../components/HospitalitySlots"
 import { useFeatures } from "../../context/FeatureContext"
@@ -108,18 +109,15 @@ const FALLBACK_IMAGE =
   "https://placehold.co/600x400/CC0000/white/png?text=Image+Unavailable"
 
 // Animated carousel wrapper component
-const AnimatedCarousel = ({ 
-  children, 
+const AnimatedCarousel = <T,>({
   triggerOnView = false,
   parentScrollView,
-  ...props 
-}: { 
-  children: React.ReactNode
+  ...props
+}: FlatListProps<T> & {
   triggerOnView?: boolean
   parentScrollView?: React.RefObject<ScrollView>
-  [key: string]: any 
 }) => {
-  const scrollViewRef = useRef<FlatList>(null)
+  const scrollViewRef = useRef<FlatList<T>>(null)
   const translateX = useRef(new Animated.Value(0)).current
   const viewRef = useRef<View>(null)
   const hasAnimated = useRef(false)
@@ -128,7 +126,7 @@ const AnimatedCarousel = ({
   const runWiggleAnimation = () => {
     if (hasAnimated.current) return
     hasAnimated.current = true
-    
+
     const wiggleAnimation = Animated.sequence([
       Animated.timing(translateX, {
         toValue: -20,
@@ -170,11 +168,11 @@ const AnimatedCarousel = ({
     if (!triggerOnView || !viewRef.current || hasAnimated.current) return
 
     viewRef.current.measureInWindow((x, y, width, height) => {
-      const screenHeight = Dimensions.get('window').height
+      const screenHeight = Dimensions.get("window").height
       // Check if at least 50% of the component is visible
       const visibleHeight = Math.min(screenHeight - y, height)
       const isVisible = visibleHeight > height * 0.5 && y < screenHeight
-      
+
       if (isVisible && !hasAnimated.current) {
         setIsInView(true)
         setTimeout(() => {
@@ -201,12 +199,12 @@ const AnimatedCarousel = ({
   }, [triggerOnView])
 
   return (
-    <Animated.View 
+    <Animated.View
       ref={viewRef}
       style={{ transform: [{ translateX }] }}
       onLayout={checkInView}
     >
-      <FlatList ref={scrollViewRef} {...props} />
+      <FlatList<T> ref={scrollViewRef} {...props} />
     </Animated.View>
   )
 }
@@ -623,13 +621,17 @@ export default function Maps() {
 
         if (venueError)
           throw new Error(`Venue fetch error: ${venueError.message}`)
-        
+
         // Fix nested array issue - floors and amenities might be double-nested
         if (venueResult) {
           const fixedVenue = {
             ...venueResult,
-            floors: Array.isArray(venueResult.floors?.[0]) ? venueResult.floors[0] : venueResult.floors,
-            amenities: Array.isArray(venueResult.amenities?.[0]) ? venueResult.amenities[0] : venueResult.amenities
+            floors: Array.isArray(venueResult.floors?.[0])
+              ? venueResult.floors[0]
+              : venueResult.floors,
+            amenities: Array.isArray(venueResult.amenities?.[0])
+              ? venueResult.amenities[0]
+              : venueResult.amenities
           }
           setVenueData(fixedVenue)
         } else {
@@ -723,7 +725,7 @@ export default function Maps() {
             renderItem={({ item }) => {
               // Use the URL directly from the database
               let imageSource: string = item?.url || FALLBACK_IMAGE
-              
+
               if (!item?.url) {
                 console.warn(
                   `No URL found for venue map: ${item?.name}. Using fallback.`
@@ -742,7 +744,9 @@ export default function Maps() {
                 />
               )
             }}
-            keyExtractor={(item, index) => `venue-map-${item?.name || "map"}-${index}`}
+            keyExtractor={(item, index) =>
+              `venue-map-${item?.name || "map"}-${index}`
+            }
             horizontal
             showsHorizontalScrollIndicator={false}
             snapToInterval={itemWidth + itemSpacing} // Snap to card width + spacing
@@ -785,7 +789,7 @@ export default function Maps() {
                 </Text>
               </View>
             ))}
-            
+
             {/* Add HospitalitySlots component */}
             <HospitalitySlots programId={programId} />
           </View>
@@ -901,22 +905,23 @@ export default function Maps() {
               </Text>
             </View>
             <Text style={styles(theme).childcareDescription}>
-              {childcareContent.description || 
+              {childcareContent.description ||
                 "We provide professional childcare services during conference events."}
             </Text>
 
-            {childcareContent.features && childcareContent.features.map((feature: any, index: number) => (
-              <View key={index} style={styles(theme).childcareInfoRow}>
-                <Ionicons 
-                  name={feature.icon as any} 
-                  size={16} 
-                  color={theme.colors.primary} 
-                />
-                <Text style={styles(theme).childcareInfoText}>
-                  {feature.text}
-                </Text>
-              </View>
-            ))}
+            {childcareContent.features &&
+              childcareContent.features.map((feature: any, index: number) => (
+                <View key={index} style={styles(theme).childcareInfoRow}>
+                  <Ionicons
+                    name={feature.icon as any}
+                    size={16}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles(theme).childcareInfoText}>
+                    {feature.text}
+                  </Text>
+                </View>
+              ))}
 
             {childcareContent.note && (
               <Text style={styles(theme).childcareNote}>
@@ -931,11 +936,7 @@ export default function Maps() {
               <Text style={styles(theme).childcareButtonText}>
                 {childcareContent.linkText || "Request Childcare Services"}
               </Text>
-              <Ionicons
-                name="arrow-forward"
-                size={20}
-                color="#ffffff"
-              />
+              <Ionicons name="arrow-forward" size={20} color="#ffffff" />
             </TouchableOpacity>
           </View>
         </View>

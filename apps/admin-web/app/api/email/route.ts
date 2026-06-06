@@ -2,6 +2,23 @@ import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 
+const PUBLIC_EMAIL_TYPES = new Set(["contact", "volunteer-confirmation"])
+const INTERNAL_EMAIL_TYPES = new Set([
+  "report",
+  "panel-notification",
+  "test-notification",
+  "volunteer-reminder"
+])
+
+type HeaderReader = Pick<Headers, "get">
+
+function isAuthorizedInternalRequest(headersList: HeaderReader): boolean {
+  const emailApiSecret = process.env.EMAIL_API_SECRET
+  const authorization = headersList.get("authorization")
+
+  return !!emailApiSecret && authorization === `Bearer ${emailApiSecret}`
+}
+
 // Helper functions for volunteer email formatting
 function getVolunteerTypeDisplayName(volunteerType: string): string {
   const typeMap: Record<string, string> = {
@@ -22,6 +39,8 @@ function formatVolunteerDetails(volunteerType: string, details: any): string {
       if (details.interests?.greeter) interests.push("Greeter")
       if (details.interests?.security) interests.push("Security")
       if (details.interests?.cleanup) interests.push("Cleanup")
+      if (details.interests?.merch) interests.push("Merch")
+      if (details.interests?.registration) interests.push("Registration")
       if (details.interests?.setup) interests.push("Setup")
       if (details.interests?.hostCommittee) interests.push("Host Committee")
       if (details.interests?.wherever) interests.push("Wherever Needed")
@@ -89,8 +108,24 @@ export async function POST(req: Request) {
     const hCaptchaToken = headersList.get("captcha-token")
     const emailType = headersList.get("email-type") || "contact"
 
-    // Only verify hCaptcha for contact form submissions
-    if (emailType === "contact") {
+    if (
+      !PUBLIC_EMAIL_TYPES.has(emailType) &&
+      !INTERNAL_EMAIL_TYPES.has(emailType)
+    ) {
+      return NextResponse.json(
+        { error: "Unsupported email type" },
+        { status: 400 }
+      )
+    }
+
+    if (
+      INTERNAL_EMAIL_TYPES.has(emailType) &&
+      !isAuthorizedInternalRequest(headersList)
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (PUBLIC_EMAIL_TYPES.has(emailType)) {
       // Verify the hCaptcha token
       const { success } = await fetch("https://hcaptcha.com/siteverify", {
         method: "POST",
@@ -249,6 +284,16 @@ ${shareInMeeting || "No pertinent items to share"}`
         subject: subject,
         text: emailContent
       }
+    } else if (emailType === "volunteer-reminder") {
+      const { to, subject, emailContent, text, html } = data
+
+      mailOptions = {
+        from: '"The 65th ICYPAA Volunteer Committee" <josh@themindfulpug.com>',
+        to: to || undefined,
+        subject,
+        text: text || emailContent,
+        html
+      }
     } else {
       // Default to contact form email
       const { firstName, lastName, inquiryType, email, phone, message } = data
@@ -265,7 +310,7 @@ ${shareInMeeting || "No pertinent items to share"}`
     const info = await transporter.sendMail(mailOptions)
 
     // Return a success response with message ID for tracking
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: "Email sent successfully!",
       messageId: info.messageId,
       accepted: info.accepted,

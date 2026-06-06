@@ -36,13 +36,11 @@ import { Schedule, User } from "../../types/user"
 // Function to get device identifier based on platform
 async function getIdentifier() {
   if (Platform.OS === "ios") {
-    let idfv = await Application.getIosIdForVendorAsync()
-    console.log("iOS IDFV:", idfv)
+    const idfv = await Application.getIosIdForVendorAsync()
     return idfv // Example: T563P9YS-856G-473X-H1J2-FC94L0T37IC6 or null
   }
   if (Platform.OS === "android") {
-    let androidId = Application.getAndroidId()
-    console.log("Android ID:", androidId)
+    const androidId = Application.getAndroidId()
     return androidId // Example: '9774d56d682e549c' or null
   }
   return null
@@ -66,7 +64,6 @@ async function registerForPushNotificationsAsync() {
         projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
       })
     ).data
-    console.log("Expo push token:", token)
     return token
   } catch (error) {
     console.error("Error getting push token:", error)
@@ -157,7 +154,6 @@ export default function Profile() {
           console.error("Could not get a device identifier")
           return
         }
-        console.log("Device ID:", id)
         setDeviceId(id)
       } catch (error) {
         console.error("Error getting device identifier:", error)
@@ -219,7 +215,6 @@ export default function Profile() {
     const fetchUserData = async () => {
       setLoadingProfile(true)
       setLoadingSharing(true)
-      console.log(`Fetching user data for device ID: ${deviceId}`)
       try {
         const supabaseWithDeviceId = await withDeviceId()
         const { data: userData, error: userError } = await supabaseWithDeviceId
@@ -235,8 +230,6 @@ export default function Profile() {
         }
 
         if (userData) {
-          console.log("User data found:", userData.first_name)
-
           // Get schedule from AsyncStorage instead of directly from database
           const scheduleJson = await AsyncStorage.getItem("userSchedule")
           let schedule: Schedule
@@ -282,7 +275,6 @@ export default function Profile() {
           // Fetch details for sharing lists based on schedule
           await fetchSharingListsDetails(schedule)
         } else {
-          console.log("No user found for this device ID. Need to create one?")
           // Handle case where user doesn't exist yet (e.g., prompt to create profile?)
           // For now, set default empty states
           setCurrentUser(null)
@@ -388,15 +380,11 @@ export default function Profile() {
         clearImageCache(profileImage)
       }
 
-      console.log("Starting profile picture upload process")
       const result = await uploadProfilePicture()
-
-      console.log("Profile picture upload result:", result)
 
       if (result.success && result.imageUrl) {
         // Add a cache-busting parameter to the URL
         const cacheBustUrl = `${result.imageUrl}?t=${new Date().getTime()}`
-        console.log("Setting profile image URL to:", cacheBustUrl)
 
         // Clear the cache for the new image URL as well
         clearImageCache(result.imageUrl)
@@ -454,8 +442,6 @@ export default function Profile() {
         expo_push_token: pushToken,
         user_id: userId // This will be string | undefined, not string | null
       }
-      console.log("Saving Profile Info:", profileDataToSave)
-
       const supabaseWithDeviceId = await withDeviceId(supabase, '/profile/update')
       const { error } = await supabaseWithDeviceId
         .from("users")
@@ -532,8 +518,6 @@ export default function Profile() {
 
     if (stateSetter) optimisticStateUpdater(stateSetter)
 
-    console.log(`Updating setting ${settingKey} to ${value}`)
-
     // Prepare the update payload for the settings JSONB column
     const currentSettings = currentUser.settings || {}
     const newSettings = { ...currentSettings, [settingKey]: value }
@@ -551,7 +535,6 @@ export default function Profile() {
       setCurrentUser((prev) =>
         prev ? { ...prev, settings: newSettings } : null
       )
-      console.log(`Successfully updated ${settingKey}`)
     } catch (error: any) {
       console.error(`Failed to update setting ${settingKey}:`, error)
       Alert.alert(
@@ -581,13 +564,6 @@ export default function Profile() {
 
   // --- Sharing Action Handlers (using DisplayUser type) ---
 
-  // Helper function to safely convert device_id
-  const safeNumberConversion = (id: any): number => {
-    if (typeof id === "number") return id
-    const num = Number(id)
-    return isNaN(num) ? -1 : num // Return -1 as fallback to prevent unintended matches
-  }
-
   const executeBan = (user: DisplayUser, sourceListUpdateFn?: () => void) => {
     Alert.alert(
       "Confirm Ban",
@@ -599,10 +575,9 @@ export default function Profile() {
           style: "destructive",
           onPress: async () => {
             if (!deviceId || !currentUser) return
-            console.log("Banning user:", user.id)
             try {
               const supabaseWithDeviceId = await withDeviceId()
-              const { data, error } = await supabaseWithDeviceId.rpc(
+              const { error } = await supabaseWithDeviceId.rpc(
                 "ban_user",
                 {
                   current_user_id: currentUser.id,
@@ -656,19 +631,15 @@ export default function Profile() {
 
   const handleAcceptRequest = async (user: DisplayUser) => {
     if (!deviceId || !currentUser) return
-    console.log("Accepting request from:", user.id)
     try {
       const supabaseWithDeviceId = await withDeviceId()
-      const { data, error } = await supabaseWithDeviceId.rpc(
+      const { error } = await supabaseWithDeviceId.rpc(
         "accept_share_request",
         {
           requester_id: user.id,
           acceptor_id: currentUser.id
         }
       )
-
-      console.log("Accept share request data:", data)
-      console.log("Accept share request error:", error)
 
       if (error) throw error
 
@@ -708,8 +679,6 @@ export default function Profile() {
             }
           }
         })
-
-        console.log("Sent schedule acceptance notification")
       }
     } catch (error) {
       console.error("Error accepting request:", error)
@@ -728,10 +697,9 @@ export default function Profile() {
           style: "default",
           onPress: async () => {
             if (!deviceId || !currentUser) return
-            console.log("Denying request from:", user.id)
             try {
               const supabaseWithDeviceId = await withDeviceId()
-              const { data, error } = await supabaseWithDeviceId.rpc(
+              const { error } = await supabaseWithDeviceId.rpc(
                 "deny_share_request",
                 {
                   requester_id: user.id,
@@ -794,10 +762,9 @@ export default function Profile() {
           style: "default",
           onPress: async () => {
             if (!deviceId || !currentUser) return
-            console.log("Removing sharing with:", user.id)
             try {
               const supabaseWithDeviceId = await withDeviceId()
-              const { data, error } = await supabaseWithDeviceId.rpc(
+              const { error } = await supabaseWithDeviceId.rpc(
                 "remove_sharing",
                 {
                   current_user_id: currentUser.id,
@@ -855,10 +822,9 @@ export default function Profile() {
           style: "destructive",
           onPress: async () => {
             if (!deviceId || !currentUser) return
-            console.log("Cancelling pending request for:", user.id)
             try {
               const supabaseWithDeviceId = await withDeviceId()
-              const { data, error } = await supabaseWithDeviceId.rpc(
+              const { error } = await supabaseWithDeviceId.rpc(
                 "cancel_share_request",
                 {
                   current_user_id: currentUser.id,
@@ -907,10 +873,9 @@ export default function Profile() {
           style: "destructive",
           onPress: async () => {
             if (!deviceId || !currentUser) return
-            console.log("Stopping viewing schedule from:", user.id)
             try {
               const supabaseWithDeviceId = await withDeviceId()
-              const { data, error } = await supabaseWithDeviceId.rpc(
+              const { error } = await supabaseWithDeviceId.rpc(
                 "stop_viewing_schedule",
                 {
                   current_user_id: currentUser.id,
@@ -959,10 +924,9 @@ export default function Profile() {
           style: "default",
           onPress: async () => {
             if (!deviceId || !currentUser) return
-            console.log("Unbanning user:", user.id)
             try {
               const supabaseWithDeviceId = await withDeviceId()
-              const { data, error } = await supabaseWithDeviceId.rpc(
+              const { error } = await supabaseWithDeviceId.rpc(
                 "unban_user",
                 {
                   current_user_id: currentUser.id,
@@ -1068,10 +1032,6 @@ export default function Profile() {
                   supportChatsError
                 )
                 // Continue with deletion even if support chat update fails
-              } else {
-                console.log(
-                  "Support chats updated successfully for deleted profile"
-                )
               }
 
               // Delete the user from the database
@@ -1191,12 +1151,6 @@ export default function Profile() {
                   // Get push token
                   const pushToken = await registerForPushNotificationsAsync()
 
-                  console.log("Creating user:", {
-                    device_id: deviceId,
-                    first_name: firstName,
-                    last_initial: lastInitial,
-                    expo_push_token: pushToken
-                  })
                   // Actual Supabase insert call
                   const supabaseWithDeviceId = await withDeviceId()
                   const { error: insertError } = await supabaseWithDeviceId

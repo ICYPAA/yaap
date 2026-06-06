@@ -107,12 +107,6 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
       }
 
       const data = await response.json()
-      
-      console.log("=== Shift Schedule API Response ===")
-      console.log("Response type:", typeof data)
-      console.log("Is array:", Array.isArray(data))
-      console.log("Keys:", data ? Object.keys(data) : 'null')
-      console.log("Full response:", JSON.stringify(data, null, 2))
 
       // Handle different response formats
       let shiftsData: Shift[] = []
@@ -130,27 +124,11 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
         console.error("Unexpected API response format:", data)
         shiftsData = []
       }
-
-      // Log shifts data for debugging
-      console.log("=== Processing Shifts ===")
-      console.log("Total shifts received:", shiftsData.length)
-      console.log("User identifier (email/phone/id):", userId)
-      
-      if (shiftsData.length > 0) {
-        console.log("First shift structure:", JSON.stringify(shiftsData[0], null, 2))
-        
-        // Check assignment structure
-        if (shiftsData[0].assignments) {
-          console.log("Assignments in first shift:", shiftsData[0].assignments)
-          console.log("Assignment structure:", shiftsData[0].assignments.length > 0 ? shiftsData[0].assignments[0] : 'No assignments')
-        }
-      }
       
       // Filter shifts where current user is in assignments if userId is provided
       const userShifts = userId && shiftsData.length > 0
         ? shiftsData.filter((shift: Shift) => {
             if (!shift.assignments || !Array.isArray(shift.assignments)) {
-              console.log(`Shift ${shift.id} has no assignments array`)
               return false
             }
             
@@ -176,20 +154,7 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
                     assignment.id === Number(userId) ||
                     assignment.volunteering_interest_id === Number(userId)
                   ))
-                  
-                if (matches) {
-                  console.log(`User ${userId} matched in shift ${shift.id}:`, {
-                    assignmentId: assignment.id,
-                    contact: assignment.contact,
-                    name: assignment.name,
-                    matchedField: 
-                      assignment.contact === userId ? 'contact/email' :
-                      assignment.phone === userId ? 'phone' :
-                      assignment.id === userId ? 'id' :
-                      assignment.volunteering_interest_id === userId ? 'volunteering_interest_id' :
-                      'other'
-                  })
-                }
+
                 return matches
               }
             )
@@ -198,7 +163,6 @@ const ChairpersonSchedule: React.FC<ChairpersonScheduleProps> = ({
           })
         : shiftsData
       
-      console.log("Filtered user shifts:", userShifts.length)
       setShifts(userShifts)
     } catch (error) {
       console.error("Error fetching chairperson schedule:", error)

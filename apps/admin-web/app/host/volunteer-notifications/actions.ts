@@ -1,7 +1,8 @@
 "use server"
 
-import { createClient } from "@/utils/supabase/server"
+import { getEmailApiHeaders } from "@/lib/email-api"
 import { logActivity } from "@/lib/audit-logger"
+import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 
 export interface VolunteerNotification {
@@ -21,7 +22,10 @@ export interface VolunteerNotification {
 export async function getVolunteers() {
   const supabase = await createClient()
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
   if (userError || !user) {
     redirect("/auth/login")
   }
@@ -39,7 +43,7 @@ export async function getVolunteers() {
     }
 
     // Transform data to match VolunteerNotification interface
-    const volunteers: VolunteerNotification[] = (data || []).map(record => ({
+    const volunteers: VolunteerNotification[] = (data || []).map((record) => ({
       id: record.id,
       name: record.name,
       last_initial: record.last_initial,
@@ -63,14 +67,17 @@ export async function getVolunteers() {
 export async function sendVolunteerNotifications(volunteerIds: number[]) {
   const supabase = await createClient()
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
   if (userError || !user) {
     return { error: "Not authenticated" }
   }
 
   try {
     const results = []
-    
+
     for (const id of volunteerIds) {
       // Get volunteer details
       const { data: volunteer, error: fetchError } = await supabase
@@ -86,20 +93,24 @@ export async function sendVolunteerNotifications(volunteerIds: number[]) {
 
       // Only send email notifications
       if (!volunteer.email) {
-        results.push({ id, success: false, error: "No email address available" })
+        results.push({
+          id,
+          success: false,
+          error: "No email address available"
+        })
         continue
       }
 
       // Send email notification
       const emailResult = await sendEmailNotification(volunteer)
-      
+
       if (emailResult.success) {
         // Update notification_sent_at timestamp
         await supabase
           .from("volunteering_interest")
           .update({ notification_sent_at: new Date().toISOString() })
           .eq("id", id)
-        
+
         results.push({ id, success: true })
       } else {
         results.push({ id, success: false, error: emailResult.error })
@@ -108,10 +119,10 @@ export async function sendVolunteerNotifications(volunteerIds: number[]) {
 
     await logActivity({
       actionType: "send_volunteer_notification",
-      metadata: { 
+      metadata: {
         volunteerIds,
         count: volunteerIds.length,
-        successCount: results.filter(r => r.success).length
+        successCount: results.filter((r) => r.success).length
       }
     })
 
@@ -133,7 +144,7 @@ Thank you for your interest in volunteering for the 65th ICYPAA!
 
 We have received your volunteer signup for: ${volunteer.type}
 
-${volunteer.data ? `Details: ${JSON.stringify(volunteer.data, null, 2)}` : ''}
+${volunteer.data ? `Details: ${JSON.stringify(volunteer.data, null, 2)}` : ""}
 
 We will be in touch soon with more information about your volunteer assignment.
 
@@ -144,18 +155,19 @@ Thank you for your service!
     `.trim()
 
     // Send email via API
-    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        to: volunteer.email,
-        subject: "65th ICYPAA Volunteer Notification",
-        text: emailContent,
-        html: emailContent.replace(/\n/g, '<br>')
-      })
-    })
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/email`,
+      {
+        method: "POST",
+        headers: getEmailApiHeaders("volunteer-reminder"),
+        body: JSON.stringify({
+          to: volunteer.email,
+          subject: "65th ICYPAA Volunteer Notification",
+          text: emailContent,
+          html: emailContent.replace(/\n/g, "<br>")
+        })
+      }
+    )
 
     if (!response.ok) {
       const error = await response.text()
@@ -170,10 +182,17 @@ Thank you for your service!
 }
 
 // Update volunteer status
-export async function updateVolunteerStatus(id: number, field: string, value: boolean) {
+export async function updateVolunteerStatus(
+  id: number,
+  field: string,
+  value: boolean
+) {
   const supabase = await createClient()
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
   if (userError || !user) {
     return { error: "Not authenticated" }
   }
@@ -205,10 +224,16 @@ export async function updateVolunteerStatus(id: number, field: string, value: bo
 }
 
 // Update volunteer notification details
-export async function updateVolunteerNotification(id: number, formData: FormData) {
+export async function updateVolunteerNotification(
+  id: number,
+  formData: FormData
+) {
   const supabase = await createClient()
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
   if (userError || !user) {
     return { error: "Not authenticated" }
   }
@@ -247,7 +272,7 @@ export async function updateVolunteerNotification(id: number, formData: FormData
 
     await logActivity({
       actionType: "update_volunteer_notification",
-      metadata: { 
+      metadata: {
         volunteerId: id,
         updates: { name, lastInitial, type, contactType, contactValue }
       }
@@ -264,7 +289,10 @@ export async function updateVolunteerNotification(id: number, formData: FormData
 export async function deleteVolunteerNotification(id: number) {
   const supabase = await createClient()
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
   if (userError || !user) {
     return { error: "Not authenticated" }
   }
@@ -296,7 +324,10 @@ export async function deleteVolunteerNotification(id: number) {
 export async function sendTestVolunteerNotification(formData: FormData) {
   const supabase = await createClient()
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
   if (userError || !user) {
     return { error: "Not authenticated" }
   }

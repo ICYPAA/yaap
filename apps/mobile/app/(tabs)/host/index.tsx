@@ -75,11 +75,13 @@ export default function HostDashboard() {
   const { isDebugMode } = useDebug()
   const { isHostAdmin, isSuperAdmin } = useRole()
   const [user, setUser] = useState<any>(null)
-  const [onCallAssignments, setOnCallAssignments] = useState<OnCallAssignment[]>([])
-  
+  const [onCallAssignments, setOnCallAssignments] = useState<
+    OnCallAssignment[]
+  >([])
+
   const getServiceSections = () => {
     const sections: ServiceSection[] = []
-    
+
     if (isFeatureEnabled("accessibility_enabled")) {
       sections.push({
         title: "Accessibility Requests",
@@ -90,7 +92,7 @@ export default function HostDashboard() {
         category: "services"
       })
     }
-    
+
     // Temporarily disabled - volunteer forms should go through the public volunteer form
     // if (isFeatureEnabled("volunteering_enabled")) {
     //   sections.push({
@@ -102,7 +104,7 @@ export default function HostDashboard() {
     //     category: "services"
     //   })
     // }
-    
+
     if (isFeatureEnabled("hospitality_enabled")) {
       sections.push({
         title: "Hospitality Notifications",
@@ -113,7 +115,7 @@ export default function HostDashboard() {
         category: "services"
       })
     }
-    
+
     if (isFeatureEnabled("support_chat_enabled")) {
       sections.push({
         title: "Support Chats",
@@ -124,7 +126,7 @@ export default function HostDashboard() {
         category: "services"
       })
     }
-    
+
     // Tools section - only for steering members and admins
     if (isHostAdmin() || isSuperAdmin()) {
       sections.push({
@@ -134,7 +136,7 @@ export default function HostDashboard() {
         isAction: true,
         category: "tools"
       })
-      
+
       sections.push({
         title: "On-Call Management",
         route: "oncall",
@@ -142,7 +144,7 @@ export default function HostDashboard() {
         isAction: true,
         category: "tools"
       })
-      
+
       sections.push({
         title: "Feature Management",
         route: "features",
@@ -151,7 +153,7 @@ export default function HostDashboard() {
         category: "tools"
       })
     }
-    
+
     sections.push({
       title: "Chairperson Schedule",
       route: "chairperson",
@@ -159,11 +161,12 @@ export default function HostDashboard() {
       isAction: true,
       category: "user"
     })
-    
+
     return sections
   }
-  
-  const [serviceSections, setServiceSections] = useState<ServiceSection[]>(getServiceSections())
+
+  const [serviceSections, setServiceSections] =
+    useState<ServiceSection[]>(getServiceSections())
   const [loading, setLoading] = useState(true)
   const subscriptionsRef = useRef<{ [key: string]: any }>({})
 
@@ -182,7 +185,7 @@ export default function HostDashboard() {
       })
     }
   }, [])
-  
+
   // Update sections when features or role change
   useEffect(() => {
     setServiceSections(getServiceSections())
@@ -427,12 +430,19 @@ export default function HostDashboard() {
             .eq("program_id", 3)
             .eq("is_active", true)
       })
-      
+
       if (data && data.length > 0) {
         // Get user names for the assigned users
-        const assignedUserIds = data.map(a => a.user_id)
-        const { data: authUsers, error: authError } = await supabaseWithDeviceId
-          .rpc("get_auth_user_names", {
+        type AuthUserRow = {
+          id: string
+          email?: string
+          full_name?: string
+        }
+
+        const assignments = data as OnCallAssignment[]
+        const assignedUserIds = assignments.map((a) => a.user_id)
+        const { data: authUsers, error: authError } =
+          await supabaseWithDeviceId.rpc("get_auth_user_names", {
             user_ids: assignedUserIds
           })
 
@@ -441,19 +451,24 @@ export default function HostDashboard() {
         }
 
         // Create a map for easy lookup
-        const authUsersMap = new Map()
+        const authUsersMap = new Map<string, AuthUserRow>()
         if (authUsers) {
-          authUsers.forEach(u => {
+          ;(authUsers as AuthUserRow[]).forEach((u) => {
             authUsersMap.set(u.id, u)
           })
         }
 
         // Add user info to assignments
-        const assignmentsWithUsers = data.map(assignment => {
+        const assignmentsWithUsers = assignments.map((assignment) => {
           const authUser = authUsersMap.get(assignment.user_id)
           return {
             ...assignment,
-            user: authUser || { id: assignment.user_id, email: "Unknown", full_name: "Unknown User" }
+            user: {
+              id: assignment.user_id,
+              email: authUser?.email || "Unknown",
+              full_name:
+                authUser?.full_name || authUser?.email || "Unknown User"
+            }
           }
         })
 
@@ -498,7 +513,7 @@ export default function HostDashboard() {
   const fetchPendingCounts = async () => {
     // Get fresh service sections to ensure we have latest data
     const sections = getServiceSections()
-    
+
     try {
       await Promise.all(
         sections
@@ -613,11 +628,15 @@ export default function HostDashboard() {
 
       {/* On-Call Status Display */}
       <View style={styles(theme).onCallStatusContainer}>
-        <Text style={styles(theme).onCallStatusTitle}>Current On-Call Status</Text>
+        <Text style={styles(theme).onCallStatusTitle}>
+          Current On-Call Status
+        </Text>
         <View style={styles(theme).onCallGrid}>
-          {ON_CALL_SERVICE_TYPES.map(service => {
-            const assignment = onCallAssignments.find(a => a.service_type === service.key)
-            
+          {ON_CALL_SERVICE_TYPES.map((service) => {
+            const assignment = onCallAssignments.find(
+              (a) => a.service_type === service.key
+            )
+
             return (
               <View key={service.key} style={styles(theme).onCallItem}>
                 <View style={styles(theme).onCallItemHeader}>
@@ -627,13 +646,16 @@ export default function HostDashboard() {
                     color={theme.colors.primary}
                     style={styles(theme).onCallItemIcon}
                   />
-                  <Text style={styles(theme).onCallItemLabel}>{service.label}</Text>
+                  <Text style={styles(theme).onCallItemLabel}>
+                    {service.label}
+                  </Text>
                 </View>
                 <Text style={styles(theme).onCallItemAssignment}>
                   {assignment
-                    ? (assignment.user?.full_name || assignment.user?.email || "Unknown User")
-                    : "No one assigned"
-                  }
+                    ? assignment.user?.full_name ||
+                      assignment.user?.email ||
+                      "Unknown User"
+                    : "No one assigned"}
                 </Text>
               </View>
             )
@@ -718,7 +740,9 @@ export default function HostDashboard() {
                         <Ionicons
                           name={service.icon}
                           size={28}
-                          color={getTextColorForBackground(theme.colors.primary)}
+                          color={getTextColorForBackground(
+                            theme.colors.primary
+                          )}
                         />
                       </View>
                       <View style={styles(theme).serviceTextContainer}>
@@ -726,11 +750,11 @@ export default function HostDashboard() {
                           {service.title}
                         </Text>
                         <Text style={styles(theme).serviceSubtitle}>
-                          {service.route === "general-notifications" 
+                          {service.route === "general-notifications"
                             ? "Send notifications to attendees"
                             : service.route === "oncall"
-                            ? "Manage on-call assignments"
-                            : "Control available app features"}
+                              ? "Manage on-call assignments"
+                              : "Control available app features"}
                         </Text>
                       </View>
                     </View>

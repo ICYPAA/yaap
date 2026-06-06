@@ -16,7 +16,6 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
-import { useDebug } from "../../../context/DebugContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { useRole } from "../../../context/RoleContext"
 import {
@@ -28,7 +27,6 @@ import { supabase } from "../../../lib/supabase"
 export default function HostLogin() {
   const router = useRouter()
   const { theme } = useTheme()
-  const { isDebugMode } = useDebug()
   const { setUserFromLogin, setIsLoggingIn } = useRole()
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState("")
@@ -62,19 +60,13 @@ export default function HostLogin() {
   useEffect(() => {
     if (Platform.OS !== 'android') return
     
-    console.log("Android: Setting up session recovery listener")
-    
     // Track if we've already attempted authentication for this session
     let hasAttemptedAuth = false
     let authTimeoutId: NodeJS.Timeout | null = null
     
     // Also listen for deep links on Android
     const linkingListener = Linking.addEventListener('url', async ({ url }) => {
-      console.log("Android: Deep link received:", url)
-      
       if (url.includes('#access_token=')) {
-        console.log("Android: Auth callback URL detected")
-        
         // Extract tokens from the URL fragment
         const urlParts = url.split('#')
         if (urlParts.length > 1) {
@@ -83,21 +75,14 @@ export default function HostLogin() {
           const refresh_token = params.get('refresh_token')
           const provider_token = params.get('provider_token')
           
-          console.log("Android: Extracted tokens from deep link")
-          console.log("- Access token:", access_token ? "Found" : "Missing")
-          console.log("- Refresh token:", refresh_token ? "Found" : "Missing")
-          console.log("- Provider token:", provider_token ? "Found" : "Missing")
-          
           // Store the provider token for later use
           if (provider_token) {
             setPendingProviderToken(provider_token)
-            console.log("Android: Stored provider token for later use")
           }
           
           if (access_token && refresh_token) {
             // Prevent duplicate authentication
             if (isAuthenticating || hasAttemptedAuth) {
-              console.log("Android: Already authenticating or has attempted, skipping duplicate call")
               return
             }
             
@@ -118,20 +103,14 @@ export default function HostLogin() {
                 provider_token || ''
               )
               
-              console.log("Android: Auth result received:", { success: authResult.success, hasUser: !!authResult.user })
-              
               if (authResult.success && authResult.user) {
-                console.log("Android: Authentication successful via deep link")
-                console.log("Android: Calling setUserFromLogin with user:", authResult.user.role)
                 setUserFromLogin(authResult.user)
-                console.log("Android: Waiting for context update before navigation")
                 // Give more time for context to update and prevent race condition
                 setTimeout(() => {
-                  console.log("Android: Now navigating to /host")
                   router.replace("/(tabs)/host")
                 }, 500)
               } else {
-                console.log("Android: Authentication failed, error:", authResult.error)
+                console.error("Android authentication failed:", authResult.error)
                 Alert.alert("Login Error", authResult.error || "Authentication failed")
                 setIsLoggingIn(false)
                 setIsAuthenticating(false)
@@ -154,15 +133,8 @@ export default function HostLogin() {
     
     // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Android: Auth state changed:", event)
-      console.log("Android: Session present:", !!session)
-      console.log("Android: Provider token present:", !!session?.provider_token)
-      console.log("Android: Pending provider token:", !!pendingProviderToken)
-      
       // Only handle SIGNED_IN event for OAuth, ignore TOKEN_REFRESHED for existing sessions
       if (event === 'SIGNED_IN' && session) {
-        console.log("Android: SIGNED_IN event - checking for OAuth completion")
-        
         // Check if we have required tokens for Discord auth
         let provider_token = session.provider_token || pendingProviderToken
         const access_token = session.access_token
@@ -170,27 +142,19 @@ export default function HostLogin() {
         
         // Skip if already authenticating or already authenticated
         if (isAuthenticating || hasAttemptedAuth) {
-          console.log("Android: Already authenticating or has attempted, skipping auth state handler")
           return
         }
         
         // Check if this is a Discord OAuth session (has provider_token or provider_refresh_token)
         if (provider_token || session.user?.app_metadata?.provider === 'discord') {
-          console.log("Android: Discord session detected in auth state change")
-          console.log("Android: Using provider token:", provider_token ? "Available" : "Missing")
-          
           // If we don't have provider_token but have a Discord session, 
           // wait briefly for it to be set via deep link
           if (!provider_token && session.user?.app_metadata?.provider === 'discord') {
-            console.log("Android: Discord session without provider token, waiting briefly...")
-            
             // Set a timeout to check for provider token
             authTimeoutId = setTimeout(() => {
               if (pendingProviderToken && !hasAttemptedAuth && !isAuthenticating) {
-                console.log("Android: Provider token now available, attempting authentication")
                 handleAuthWithTokens(access_token, refresh_token, pendingProviderToken)
               } else {
-                console.log("Android: No provider token after wait, cannot authenticate")
                 setLoading(false)
                 setIsLoggingIn(false)
               }
@@ -207,11 +171,9 @@ export default function HostLogin() {
     
     const handleAuthWithTokens = async (access_token: string, refresh_token: string, provider_token: string) => {
       if (hasAttemptedAuth || isAuthenticating) {
-        console.log("Android: Already attempted or in progress, skipping")
         return
       }
-      
-      console.log("Android: All tokens available, authenticating...")
+
       hasAttemptedAuth = true
       setIsAuthenticating(true)
       setIsLoggingIn(true)
@@ -224,16 +186,13 @@ export default function HostLogin() {
         )
         
         if (authResult.success && authResult.user) {
-          console.log("Android: Authentication successful from auth state")
           setUserFromLogin(authResult.user)
-          console.log("Android: Waiting for context update before navigation")
           setTimeout(() => {
-            console.log("Android: Now navigating to /host")
             router.replace("/(tabs)/host")
           }, 500)
           setPendingProviderToken(null) // Clear after successful auth
         } else {
-          console.log("Android: Authentication failed, error:", authResult.error)
+          console.error("Android authentication failed:", authResult.error)
           Alert.alert("Login Error", authResult.error || "Authentication failed")
           setIsLoggingIn(false)
           setIsAuthenticating(false)
@@ -268,13 +227,6 @@ export default function HostLogin() {
     try {
       setLoading(true)
       setIsLoggingIn(true)
-      console.log("=== Discord Login Process Started ===")
-      console.log("Timestamp:", new Date().toISOString())
-      console.log("Platform:", Platform.OS)
-      console.log("Redirect URI:", redirectUri)
-
-      console.log("Step 1: Initiating OAuth with Supabase...")
-      console.log("Using redirectTo:", redirectUri)
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "discord",
@@ -289,29 +241,16 @@ export default function HostLogin() {
         throw error
       }
 
-      console.log("Step 2: OAuth URL received:", data?.url ? "Yes" : "No")
       if (data?.url) {
-        console.log("OAuth URL length:", data.url.length)
-        console.log("OAuth URL domain:", new URL(data.url).hostname)
-      }
-
-      if (data?.url) {
-        console.log("Step 3: Opening WebBrowser for authentication...")
-        
         // On Android, use openBrowserAsync and wait for session recovery
         if (Platform.OS === 'android') {
-          console.log("Android detected: Using openBrowserAsync")
-          
           // Set a timeout to handle if auth doesn't complete
           const timeoutId = setTimeout(() => {
-            console.log("Android: Auth timeout reached, checking session manually")
             supabase.auth.getSession().then(({ data: { session } }) => {
               if (session) {
-                console.log("Android: Found session after timeout, triggering auth state change")
                 // Manually trigger the auth state change by refreshing the session
                 supabase.auth.refreshSession()
               } else {
-                console.log("Android: No session found after timeout")
                 setLoading(false)
                 setIsLoggingIn(false)
               }
@@ -324,7 +263,6 @@ export default function HostLogin() {
           clearTimeout(timeoutId)
           
           // For Android, the session will be recovered via onAuthStateChange
-          console.log("Browser opened, waiting for session recovery...")
           // Don't setLoading(false) here - let the auth state change handler do it
           return
         }
@@ -334,20 +272,10 @@ export default function HostLogin() {
           data.url,
           redirectUri
         )
-        console.log("Step 4: WebBrowser result received")
-        console.log("Result type:", result.type)
-        console.log(
-          "Result URL present:",
-          result.type === "success" && result.url ? "Yes" : "No"
-        )
 
         if (result.type === "success") {
-          console.log("Step 5: Processing success response...")
-          console.log("Full URL:", result.url)
-
           // Extract tokens from the URL fragment
           const urlParts = result.url.split("#")
-          console.log("URL has fragment:", urlParts.length > 1 ? "Yes" : "No")
 
           if (urlParts.length > 1) {
             const params = new URLSearchParams(urlParts[1])
@@ -355,36 +283,16 @@ export default function HostLogin() {
             const refresh_token = params.get("refresh_token")
             const provider_token = params.get("provider_token")
 
-            console.log("Step 6: Token extraction results:")
-            console.log("- Access token:", access_token ? "Found" : "Missing")
-            console.log("- Refresh token:", refresh_token ? "Found" : "Missing")
-            console.log(
-              "- Provider token:",
-              provider_token ? "Found" : "Missing"
-            )
-
             if (access_token && refresh_token && provider_token) {
-              console.log(
-                "Step 7: All tokens found, running authentication flow..."
-              )
-
               const authResult = await authenticateWithDiscord(
                 access_token,
                 refresh_token,
                 provider_token
               )
 
-              console.log(
-                "Step 8: Authentication result:",
-                authResult.success ? "SUCCESS" : "FAILED"
-              )
-
               if (authResult.success && authResult.user) {
-                console.log("Step 9: Setting user in RoleContext...")
                 setUserFromLogin(authResult.user)
-                console.log("Step 10: Waiting for context update before navigation...")
                 setTimeout(() => {
-                  console.log("Step 11: Navigation to host screen...")
                   router.replace("/(tabs)/host")
                 }, 500)
               } else {
@@ -399,8 +307,7 @@ export default function HostLogin() {
                 setIsLoggingIn(false)
               }
             } else {
-              console.error("Step 6 FAILED: Missing required tokens")
-              console.error("URL fragment content:", urlParts[1])
+              console.error("Discord login response was missing required tokens")
               Alert.alert(
                 "Login Error",
                 "Could not retrieve all required login tokens from Discord response."
@@ -416,7 +323,6 @@ export default function HostLogin() {
             setIsLoggingIn(false)
           }
         } else if (result.type === "cancel" || result.type === "dismiss") {
-          console.log("Discord Login: User cancelled or dismissed.")
           setIsLoggingIn(false)
         } else {
           console.warn(
@@ -444,16 +350,12 @@ export default function HostLogin() {
   async function handleSignInWithEmail() {
     setEmailLoading(true)
     setIsLoggingIn(true)
-    console.log("Email Login: Running authentication flow...")
 
     const authResult = await authenticateWithEmail(email, password)
 
     if (authResult.success && authResult.user) {
-      console.log("Email Login: Authentication successful, setting user in RoleContext")
       setUserFromLogin(authResult.user)
-      console.log("Email Login: Waiting for context update before navigation")
       setTimeout(() => {
-        console.log("Email Login: Navigating to host")
         router.replace("/(tabs)/host")
       }, 500)
     } else {

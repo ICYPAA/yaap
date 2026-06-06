@@ -36,8 +36,12 @@ function VolunteerManagementContent() {
   const { theme } = useTheme()
   const { isDebugMode } = useDebug()
   const [volunteers, setVolunteers] = useState<VolunteeringInterest[]>([])
-  const [filteredVolunteers, setFilteredVolunteers] = useState<VolunteeringInterest[]>([])
-  const [selectedStatus, setSelectedStatus] = useState<VolunteerStatus | 'all'>('all')
+  const [filteredVolunteers, setFilteredVolunteers] = useState<
+    VolunteeringInterest[]
+  >([])
+  const [selectedStatus, setSelectedStatus] = useState<VolunteerStatus | "all">(
+    "all"
+  )
   const [searchTerm, setSearchTerm] = useState("")
   const [stats, setStats] = useState({
     total: 0,
@@ -126,17 +130,18 @@ function VolunteerManagementContent() {
     let filtered = [...volunteers]
 
     // Filter by status
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter(v => v.status === selectedStatus)
+    if (selectedStatus !== "all") {
+      filtered = filtered.filter((v) => v.status === selectedStatus)
     }
 
     // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(v => 
-        v.name?.toLowerCase().includes(term) ||
-        v.email?.toLowerCase().includes(term) ||
-        v.phone?.includes(term)
+      filtered = filtered.filter(
+        (v) =>
+          v.name?.toLowerCase().includes(term) ||
+          v.email?.toLowerCase().includes(term) ||
+          v.phone?.includes(term)
       )
     }
 
@@ -184,121 +189,155 @@ function VolunteerManagementContent() {
     )
   }
 
-  const renderVolunteerItem = ({ item }: { item: VolunteeringInterest }) => (
-    <TouchableOpacity 
-      style={styles.volunteerCard}
-      activeOpacity={0.95}
-    >
-      <View style={styles.volunteerHeader}>
-        <View style={styles.volunteerInfo}>
-          <Text style={styles.volunteerName}>
-            {item.name || "Unknown"} {item.last_initial ? `${item.last_initial}.` : ""}
-          </Text>
-          <View style={styles.contactRow}>
-            {item.email && (
-              <View style={styles.contactItem}>
-                <Ionicons name="mail-outline" size={14} color={theme.colors.text.secondary} />
-                <Text style={styles.volunteerContact}>{item.email}</Text>
-              </View>
-            )}
-            {item.phone && (
-              <View style={styles.contactItem}>
-                <Ionicons name="call-outline" size={14} color={theme.colors.text.secondary} />
-                <Text style={styles.volunteerContact}>{item.phone}</Text>
+  const renderVolunteerItem = ({ item }: { item: VolunteeringInterest }) => {
+    const statusStyle =
+      {
+        pending: styles.status_pending,
+        approved: styles.status_approved,
+        rejected: styles.status_rejected,
+        contacted: styles.status_contacted
+      }[item.status] || styles.status_pending
+
+    return (
+      <TouchableOpacity style={styles.volunteerCard} activeOpacity={0.95}>
+        <View style={styles.volunteerHeader}>
+          <View style={styles.volunteerInfo}>
+            <Text style={styles.volunteerName}>
+              {item.name || "Unknown"}{" "}
+              {item.last_initial ? `${item.last_initial}.` : ""}
+            </Text>
+            <View style={styles.contactRow}>
+              {item.email && (
+                <View style={styles.contactItem}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={14}
+                    color={theme.colors.text.secondary}
+                  />
+                  <Text style={styles.volunteerContact}>{item.email}</Text>
+                </View>
+              )}
+              {item.phone && (
+                <View style={styles.contactItem}>
+                  <Ionicons
+                    name="call-outline"
+                    size={14}
+                    color={theme.colors.text.secondary}
+                  />
+                  <Text style={styles.volunteerContact}>{item.phone}</Text>
+                </View>
+              )}
+            </View>
+            {item.type && (
+              <View style={styles.typeTag}>
+                <Text style={styles.volunteerType}>{item.type}</Text>
               </View>
             )}
           </View>
-          {item.type && (
-            <View style={styles.typeTag}>
-              <Text style={styles.volunteerType}>{item.type}</Text>
+          <View style={styles.rightSection}>
+            <View style={[styles.statusBadge, statusStyle]}>
+              <Text style={styles.statusText}>{item.status}</Text>
             </View>
+            <TouchableOpacity
+              style={styles.moreButton}
+              onPress={() => handleDelete(item.id)}
+            >
+              <Ionicons
+                name="ellipsis-vertical"
+                size={20}
+                color={theme.colors.text.secondary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.quickActions}>
+          {item.status !== "approved" && (
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={() => handleStatusUpdate(item.id, "approved")}
+            >
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={20}
+                color="#4CAF50"
+              />
+              <Text style={[styles.quickActionText, { color: "#4CAF50" }]}>
+                Approve
+              </Text>
+            </TouchableOpacity>
+          )}
+          {item.status !== "contacted" && (
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={() => handleStatusUpdate(item.id, "contacted")}
+            >
+              <Ionicons name="call-outline" size={20} color="#2196F3" />
+              <Text style={[styles.quickActionText, { color: "#2196F3" }]}>
+                Contact
+              </Text>
+            </TouchableOpacity>
+          )}
+          {item.status !== "rejected" && (
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={() => handleStatusUpdate(item.id, "rejected")}
+            >
+              <Ionicons name="close-circle-outline" size={20} color="#F44336" />
+              <Text style={[styles.quickActionText, { color: "#F44336" }]}>
+                Reject
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
-        <View style={styles.rightSection}>
-          <View style={[styles.statusBadge, styles[`status_${item.status}`]]}>
-            <Text style={styles.statusText}>{item.status}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.moreButton}
-            onPress={() => handleDelete(item.id)}
-          >
-            <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
+
+        <View style={styles.volunteerFooter}>
+          <Text style={styles.volunteerDate}>
+            {new Date(item.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            })}
+          </Text>
         </View>
-      </View>
-
-      <View style={styles.quickActions}>
-        {item.status !== 'approved' && (
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => handleStatusUpdate(item.id, 'approved')}
-          >
-            <Ionicons name="checkmark-circle-outline" size={20} color="#4CAF50" />
-            <Text style={[styles.quickActionText, { color: "#4CAF50" }]}>Approve</Text>
-          </TouchableOpacity>
-        )}
-        {item.status !== 'contacted' && (
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => handleStatusUpdate(item.id, 'contacted')}
-          >
-            <Ionicons name="call-outline" size={20} color="#2196F3" />
-            <Text style={[styles.quickActionText, { color: "#2196F3" }]}>Contact</Text>
-          </TouchableOpacity>
-        )}
-        {item.status !== 'rejected' && (
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => handleStatusUpdate(item.id, 'rejected')}
-          >
-            <Ionicons name="close-circle-outline" size={20} color="#F44336" />
-            <Text style={[styles.quickActionText, { color: "#F44336" }]}>Reject</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <View style={styles.volunteerFooter}>
-        <Text style={styles.volunteerDate}>
-          {new Date(item.created_at).toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  )
+      </TouchableOpacity>
+    )
+  }
 
   const StatusFilter = () => (
-    <ScrollView 
-      horizontal 
+    <ScrollView
+      horizontal
       showsHorizontalScrollIndicator={false}
       style={styles.filterContainer}
     >
-      {(['all', 'pending', 'approved', 'contacted', 'rejected'] as const).map((status) => (
-        <TouchableOpacity
-          key={status}
-          style={[
-            styles.filterButton,
-            selectedStatus === status && styles.filterButtonActive
-          ]}
-          onPress={() => setSelectedStatus(status)}
-        >
-          <Text style={[
-            styles.filterButtonText,
-            selectedStatus === status && styles.filterButtonTextActive
-          ]}>
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-            {status === 'all' && ` (${stats.total})`}
-            {status === 'pending' && ` (${stats.pending})`}
-            {status === 'approved' && ` (${stats.approved})`}
-            {status === 'contacted' && ` (${stats.contacted})`}
-            {status === 'rejected' && ` (${stats.rejected})`}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {(["all", "pending", "approved", "contacted", "rejected"] as const).map(
+        (status) => (
+          <TouchableOpacity
+            key={status}
+            style={[
+              styles.filterButton,
+              selectedStatus === status && styles.filterButtonActive
+            ]}
+            onPress={() => setSelectedStatus(status)}
+          >
+            <Text
+              style={[
+                styles.filterButtonText,
+                selectedStatus === status && styles.filterButtonTextActive
+              ]}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === "all" && ` (${stats.total})`}
+              {status === "pending" && ` (${stats.pending})`}
+              {status === "approved" && ` (${stats.approved})`}
+              {status === "contacted" && ` (${stats.contacted})`}
+              {status === "rejected" && ` (${stats.rejected})`}
+            </Text>
+          </TouchableOpacity>
+        )
+      )}
     </ScrollView>
   )
 
@@ -330,15 +369,21 @@ function VolunteerManagementContent() {
           <Text style={styles.statLabel}>Total</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, styles.pendingColor]}>{stats.pending}</Text>
+          <Text style={[styles.statNumber, styles.pendingColor]}>
+            {stats.pending}
+          </Text>
           <Text style={styles.statLabel}>Pending</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, styles.approvedColor]}>{stats.approved}</Text>
+          <Text style={[styles.statNumber, styles.approvedColor]}>
+            {stats.approved}
+          </Text>
           <Text style={styles.statLabel}>Approved</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, styles.contactedColor]}>{stats.contacted}</Text>
+          <Text style={[styles.statNumber, styles.contactedColor]}>
+            {stats.contacted}
+          </Text>
           <Text style={styles.statLabel}>Contacted</Text>
         </View>
       </View>
@@ -355,7 +400,11 @@ function VolunteerManagementContent() {
         />
         {searchTerm.length > 0 && (
           <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={theme.colors.text.secondary} />
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color={theme.colors.text.secondary}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -378,9 +427,13 @@ function VolunteerManagementContent() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={64} color={theme.colors.text.secondary} />
+              <Ionicons
+                name="people-outline"
+                size={64}
+                color={theme.colors.text.secondary}
+              />
               <Text style={styles.emptyText}>
-                {searchTerm || selectedStatus !== 'all' 
+                {searchTerm || selectedStatus !== "all"
                   ? "No volunteers found matching your criteria"
                   : "No volunteer signups yet"}
               </Text>
@@ -516,7 +569,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
       marginBottom: 12,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      overflow: 'hidden'
+      overflow: "hidden"
     },
     volunteerHeader: {
       flexDirection: "row",

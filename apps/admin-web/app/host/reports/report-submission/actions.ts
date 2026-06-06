@@ -1,5 +1,6 @@
 "use server"
 
+import { getEmailApiHeaders } from "@/lib/email-api"
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 
@@ -69,10 +70,7 @@ export async function submitReport(formData: FormData) {
         userName,
         date: new Date().toISOString()
       }),
-      headers: {
-        "Content-Type": "application/json",
-        "email-type": "report"
-      }
+      headers: getEmailApiHeaders("report")
     })
   } catch (error) {
     console.error("Error sending email notification:", error)
@@ -141,10 +139,7 @@ export async function submitNothingToReport(formData: FormData) {
         userName,
         date: new Date().toISOString()
       }),
-      headers: {
-        "Content-Type": "application/json",
-        "email-type": "report"
-      }
+      headers: getEmailApiHeaders("report")
     })
   } catch (error) {
     console.error("Error sending email notification:", error)

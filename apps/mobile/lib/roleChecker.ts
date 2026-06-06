@@ -78,84 +78,29 @@ export interface UserWithRole {
 // Function to get user role and permissions from database
 export async function getUserRoleAndPermissions(userId: string): Promise<{ role: UserRole, permissions: string[] }> {
   try {
-    console.log("getUserRoleAndPermissions: Fetching role for user:", userId)
-    const startTime = Date.now()
-
-    // First verify we have a session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    console.log("=== SESSION CHECK BEFORE ROLE QUERY ===")
-    console.log("Session exists:", !!session)
-    console.log("Session user ID:", session?.user?.id)
-    console.log("Session access token exists:", !!session?.access_token)
-    console.log("Session error:", sessionError)
-    console.log("=== END SESSION CHECK ===")
-
-    // Try multiple query approaches to debug
-    console.log("Attempting query 1: Standard select with user_id filter")
     const { data, error } = await supabase
       .from("roles")
       .select("role, permissions")
       .eq("user_id", userId)
-      .maybeSingle()
-
-    const queryTime = Date.now() - startTime
-    console.log(`getUserRoleAndPermissions: Query completed in ${queryTime}ms`)
-    
-    // DETAILED ROLE QUERY DATA
-    console.log("=== getUserRoleAndPermissions DATABASE QUERY RESULT ===")
-    console.log("Query data:", JSON.stringify(data, null, 2))
-    console.log("Query error:", error)
-    console.log("=== END getUserRoleAndPermissions QUERY ===")
-
-    // If first query returns null, try with explicit select all
-    if (!data && !error) {
-      console.log("First query returned null, trying select * query...")
-      const { data: allData, error: allError } = await supabase
-        .from("roles")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle()
-      
-      console.log("=== SECOND QUERY ATTEMPT (select *) ===")
-      console.log("Query data:", JSON.stringify(allData, null, 2))
-      console.log("Query error:", allError)
-      console.log("=== END SECOND QUERY ===")
-
-      // Also try without maybeSingle to see if there are multiple rows
-      const { data: multiData, error: multiError } = await supabase
-        .from("roles")
-        .select("*")
-        .eq("user_id", userId)
-      
-      console.log("=== THIRD QUERY ATTEMPT (no maybeSingle) ===")
-      console.log("Query data:", JSON.stringify(multiData, null, 2))
-      console.log("Number of rows:", multiData?.length || 0)
-      console.log("Query error:", multiError)
-      console.log("=== END THIRD QUERY ===")
-    }
 
     if (error) {
       console.error("getUserRoleAndPermissions: Error fetching user role:", error)
-      console.error("Error details:", {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      })
       return { role: UserRole.HOST, permissions: [] }
     }
 
     // If no role found in database, default to HOST
-    if (!data?.role) {
-      console.log("getUserRoleAndPermissions: No role found in database, using default HOST")
-      console.log("Returning to check: Is data null?", data === null)
-      console.log("Is data undefined?", data === undefined)
-      console.log("Raw data value:", data)
+    if (!data?.length) {
       return { role: UserRole.HOST, permissions: [] }
     }
 
+    const rolePriority = ["admin", "steering", "advisory", "host"]
+    const selectedRole =
+      rolePriority
+        .map((roleName) => data.find((roleRow) => roleRow.role === roleName))
+        .find(Boolean) ?? data[0]
+
     // Map the role from database to our UserRole enum
-    const dbRole = data.role
+    const dbRole = selectedRole.role
     let mappedRole: UserRole
 
     switch (dbRole) {
@@ -176,12 +121,17 @@ export async function getUserRoleAndPermissions(userId: string): Promise<{ role:
         mappedRole = UserRole.HOST
     }
 
-    console.log("getUserRoleAndPermissions: User role retrieved:", mappedRole)
-    console.log("getUserRoleAndPermissions: User permissions:", data.permissions || [])
+    const permissions = [
+      ...new Set(
+        data.flatMap((roleRow) =>
+          Array.isArray(roleRow.permissions) ? roleRow.permissions : []
+        )
+      )
+    ]
     
     return {
       role: mappedRole,
-      permissions: data.permissions || []
+      permissions
     }
   } catch (error: any) {
     console.error("getUserRoleAndPermissions: Unexpected error:", error)
@@ -228,6 +178,7 @@ export function getUserPermissions(role: UserRole, dbPermissions?: string[]): Pe
             mappedPermissions.push(Permission.SUPPORT_EDIT)
             break
           case "notifications:send":
+          case "send_notifications":
             mappedPermissions.push(Permission.SEND_NOTIFICATIONS)
             mappedPermissions.push(Permission.NOTIFICATIONS_SEND)
             break
@@ -247,35 +198,36 @@ export function getUserPermissions(role: UserRole, dbPermissions?: string[]): Pe
 // Function to check if user has specific permission
 export function hasPermission(
   userRole: UserRole,
-  permission: Permission
+  permission: Permission,
+  dbPermissions?: string[]
 ): boolean {
-  const permissions = getUserPermissions(userRole)
+  const permissions = getUserPermissions(userRole, dbPermissions)
   return permissions.includes(permission)
 }
 
 // Function to check multiple permissions (user must have ALL permissions)
 export function hasAllPermissions(
   userRole: UserRole,
-  permissions: Permission[]
+  permissions: Permission[],
+  dbPermissions?: string[]
 ): boolean {
-  const userPermissions = getUserPermissions(userRole)
+  const userPermissions = getUserPermissions(userRole, dbPermissions)
   return permissions.every((permission) => userPermissions.includes(permission))
 }
 
 // Function to check multiple permissions (user must have AT LEAST ONE permission)
 export function hasAnyPermission(
   userRole: UserRole,
-  permissions: Permission[]
+  permissions: Permission[],
+  dbPermissions?: string[]
 ): boolean {
-  const userPermissions = getUserPermissions(userRole)
+  const userPermissions = getUserPermissions(userRole, dbPermissions)
   return permissions.some((permission) => userPermissions.includes(permission))
 }
 
 // Function to get current authenticated user with role
 export async function getCurrentUserWithRole(): Promise<UserWithRole | null> {
   try {
-    console.log("getCurrentUserWithRole: Starting...")
-    
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
     if (sessionError) {
@@ -283,32 +235,14 @@ export async function getCurrentUserWithRole(): Promise<UserWithRole | null> {
       return null
     }
 
-    console.log(
-      "getCurrentUserWithRole: Session retrieved:",
-      !!session?.user,
-      "User ID:",
-      session?.user?.id
-    )
-
     if (!session?.user) {
-      console.log("getCurrentUserWithRole: No user in session")
       return null
     }
 
     // Get role and permissions from database
-    console.log(
-      "getCurrentUserWithRole: About to call getUserRoleAndPermissions for:",
-      session.user.id
-    )
-    
     const { role, permissions: dbPermissions } = await getUserRoleAndPermissions(session.user.id)
-    console.log("getCurrentUserWithRole: Role retrieved:", role)
-    console.log("getCurrentUserWithRole: DB Permissions:", dbPermissions)
 
     const permissions = getUserPermissions(role, dbPermissions)
-    console.log(
-      "getCurrentUserWithRole: Permissions calculated, returning user"
-    )
 
     return {
       id: session.user.id,

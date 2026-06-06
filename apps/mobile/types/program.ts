@@ -85,6 +85,16 @@ export type Event = {
   asl?: boolean // American Sign Language interpretation
   hybrid?: boolean // Hybrid meeting (in-person + virtual)
   languages?: string[] // Language translations available (e.g., ["ES", "SOM", "HMN"])
+  services?: {
+    asl?: boolean
+    spanish?: boolean
+    french?: boolean
+    hmong?: boolean
+    somali?: boolean
+    hybrid?: boolean
+    childcare?: boolean
+    wheelchair?: boolean
+  }
 }
 
 export type EventCategory = {

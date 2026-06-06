@@ -78,8 +78,16 @@ export default function SupportChats() {
   const checkPermissions = async () => {
     const userWithRole = await getCurrentUserWithRole()
     if (userWithRole) {
-      const canRead = hasPermission(userWithRole.role, Permission.SUPPORT_READ)
-      const canEdit = hasPermission(userWithRole.role, Permission.SUPPORT_EDIT)
+      const canRead = hasPermission(
+        userWithRole.role,
+        Permission.SUPPORT_READ,
+        userWithRole.dbPermissions
+      )
+      const canEdit = hasPermission(
+        userWithRole.role,
+        Permission.SUPPORT_EDIT,
+        userWithRole.dbPermissions
+      )
       setCanReadSupport(canRead)
       setCanEditSupport(canEdit)
       

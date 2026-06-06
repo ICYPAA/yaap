@@ -1,9 +1,10 @@
 "use server"
 
+import { PanelNotification } from "@/app/host/panels/actions"
+import { getEmailApiHeaders } from "@/lib/email-api"
+import { generateConfirmationNotificationEmail } from "@/lib/panel-notification-templates"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
-import { generateConfirmationNotificationEmail } from "@/lib/panel-notification-templates"
-import { PanelNotification } from "@/app/host/panels/actions"
 
 export async function confirmPanelParticipation(formData: FormData) {
   const token = formData.get("token") as string
@@ -58,10 +59,7 @@ export async function confirmPanelParticipation(formData: FormData) {
           `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "email-type": "panel-notification"
-            },
+            headers: getEmailApiHeaders("panel-notification"),
             body: JSON.stringify({
               to: recipient,
               subject: emailData.subject,
@@ -135,10 +133,7 @@ export async function withdrawPanelParticipation(formData: FormData) {
           `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/email`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "email-type": "panel-notification"
-            },
+            headers: getEmailApiHeaders("panel-notification"),
             body: JSON.stringify({
               to: recipient,
               subject: emailData.subject,

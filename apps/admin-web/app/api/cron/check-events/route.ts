@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic" // Ensure the route is always dynamic
@@ -45,7 +46,15 @@ function formatDateToYYYYMMDD(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization")
+  if (
+    !process.env.CRON_SECRET ||
+    authHeader !== `Bearer ${process.env.CRON_SECRET}`
+  ) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const supabase = await createClient(process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   try {

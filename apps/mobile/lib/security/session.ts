@@ -34,8 +34,6 @@ class SessionManager {
 
     // Listen for auth state changes
     supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         await this.saveSession(session);
         this.refreshAttempts = 0;
@@ -60,7 +58,6 @@ class SessionManager {
 
       // Validate session age
       if (this.isSessionTooOld(session)) {
-        console.log('Session too old, clearing');
         await this.clearSession();
         return null;
       }
@@ -77,7 +74,6 @@ class SessionManager {
         return null;
       }
 
-      console.log('Session restored successfully');
       return data.session;
     } catch (error) {
       console.error('Error restoring session:', error);
@@ -105,7 +101,6 @@ class SessionManager {
 
       await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(sessionWithMetadata));
       this.sessionStartTime = Date.now();
-      console.log('Session saved successfully');
     } catch (error) {
       console.error('Error saving session:', error);
     }
@@ -118,7 +113,6 @@ class SessionManager {
     try {
       await AsyncStorage.removeItem(SESSION_KEY);
       this.refreshAttempts = 0;
-      console.log('Session cleared');
     } catch (error) {
       console.error('Error clearing session:', error);
     }
@@ -132,7 +126,6 @@ class SessionManager {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        console.log('No active session');
         return;
       }
 
@@ -143,7 +136,6 @@ class SessionManager {
 
       // Refresh if less than threshold remaining
       if (timeUntilExpiry < SESSION_REFRESH_THRESHOLD) {
-        console.log(`Session expiring in ${Math.round(timeUntilExpiry)}s, refreshing...`);
         await this.refreshSession();
       }
     } catch (error) {
@@ -179,7 +171,6 @@ class SessionManager {
       if (data.session) {
         await this.saveSession(data.session);
         this.refreshAttempts = 0;
-        console.log('Session refreshed successfully');
       }
 
       return data.session;
@@ -225,10 +216,8 @@ class SessionManager {
       'change',
       (nextAppState: AppStateStatus) => {
         if (nextAppState === 'active') {
-          console.log('App became active, checking session');
           this.startSessionCheck();
         } else if (nextAppState === 'background') {
-          console.log('App went to background, stopping session check');
           this.stopSessionCheck();
         }
       }
