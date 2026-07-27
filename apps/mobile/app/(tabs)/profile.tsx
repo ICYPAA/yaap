@@ -22,6 +22,7 @@ import {
 } from "react-native"
 import { TutorialModal } from "../../components/TutorialModal"
 import { SafetyModal } from "../../components/SafetyModal"
+import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
 import { sendNotification } from "../../lib/notificationHelper"
@@ -82,12 +83,16 @@ type DisplayUser = Pick<
 export default function Profile() {
   const { theme, isDarkMode, toggleTheme } = useTheme()
   const { isFeatureEnabled } = useFeatures()
+  const currentConference = useCurrentConference()
   const router = useRouter()
 
   // State for current user data
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [deviceId, setDeviceId] = useState<string | null>(null)
-  const [programId, setProgramId] = useState<number>(3)
+  const programId =
+    currentConference.status === "active"
+      ? currentConference.currentProgramId
+      : null
 
   // Profile Info State (will be populated from currentUser)
   const [firstName, setFirstName] = useState("")
@@ -540,20 +545,6 @@ export default function Profile() {
       }
     }
   }
-
-  // Add function to get program ID
-  useEffect(() => {
-    const fetchCurrentProgramId = async () => {
-      try {
-        // Hardcode program ID as 3 based on the current setup
-        setProgramId(3)
-      } catch (error) {
-        console.error("Error setting program ID:", error)
-      }
-    }
-
-    fetchCurrentProgramId()
-  }, [])
 
   // --- Sharing Action Handlers (using DisplayUser type) ---
 
@@ -1109,6 +1100,8 @@ export default function Profile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>First Name</Text>
               <TextInput
+                testID="profile-first-name"
+                accessibilityLabel="First name"
                 style={styles.input}
                 value={firstName}
                 onChangeText={setFirstName}
@@ -1119,6 +1112,8 @@ export default function Profile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Last Initial</Text>
               <TextInput
+                testID="profile-last-initial"
+                accessibilityLabel="Last initial"
                 style={styles.input}
                 value={lastInitial}
                 onChangeText={(text) =>
@@ -1131,6 +1126,8 @@ export default function Profile() {
               />
             </View>
             <TouchableOpacity
+              testID="profile-create"
+              accessibilityLabel="Create profile"
               style={styles.saveButton}
               onPress={async () => {
                 if (!deviceId || !firstName || !lastInitial) {

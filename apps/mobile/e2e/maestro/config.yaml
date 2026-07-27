@@ -1,0 +1,12 @@
+flows:
+  - "tests/**"
+testOutputDir: artifacts
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - onboarding-and-program
+    - profile-and-schedule
+    - accommodations-services-and-safety
+platform:
+  ios:
+    snapshotKeyHonorModalViews: true

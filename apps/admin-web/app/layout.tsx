@@ -19,7 +19,7 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata = {
   metadataBase: new URL(defaultUrl),
   title: "YAAP Admin",
-  description: "YAAP host/admin dashboard"
+  description: "Conference and mobile app administration"
 }
 
 export default async function RootLayout({

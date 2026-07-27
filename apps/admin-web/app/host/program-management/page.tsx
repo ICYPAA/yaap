@@ -50,9 +50,9 @@ export default async function ProgramManagementPage() {
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Insufficient Permissions</AlertTitle>
               <AlertDescription>
-                You need to have admin, steering committee roles, or the
-                &apos;program:edit&apos; permission to manage programs. Please contact an
-                administrator if you believe this is an error.
+                Conference-management access is required to manage the app.
+                Please contact an administrator if you believe this is an
+                error.
               </AlertDescription>
             </Alert>
           </CardContent>

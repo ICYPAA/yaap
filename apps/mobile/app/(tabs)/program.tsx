@@ -2523,6 +2523,12 @@ const DayScheduleCard = ({
                         <Text style={styles(theme).itemTime}>{item.time}</Text>
                         {canSave && (
                           <TouchableOpacity
+                            testID={`program-save-event-${item.id}`}
+                            accessibilityLabel={
+                              savedItems.includes(item.id)
+                                ? `Remove ${item.title} from My Schedule`
+                                : `Save ${item.title} to My Schedule`
+                            }
                             onPress={(e) => {
                               if (hasPassed) return // Prevent saving past events
                               e.stopPropagation()
@@ -4090,6 +4096,8 @@ export default function Program() {
       {/* View selector */}
       <View style={programStyles(theme).viewSelector}>
         <TouchableOpacity
+          testID="program-view-list"
+          accessibilityLabel="List"
           style={[
             programStyles(theme).viewButton,
             activeTab === 0 && programStyles(theme).activeViewButton
@@ -4117,6 +4125,8 @@ export default function Program() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          testID="program-view-timeline"
+          accessibilityLabel="Timeline"
           style={[
             programStyles(theme).viewButton,
             activeTab === 1 && programStyles(theme).activeViewButton
@@ -4144,6 +4154,8 @@ export default function Program() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          testID="program-view-my-schedule"
+          accessibilityLabel="My Schedule"
           style={[
             programStyles(theme).viewButton,
             activeTab === 2 && programStyles(theme).activeViewButton

@@ -1,0 +1,56 @@
+appId: com.themindfulpug.icypaa
+name: Create a profile and save an event
+tags:
+  - smoke
+  - profile
+  - schedule
+---
+- clearState
+- clearKeychain
+- setPermissions:
+    permissions:
+      notifications: deny
+- launchApp:
+    arguments:
+      "--initialUrl": "http://127.0.0.1:8081/?disableOnboarding=1"
+- extendedWaitUntil:
+    visible: "Welcome to YAAP!"
+    timeout: 20000
+- tapOn:
+    id: "tutorial-skip"
+- extendedWaitUntil:
+    visible: "Safety & Anonymity"
+    timeout: 10000
+- tapOn:
+    id: "safety-acknowledge"
+- extendedWaitUntil:
+    visible: "Local Test Conference"
+    timeout: 20000
+- tapOn:
+    id: "tab-profile"
+- extendedWaitUntil:
+    visible: "Create Profile"
+    timeout: 15000
+- tapOn:
+    id: "profile-first-name"
+- inputText: "Maestro"
+- tapOn:
+    id: "profile-last-initial"
+- inputText: "T"
+- hideKeyboard
+- tapOn:
+    id: "profile-create"
+- extendedWaitUntil:
+    visible: "My Profile"
+    timeout: 15000
+- tapOn:
+    id: "tab-program"
+- extendedWaitUntil:
+    visible: ".*Opening Celebration.*"
+    timeout: 15000
+- tapOn:
+    id: "program-save-event-9201"
+- tapOn:
+    id: "program-view-my-schedule"
+- assertVisible: ".*Opening Celebration.*"
+- assertVisible: ".*Main Ballroom.*"

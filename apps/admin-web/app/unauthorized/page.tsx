@@ -22,13 +22,12 @@ export default function UnauthorizedPage() {
         <CardContent>
           <div className="text-center mb-4">
             <p className="mb-4">
-              It looks like you don&apos;t have the required Discord roles to access
-              this content.
+              Your account has not been granted access to the conference admin
+              board.
             </p>
             <p>
               If you believe this is a mistake, please contact an administrator
-              or make sure you have the appropriate roles in the ICYPAA Discord
-              server.
+              and ask them to assign an admin-board role.
             </p>
           </div>
         </CardContent>
@@ -37,7 +36,7 @@ export default function UnauthorizedPage() {
             <Link href="/">Return Home</Link>
           </Button>
           <Button asChild>
-            <Link href="/host">Go to Host Dashboard</Link>
+            <Link href="/">Return to Sign In</Link>
           </Button>
         </CardFooter>
       </Card>

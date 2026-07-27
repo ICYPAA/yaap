@@ -59,13 +59,6 @@ export interface ProgramContent {
   }
 }
 
-interface CommitteeMember {
-  name: string
-  role: string
-}
-
-export type HostCommitteeData = Record<string, CommitteeMember[]>
-
 export interface VenueFloor {
   name?: string
   description?: string
@@ -94,7 +87,6 @@ export interface Program {
   design: ProgramDesign | null
   promote: number[]
   content: ProgramContent | null
-  host_committee?: HostCommitteeData | null // JSONB field with committee structure
 }
 
 export interface Event {
@@ -890,129 +882,4 @@ export async function deleteActivity(id: number) {
 
   revalidatePath("/host/program-management")
   return { success: true, error: null }
-}
-
-// Hospitality Hours Interface and Actions
-export interface HospitalityHour {
-  id: number
-  created_at: string
-  updated_at: string
-  program_id?: number
-  date_time: string
-  group_hosting?: string
-  group_contact?: string
-  group_confirmed: boolean
-  group_phone?: string
-  group_email?: string
-  planning_to_bring?: string
-  display_name: string
-  day: string
-  time_slot: string
-  room?: string
-  volunteering_interest_id?: number
-  scheduled_hours: number
-}
-
-export async function getHospitalityHours(programId?: number) {
-  const supabase = await createClient()
-  
-  let query = supabase.from("hospitality_hours").select("*")
-  
-  if (programId) {
-    query = query.eq("program_id", programId)
-  }
-  
-  const { data, error } = await query
-    .order("date_time", { ascending: true })
-  
-  if (error) {
-    console.error("Error fetching hospitality hours:", error)
-    return { hospitalityHours: [], error: error.message }
-  }
-  
-  // Add computed fields for compatibility
-  const hoursWithComputedFields = (data || []).map(hour => ({
-    ...hour,
-    display_name: hour.group_hosting || 'Open Slot',
-    day: new Date(hour.date_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    time_slot: new Date(hour.date_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  }))
-  
-  return { hospitalityHours: hoursWithComputedFields as HospitalityHour[], error: null }
-}
-
-export async function updateHospitalityHour(
-  id: number,
-  updates: Partial<HospitalityHour>
-) {
-  const supabase = await createClient()
-  
-  const { data, error } = await supabase
-    .from("hospitality_hours")
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", id)
-    .select()
-    .single()
-  
-  if (error) {
-    console.error("Error updating hospitality hour:", error)
-    return { hospitalityHour: null, error: error.message }
-  }
-  
-  revalidatePath("/host/program-management")
-  
-  // Add computed fields
-  const hourWithComputedFields = {
-    ...data,
-    display_name: data.group_hosting || 'Open Slot',
-    day: new Date(data.date_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    time_slot: new Date(data.date_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  }
-  
-  return { hospitalityHour: hourWithComputedFields as HospitalityHour, error: null }
-}
-
-export async function createHospitalityHour(data: {
-  program_id?: number
-  date_time: string
-  group_hosting?: string
-  group_contact?: string
-  group_confirmed?: boolean
-  group_phone?: string
-  group_email?: string
-  planning_to_bring?: string
-  room?: string
-  volunteering_interest_id?: number
-}) {
-  const supabase = await createClient()
-  
-  const { data: newHour, error } = await supabase
-    .from("hospitality_hours")
-    .insert({
-      ...data,
-      group_confirmed: data.group_confirmed || false,
-      scheduled_hours: 2.0
-    })
-    .select()
-    .single()
-  
-  if (error) {
-    console.error("Error creating hospitality hour:", error)
-    return { hospitalityHour: null, error: error.message }
-  }
-  
-  revalidatePath("/host/program-management")
-  
-  // Add computed fields
-  const hourWithComputedFields = {
-    ...newHour,
-    display_name: newHour.group_hosting || 'Open Slot',
-    day: new Date(newHour.date_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    time_slot: new Date(newHour.date_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  }
-  
-  return { hospitalityHour: hourWithComputedFields as HospitalityHour, error: null }
 }

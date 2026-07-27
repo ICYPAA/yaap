@@ -323,6 +323,10 @@ export const SafetyModal: React.FC<SafetyModalProps> = ({
             <TouchableOpacity
               style={styles.acknowledgeButton}
               onPress={handleClose}
+              testID="safety-acknowledge"
+              accessibilityLabel={
+                isInitialView ? "Acknowledge safety statement" : "Close safety statement"
+              }
             >
               <Text style={styles.acknowledgeButtonText}>
                 {isInitialView ? "I Understand" : "Close"}

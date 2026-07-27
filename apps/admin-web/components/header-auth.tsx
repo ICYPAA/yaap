@@ -1,7 +1,6 @@
 import { signOutAction } from "@/app/actions"
 import { hasEnvVars } from "@/utils/supabase/check-env-vars"
 import { createClient } from "@/utils/supabase/server"
-import { SignInButton } from "./login-button"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
 
@@ -12,11 +11,13 @@ export default async function AuthButton() {
     data: { user }
   } = await supabase.auth.getUser()
 
-  const { data: profileData } = await supabase
-    .from("profile-names")
-    .select("profile_name")
-    .eq("user_id", user?.id)
-    .single()
+  const { data: profileData } = user
+    ? await supabase
+        .from("profile-names")
+        .select("profile_name")
+        .eq("user_id", user.id)
+        .maybeSingle()
+    : { data: null }
 
   const username = profileData?.profile_name || user?.user_metadata?.full_name
 
@@ -50,9 +51,5 @@ export default async function AuthButton() {
         </Button>
       </form>
     </div>
-  ) : (
-    <div className="flex gap-2">
-      <SignInButton />
-    </div>
-  )
+  ) : null
 }

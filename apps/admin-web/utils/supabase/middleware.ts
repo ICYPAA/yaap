@@ -87,14 +87,6 @@ export const updateSession = async (request: NextRequest) => {
       )
     }
 
-    const { pathname } = request.nextUrl
-
-    // Publicly accessible confirmation route
-    if (pathname.startsWith("/host/panels/confirm")) {
-      console.log("Publicly accessible confirmation route")
-      return response
-    }
-
     return response
   } catch (e) {
     // If you are here, a Supabase client could not be created!

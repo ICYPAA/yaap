@@ -153,7 +153,11 @@ export default function Services() {
       <Text style={styles.sectionTitle}>{title}</Text>
       {items.map((item) => (
         <Link key={item.id} href={item.route} asChild>
-          <TouchableOpacity style={styles.card}>
+          <TouchableOpacity
+            style={styles.card}
+            testID={`service-card-${item.id}`}
+            accessibilityLabel={item.title}
+          >
             <View style={styles.cardHeader}>
               <Ionicons
                 name={item.icon as any}

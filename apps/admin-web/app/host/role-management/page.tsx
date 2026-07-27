@@ -22,15 +22,14 @@ import {
 } from "@/components/ui/select"
 import { AlertCircle, Users } from "lucide-react"
 import { useEffect, useState } from "react"
-import { getUsersWithRoles, updateUserRole, type UserWithRole } from "./actions"
+import {
+  getUsersWithRoles,
+  removeUserRole,
+  updateUserRole,
+  type UserWithRole
+} from "./actions"
 
-const AVAILABLE_PERMISSIONS = [
-  "program:edit",
-  "reminders:edit",
-  "volunteering:sensitive",
-  "volunteering:edit",
-  "shift:edit"
-] as const
+const AVAILABLE_PERMISSIONS = ["program:edit"] as const
 
 const PERMISSION_OPTIONS: MultiSelectOption[] = AVAILABLE_PERMISSIONS.map(
   (permission) => ({
@@ -77,6 +76,26 @@ export default function RoleManagementPage() {
 
     try {
       setSaving(userId)
+      const existingUser = users.find((user) => user.id === userId)
+
+      if (newRole === "none") {
+        if (!existingUser?.role) return
+        const result = await removeUserRole(userId)
+        if (result.error) {
+          setError(result.error)
+        } else {
+          setUsers((prev) =>
+            prev.map((user) =>
+              user.id === userId
+                ? { ...user, role: null, permissions: [] }
+                : user
+            )
+          )
+          setError(null)
+        }
+        return
+      }
+
       const result = await updateUserRole(
         userId,
         newRole as "host" | "steering",
@@ -174,9 +193,9 @@ export default function RoleManagementPage() {
       <div className="flex items-center gap-3">
         <Users className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-3xl font-bold">Role Management</h1>
+          <h1 className="text-3xl font-bold">Access Control</h1>
           <p className="text-muted-foreground">
-            Manage user roles and permissions for Discord users
+            Control who can view or manage the conference admin board.
           </p>
         </div>
       </div>
@@ -190,22 +209,22 @@ export default function RoleManagementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Discord Users</CardTitle>
+          <CardTitle>Admin accounts</CardTitle>
           <CardDescription>
-            Users who have logged in via Discord. Admin roles can only be
-            changed directly in the database.
+            Assign a role after someone signs in. Permanent admin roles remain
+            database-controlled.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {users.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No Discord users found
+              No signed-in users found
             </div>
           ) : (
             <div className="space-y-4">
               {/* Header */}
               <div className="grid grid-cols-12 gap-4 font-medium text-sm text-muted-foreground border-b pb-2">
-                <div className="col-span-3">Discord Name</div>
+                <div className="col-span-3">Name</div>
                 <div className="col-span-3">Email</div>
                 <div className="col-span-2">Role</div>
                 <div className="col-span-4">Permissions</div>
@@ -224,13 +243,10 @@ export default function RoleManagementPage() {
                       isAdmin ? "bg-red-50 dark:bg-red-950/20" : ""
                     }`}
                   >
-                    {/* Discord Name */}
+                    {/* Account name */}
                     <div className="col-span-3">
                       <div className="font-medium flex items-center gap-2">
                         {user.profile_name || user.email?.split('@')[0] || "Unknown User"}
-                        {user.email === users[0]?.email && (
-                          <Badge variant="outline" className="text-xs">You</Badge>
-                        )}
                       </div>
                       {user.role === "admin" && (
                         <Badge variant="destructive" className="text-xs mt-1">
@@ -261,11 +277,9 @@ export default function RoleManagementPage() {
                       ) : (
                         <Select
                           value={user.role || "none"}
-                          onValueChange={(value) => {
-                            if (value !== "none") {
-                              handleRoleChange(user.id, value)
-                            }
-                          }}
+                          onValueChange={(value) =>
+                            handleRoleChange(user.id, value)
+                          }
                           disabled={isSaving}
                         >
                           <SelectTrigger className="w-full">
@@ -273,8 +287,12 @@ export default function RoleManagementPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">No Role</SelectItem>
-                            <SelectItem value="host">Host</SelectItem>
-                            <SelectItem value="steering">Steering</SelectItem>
+                            <SelectItem value="host">
+                              Conference staff
+                            </SelectItem>
+                            <SelectItem value="steering">
+                              Administrator
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       )}
@@ -300,7 +318,7 @@ export default function RoleManagementPage() {
                               newPermissions as Permission[]
                             )
                           }
-                          placeholder="Select permissions..."
+                          placeholder="Select conference access..."
                           disabled={isSaving}
                           className="text-xs"
                         />
@@ -323,25 +341,25 @@ export default function RoleManagementPage() {
             <div>
               <h4 className="font-semibold mb-2">Admin</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• All permissions automatically</li>
+                <li>• Full conference and access control</li>
                 <li>• Cannot be edited via UI</li>
                 <li>• Must be set in database</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">Steering</h4>
+              <h4 className="font-semibold mb-2">Administrator</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• All permissions automatically</li>
-                <li>• Can manage other roles</li>
-                <li>• Full system access</li>
+                <li>• Full conference management</li>
+                <li>• Can manage access</li>
+                <li>• Intended for trusted administrators</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">Host</h4>
+              <h4 className="font-semibold mb-2">Conference staff</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Custom permissions only</li>
-                <li>• Limited system access</li>
-                <li>• Task-specific roles</li>
+                <li>• Can view the conference board</li>
+                <li>• “program edit” enables conference management</li>
+                <li>• Cannot manage other accounts</li>
               </ul>
             </div>
           </div>

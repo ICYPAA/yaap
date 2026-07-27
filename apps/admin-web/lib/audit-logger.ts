@@ -2,14 +2,6 @@ import { createClient } from "@/utils/supabase/server"
 
 export interface ActivityLogData {
   actionType:
-    | "create_panel"
-    | "update_panel"
-    | "delete_panel"
-    | "send_panel_notification"
-    | "send_panel_reminder"
-    | "send_panel_reminder2"
-    | "confirm_panel_participation"
-    | "withdraw_panel_participation"
     | "create_program"
     | "update_program"
     | "create_program_event"
@@ -18,33 +10,13 @@ export interface ActivityLogData {
     | "create_event_category"
     | "update_event_category"
     | "delete_event_category"
-    | "import_panels"
-    | "export_data"
     | "update_user_role"
-    | "update_notification_status"
-    | "user_login"
-    | "user_logout"
-    // Volunteer-related actions
-    | "send_volunteer_notification"
-    | "send_volunteer_test_notification"
-    | "update_volunteer_status"
-    | "update_volunteer_notification"
-    | "delete_volunteer_notification"
-    // Chairperson-related actions
-    | "create_chairperson"
-    | "update_chairperson"
-    | "delete_chairperson"
-    | "link_chairperson_to_user"
-    // On-call related actions
-    | "create_oncall_schedule"
-    | "update_oncall_schedule"
-    | "delete_oncall_schedule"
+    | "remove_user_role"
 
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export async function logActivity(data: ActivityLogData): Promise<void> {
-  console.log("\n\n\n\nLogging activity 1")
   try {
     const supabase = await createClient()
 
@@ -58,8 +30,6 @@ export async function logActivity(data: ActivityLogData): Promise<void> {
       return
     }
 
-    // Insert activity log
-    console.log("Logging activity:", data)
     const { error: insertError } = await supabase.from("activity").insert({
       user: user.id,
       action: data.actionType,

@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
-import { headers } from "next/headers"
+import { getUserRoles } from "@/utils/permissions"
 import { redirect } from "next/navigation"
 
 export default async function HostLayout({
@@ -8,17 +8,14 @@ export default async function HostLayout({
   children: React.ReactNode
 }) {
   const supabase = await createClient()
-  const pathname = (await headers()).get("x-current-path") || ""
-  console.log("Pathname:", pathname)
-
   const {
     data: { user }
   } = await supabase.auth.getUser()
 
-  if (!user && !pathname.startsWith("/host/panels/confirm")) {
-    console.log("Redirecting from host layout to / due to missing user")
-    return redirect("/")
-  }
+  if (!user) return redirect("/")
+
+  const roles = await getUserRoles(user.id)
+  if (roles.length === 0) return redirect("/unauthorized")
 
   return <div className="w-full max-w-[1400px] mx-auto">{children}</div>
 }

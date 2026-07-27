@@ -2,15 +2,12 @@ import { Ionicons } from "@expo/vector-icons"
 import { Tabs } from "expo-router"
 import React from "react"
 import { useTheme } from "../../context/ThemeContext"
-import { TutorialModal } from "../../components/TutorialModal"
 
 export default function TabLayout() {
   const { theme } = useTheme()
 
   return (
-    <>
-      <TutorialModal />
-      <Tabs
+    <Tabs
       initialRouteName="program"
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
@@ -30,6 +27,7 @@ export default function TabLayout() {
         name="program"
         options={{
           title: "Program",
+          tabBarButtonTestID: "tab-program",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           )
@@ -39,6 +37,7 @@ export default function TabLayout() {
         name="maps"
         options={{
           title: "Accommodations",
+          tabBarButtonTestID: "tab-accommodations",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bed" size={size} color={color} />
           )
@@ -48,6 +47,7 @@ export default function TabLayout() {
         name="services"
         options={{
           title: "Services",
+          tabBarButtonTestID: "tab-services",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="help-buoy" size={size} color={color} />
           )
@@ -57,6 +57,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: "Profile",
+          tabBarButtonTestID: "tab-profile",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           )
@@ -67,6 +68,7 @@ export default function TabLayout() {
         name="safety"
         options={{
           title: "Safety",
+          tabBarButtonTestID: "tab-safety",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="shield-checkmark" size={size} color={color} />
           )
@@ -80,6 +82,5 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
-    </>
   )
 }

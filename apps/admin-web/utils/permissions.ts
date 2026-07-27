@@ -36,14 +36,16 @@ export async function hasPermission(
     return false
   }
 
-  // Check if user has any of the required roles
+  if (requiredRoles.length === 0 && requiredPermissions.length === 0) {
+    return true
+  }
+
   const hasRequiredRole =
-    requiredRoles.length === 0 ||
+    requiredRoles.length > 0 &&
     roles.some((role) => requiredRoles.includes(role.role))
 
-  // Check if user has any of the required permissions
   const hasRequiredPermission =
-    requiredPermissions.length === 0 ||
+    requiredPermissions.length > 0 &&
     roles.some((role) =>
       requiredPermissions.some((permission) =>
         role.permissions.includes(permission)
@@ -51,10 +53,6 @@ export async function hasPermission(
     )
 
   return hasRequiredRole || hasRequiredPermission
-}
-
-export async function canAccessReminders(userId: string): Promise<boolean> {
-  return hasPermission(userId, ["admin", "steering"], ["reminders:edit"])
 }
 
 export async function canAccessRoleManagement(userId: string): Promise<boolean> {

@@ -1,0 +1,40 @@
+appId: com.themindfulpug.icypaa
+name: Onboarding and conference program
+tags:
+  - smoke
+  - conference
+---
+- clearState
+- clearKeychain
+- setPermissions:
+    permissions:
+      notifications: deny
+- launchApp:
+    arguments:
+      "--initialUrl": "http://127.0.0.1:8081/?disableOnboarding=1"
+- extendedWaitUntil:
+    visible: "Welcome to YAAP!"
+    timeout: 20000
+- swipe:
+    direction: LEFT
+- assertVisible: "Customized Program"
+- tapOn:
+    id: "tutorial-skip"
+- extendedWaitUntil:
+    visible: "Safety & Anonymity"
+    timeout: 10000
+- assertVisible: "Statement of Safety"
+- tapOn:
+    id: "safety-acknowledge"
+- extendedWaitUntil:
+    visible: "Local Test Conference"
+    timeout: 20000
+- assertVisible: ".*Opening Celebration.*"
+- assertVisible:
+    id: "program-view-list"
+- tapOn:
+    id: "program-view-timeline"
+- assertVisible: ".*Main Ballroom.*"
+- tapOn:
+    id: "program-view-list"
+- assertVisible: ".*Opening Celebration.*"
