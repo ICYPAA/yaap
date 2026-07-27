@@ -1,37 +1,57 @@
-# Functions Workspace
+# Supabase workspace
 
-This workspace owns Supabase-backed serverless functions, SQL helpers, and migration history.
+This workspace owns the local Supabase configuration, PostgreSQL migrations,
+SQL helpers, and Deno Edge Functions.
 
-## Local Dev
+Run commands from the repository root so they use the pinned Supabase CLI.
 
-1. Install Docker Desktop and ensure it's running.
-2. From monorepo root, start local Supabase:
-
-```bash
-pnpm supabase:start
-```
-
-3. Check status:
+## Local database
 
 ```bash
+pnpm setup:local
+pnpm local:verify
 pnpm supabase:status
-```
-
-4. Stop local Supabase:
-
-```bash
 pnpm supabase:stop
 ```
 
-## Link to Hosted Project
+To discard local data and reapply every migration:
+
+```bash
+pnpm setup:local:reset
+```
+
+The reset also loads `supabase/seed.sql`, which creates disposable local admin
+accounts and a complete test conference used by both E2E suites. It never
+targets the hosted project.
+
+The full workflow and recovery instructions are in the repository
+[local startup guide](../../docs/LOCAL_STARTUP.md).
+
+## Edge Functions
+
+Deno 2.x is required for the direct lint and type check:
+
+```bash
+pnpm --filter @yaap/functions check
+```
+
+Serve the functions through local Supabase:
+
+```bash
+pnpm supabase:functions:serve
+```
+
+## Hosted project
+
+Hosted-project commands require a Supabase access token and database password:
 
 ```bash
 pnpm supabase:login
 pnpm supabase:link
 ```
 
-Override the project ref if needed:
+Override the default project reference when needed:
 
 ```bash
-SUPABASE_PROJECT_REF=yourref pnpm supabase:link
+SUPABASE_PROJECT_REF=your-project-ref pnpm supabase:link
 ```

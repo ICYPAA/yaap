@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pnpm supabase:start
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-cleanup() {
-  pnpm supabase:stop >/dev/null 2>&1 || true
-}
+pnpm --dir "$repo_root" setup:local
 
-trap cleanup EXIT INT TERM
-
-pnpm dev:mobile
+pnpm --dir "$repo_root" --filter @yaap/mobile exec expo start "$@"

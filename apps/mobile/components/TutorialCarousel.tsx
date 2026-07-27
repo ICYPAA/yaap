@@ -162,6 +162,8 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({
         {!isLastPage && (
           <TouchableOpacity
             onPress={handleSkip}
+            testID="tutorial-skip"
+            accessibilityLabel="Skip tutorial"
             style={[
               styles.skipButton,
               Platform.OS === "android" && styles.skipButtonAndroid
@@ -241,6 +243,8 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({
         {isLastPage && (
           <TouchableOpacity
             onPress={handleDone}
+            testID="tutorial-complete"
+            accessibilityLabel="Complete tutorial"
             style={[
               styles.doneButton,
               { backgroundColor: theme.colors.primary }

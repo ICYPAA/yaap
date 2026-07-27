@@ -347,6 +347,8 @@ export default function AccessibilityRequest() {
               Your Name <Text style={{ color: theme.colors.error }}>*</Text>
             </Text>
             <TextInput
+              testID="accessibility-name"
+              accessibilityLabel="Accessibility request name"
               style={{
                 backgroundColor: theme.colors.surface,
                 padding: theme.spacing.md,
@@ -391,6 +393,8 @@ export default function AccessibilityRequest() {
               Phone Number <Text style={{ color: theme.colors.error }}>*</Text>
             </Text>
             <TextInput
+              testID="accessibility-phone"
+              accessibilityLabel="Accessibility request phone"
               style={{
                 backgroundColor: theme.colors.surface,
                 padding: theme.spacing.md,
@@ -436,6 +440,8 @@ export default function AccessibilityRequest() {
               Email Address <Text style={{ color: theme.colors.error }}>*</Text>
             </Text>
             <TextInput
+              testID="accessibility-email"
+              accessibilityLabel="Accessibility request email"
               style={{
                 backgroundColor: theme.colors.surface,
                 padding: theme.spacing.md,
@@ -483,6 +489,8 @@ export default function AccessibilityRequest() {
               <Text style={{ color: theme.colors.error }}>*</Text>
             </Text>
             <TextInput
+              testID="accessibility-need-type"
+              accessibilityLabel="Accessibility need type"
               style={{
                 backgroundColor: theme.colors.surface,
                 padding: theme.spacing.md,
@@ -527,6 +535,8 @@ export default function AccessibilityRequest() {
               Details of Your Request
             </Text>
             <TextInput
+              testID="accessibility-details"
+              accessibilityLabel="Accessibility request details"
               style={{
                 backgroundColor: theme.colors.surface,
                 padding: theme.spacing.md,
@@ -556,6 +566,8 @@ export default function AccessibilityRequest() {
               Arrival Date <Text style={{ color: theme.colors.error }}>*</Text>
             </Text>
             <TextInput
+              testID="accessibility-arrival"
+              accessibilityLabel="Accessibility arrival date"
               style={{
                 backgroundColor: theme.colors.surface,
                 padding: theme.spacing.md,
@@ -601,6 +613,8 @@ export default function AccessibilityRequest() {
               <Text style={{ color: theme.colors.error }}>*</Text>
             </Text>
             <TextInput
+              testID="accessibility-duration"
+              accessibilityLabel="Accessibility duration"
               style={{
                 backgroundColor: theme.colors.surface,
                 padding: theme.spacing.md,
@@ -635,6 +649,8 @@ export default function AccessibilityRequest() {
           </View>
 
           <TouchableOpacity
+            testID="accessibility-submit"
+            accessibilityLabel="Submit accessibility request"
             style={{
               backgroundColor: theme.colors.primary,
               padding: theme.spacing.md,

@@ -20,6 +20,9 @@ build/
 *.tsbuildinfo
 apps/*/.turbo/
 apps/admin-web/.next/
+apps/admin-web/playwright-report/
+apps/admin-web/test-results/
+artifacts/
 
 # Per-app node_modules
 apps/*/node_modules/

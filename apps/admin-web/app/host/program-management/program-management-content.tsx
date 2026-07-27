@@ -80,7 +80,6 @@ import {
   Calendar,
   CalendarDays,
   Clock,
-  Coffee,
   Edit,
   Filter,
   Languages,
@@ -92,7 +91,6 @@ import {
   Search,
   Settings,
   Trash2,
-  Upload,
   Utensils,
   Users,
   UserCheck,
@@ -101,14 +99,11 @@ import {
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { parseXLSXHospitalityData, type ParsedHospitalitySlot } from "@/utils/xlsx-hospitality-parser"
-import { HostCommitteeEditor } from "./host-committee-editor"
 import {
   createActivity,
   createEvent,
   createEventCategory,
   createFoodItem,
-  createHospitalityHour,
   createProgram,
   deleteActivity,
   deleteEvent,
@@ -118,21 +113,18 @@ import {
   getEventCategories,
   getEvents,
   getFoodItems,
-  getHospitalityHours,
   getPrograms,
   getVenue,
   updateActivity,
   updateEvent,
   updateEventCategory,
   updateFoodItem,
-  updateHospitalityHour,
   updateProgram,
   updateVenue,
   type Activity,
   type Event,
   type EventCategory,
   type Food,
-  type HospitalityHour,
   type Program,
   type ProgramLocation,
   type Venue,
@@ -392,17 +384,6 @@ const hospitalitySchema = z.object({
   times: z.array(hospitalityTimeSchema)
 })
 
-const hospitalityHourSchema = z.object({
-  date_time: z.string().min(1, "Date and time is required"),
-  group_hosting: z.string().optional().transform(val => val ? val.trim() : val),
-  group_contact: z.string().optional().transform(val => val ? val.trim() : val),
-  group_confirmed: z.boolean().default(false),
-  group_phone: z.string().optional().transform(val => val ? val.trim() : val),
-  group_email: z.string().optional().transform(val => val ? val.trim() : val),
-  planning_to_bring: z.string().optional().transform(val => val ? val.trim() : val),
-  room: z.string().optional().transform(val => val ? val.trim() : val)
-})
-
 const designColorsSchema = z.object({
   primary: z.string().min(1, "Primary color is required").transform(val => val.trim()),
   secondary: z.string().min(1, "Secondary color is required").transform(val => val.trim()),
@@ -465,7 +446,6 @@ export default function ProgramManagementContent() {
   const [venue, setVenue] = useState<Venue | null>(null)
   const [foodItems, setFoodItems] = useState<Food[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
-  const [hospitalityHours, setHospitalityHours] = useState<HospitalityHour[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortField, setSortField] = useState<SortField>("date")
@@ -487,12 +467,8 @@ export default function ProgramManagementContent() {
   const [showVenueDialog, setShowVenueDialog] = useState(false)
   const [showFoodDialog, setShowFoodDialog] = useState(false)
   const [showActivityDialog, setShowActivityDialog] = useState(false)
-  const [showHospitalityHourDialog, setShowHospitalityHourDialog] = useState(false)
-  const [showHospitalityUploadDialog, setShowHospitalityUploadDialog] = useState(false)
-  const [uploadedHospitalitySlots, setUploadedHospitalitySlots] = useState<ParsedHospitalitySlot[]>([])
   const [foodToEdit, setFoodToEdit] = useState<Food | null>(null)
   const [activityToEdit, setActivityToEdit] = useState<Activity | null>(null)
-  const [hospitalityHourToEdit, setHospitalityHourToEdit] = useState<HospitalityHour | null>(null)
   const [foodToDelete, setFoodToDelete] = useState<Food | null>(null)
   const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null)
   const [showDeleteFoodDialog, setShowDeleteFoodDialog] = useState(false)
@@ -603,20 +579,6 @@ export default function ProgramManagementContent() {
     defaultValues: {
       location: "",
       times: []
-    }
-  })
-
-  const hospitalityHourForm = useForm<z.infer<typeof hospitalityHourSchema>>({
-    resolver: zodResolver(hospitalityHourSchema),
-    defaultValues: {
-      date_time: "",
-      group_hosting: "",
-      group_contact: "",
-      group_confirmed: false,
-      group_phone: "",
-      group_email: "",
-      planning_to_bring: "",
-      room: ""
     }
   })
 
@@ -860,37 +822,6 @@ export default function ProgramManagementContent() {
     }
   }, [activityForm, activityToEdit])
 
-  useEffect(() => {
-    if (hospitalityHourToEdit) {
-      // Convert date_time to the format expected by datetime-local input (YYYY-MM-DDTHH:mm)
-      const dateTime = new Date(hospitalityHourToEdit.date_time)
-      const localDateTime = new Date(dateTime.getTime() - (dateTime.getTimezoneOffset() * 60000))
-      const formattedDateTime = localDateTime.toISOString().slice(0, 16)
-      
-      hospitalityHourForm.reset({
-        date_time: formattedDateTime,
-        group_hosting: hospitalityHourToEdit.group_hosting || '',
-        group_contact: hospitalityHourToEdit.group_contact || '',
-        group_confirmed: hospitalityHourToEdit.group_confirmed,
-        group_phone: hospitalityHourToEdit.group_phone || '',
-        group_email: hospitalityHourToEdit.group_email || '',
-        planning_to_bring: hospitalityHourToEdit.planning_to_bring || '',
-        room: hospitalityHourToEdit.room || ''
-      })
-    } else {
-      hospitalityHourForm.reset({
-        date_time: "",
-        group_hosting: "",
-        group_contact: "",
-        group_confirmed: false,
-        group_phone: "",
-        group_email: "",
-        planning_to_bring: "",
-        room: ""
-      })
-    }
-  }, [hospitalityHourForm, hospitalityHourToEdit])
-
   const loadInitialData = async () => {
     setLoading(true)
     const [{ programs }, conferenceState] = await Promise.all([
@@ -976,22 +907,19 @@ export default function ProgramManagementContent() {
       categoriesResult,
       venueResult,
       foodResult,
-      activitiesResult,
-      hospitalityResult
+      activitiesResult
     ] = await Promise.all([
       getEvents(programId),
       getEventCategories(programId),
       getVenue(programId),
       getFoodItems(programId),
-      getActivities(programId),
-      getHospitalityHours(programId)
+      getActivities(programId)
     ])
 
     setEvents(eventsResult.events)
     setCategories(categoriesResult.categories)
     setFoodItems(foodResult.foodItems)
     setActivities(activitiesResult.activities)
-    setHospitalityHours(hospitalityResult.hospitalityHours || [])
     
     // Normalize and set venue data
     if (venueResult.venue) {
@@ -1660,10 +1588,9 @@ export default function ProgramManagementContent() {
 
       {selectedProgram && (
         <Tabs defaultValue="program-view" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="program-view">Overview</TabsTrigger>
             <TabsTrigger value="events-management">Events</TabsTrigger>
-            <TabsTrigger value="hospitality-management">Hospitality</TabsTrigger>
             <TabsTrigger value="food-management">Food</TabsTrigger>
             <TabsTrigger value="activities-management">Activities</TabsTrigger>
           </TabsList>
@@ -1955,15 +1882,6 @@ export default function ProgramManagementContent() {
                           </Badge>
                         )) || <span className="text-sm">No rooms set</span>}
                       </div>
-                    </div>
-                    <div className="mt-4">
-                      <Label className="text-sm font-medium text-muted-foreground mb-2 block">
-                        Host Committee
-                      </Label>
-                      <HostCommitteeEditor 
-                        programId={selectedProgram.id} 
-                        initialData={selectedProgram.host_committee || undefined}
-                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -2529,123 +2447,6 @@ export default function ProgramManagementContent() {
                       </TableBody>
                     </Table>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Hospitality Management Tab */}
-          <TabsContent value="hospitality-management" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Coffee className="h-5 w-5" />
-                    Hospitality Hours
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => {
-                        setHospitalityHourToEdit(null)
-                        setShowHospitalityHourDialog(true)
-                      }}
-                      size="sm"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Time Slot
-                    </Button>
-                    <Button
-                      onClick={() => setShowHospitalityUploadDialog(true)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Spreadsheet
-                    </Button>
-                  </div>
-                </CardTitle>
-                <CardDescription>
-                  Manage hospitality volunteer time slots and confirmations
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Day</TableHead>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Group/Contact</TableHead>
-                        <TableHead>Confirmed</TableHead>
-                        <TableHead>Bringing</TableHead>
-                        <TableHead className="w-[100px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {hospitalityHours.map((hour) => (
-                        <TableRow key={hour.id}>
-                          <TableCell className="font-medium">
-                            {hour.day}
-                          </TableCell>
-                          <TableCell>{hour.time_slot}</TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">
-                                {hour.group_hosting || "Open Slot"}
-                              </div>
-                              {hour.group_contact && (
-                                <div className="text-sm text-muted-foreground">
-                                  Contact: {hour.group_contact}
-                                </div>
-                              )}
-                              {hour.group_phone && (
-                                <div className="text-sm text-muted-foreground">
-                                  Phone: {hour.group_phone}
-                                </div>
-                              )}
-                              {hour.group_email && (
-                                <div className="text-sm text-muted-foreground">
-                                  Email: {hour.group_email}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={hour.group_confirmed ? "default" : "secondary"}>
-                              {hour.group_confirmed ? "Confirmed" : "Pending"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {hour.planning_to_bring || "-"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setHospitalityHourToEdit(hour)
-                                  setShowHospitalityHourDialog(true)
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {hospitalityHours.length === 0 && (
-                        <TableRow>
-                          <TableCell
-                            colSpan={6}
-                            className="text-center text-muted-foreground py-8"
-                          >
-                            No hospitality time slots found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
                 </div>
               </CardContent>
             </Card>
@@ -5159,375 +4960,6 @@ export default function ProgramManagementContent() {
               </div>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Hospitality Hour Dialog */}
-      <Dialog open={showHospitalityHourDialog} onOpenChange={setShowHospitalityHourDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {hospitalityHourToEdit ? "Edit Hospitality Slot" : "Add Hospitality Slot"}
-            </DialogTitle>
-            <DialogDescription>
-              Add or edit hospitality time slot information
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...hospitalityHourForm}>
-            <form
-              onSubmit={hospitalityHourForm.handleSubmit(async (values) => {
-                try {
-                  const trimmedValues = {
-                    date_time: values.date_time,
-                    group_hosting: values.group_hosting ? values.group_hosting.trim() : values.group_hosting,
-                    group_contact: values.group_contact ? values.group_contact.trim() : values.group_contact,
-                    group_confirmed: values.group_confirmed,
-                    group_phone: values.group_phone ? values.group_phone.trim() : values.group_phone,
-                    group_email: values.group_email ? values.group_email.trim() : values.group_email,
-                    planning_to_bring: values.planning_to_bring ? values.planning_to_bring.trim() : values.planning_to_bring,
-                    room: values.room ? values.room.trim() : values.room
-                  }
-                  
-                  if (hospitalityHourToEdit) {
-                    await updateHospitalityHour(hospitalityHourToEdit.id, trimmedValues)
-                    toast({ title: "Hospitality slot updated successfully!" })
-                  } else {
-                    await createHospitalityHour({
-                      ...trimmedValues,
-                      program_id: selectedProgram?.id
-                    })
-                    toast({ title: "Hospitality slot added successfully!" })
-                  }
-                  setShowHospitalityHourDialog(false)
-                  setHospitalityHourToEdit(null)
-                  hospitalityHourForm.reset()
-                  // Reload hospitality hours
-                  const result = await getHospitalityHours(selectedProgram?.id)
-                  setHospitalityHours(result.hospitalityHours || [])
-                } catch (error) {
-                  toast({
-                    title: "Error",
-                    description: "Failed to save hospitality slot",
-                    variant: "destructive"
-                  })
-                }
-              })}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={hospitalityHourForm.control}
-                  name="date_time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date and Time</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="datetime-local" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={hospitalityHourForm.control}
-                  name="room"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Room</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Hospitality Suite" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={hospitalityHourForm.control}
-                name="group_hosting"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Group/Individual Hosting</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Downtown Group" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={hospitalityHourForm.control}
-                  name="group_contact"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Primary contact person" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={hospitalityHourForm.control}
-                  name="group_phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Contact phone" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={hospitalityHourForm.control}
-                name="group_email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email Address</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="Contact email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={hospitalityHourForm.control}
-                name="planning_to_bring"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Planning to Bring</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="What food/beverages will be provided"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={hospitalityHourForm.control}
-                name="group_confirmed"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>
-                        Group Confirmed
-                      </FormLabel>
-                      <FormDescription>
-                        Check if the group has confirmed their slot
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowHospitalityHourDialog(false)
-                    setHospitalityHourToEdit(null)
-                    hospitalityHourForm.reset()
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {hospitalityHourToEdit ? "Update" : "Add"} Slot
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Hospitality Hours Upload Dialog */}
-      <Dialog open={showHospitalityUploadDialog} onOpenChange={setShowHospitalityUploadDialog}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Upload Hospitality Hours Spreadsheet
-            </DialogTitle>
-            <DialogDescription>
-              Upload an Excel file (.xlsx) with hospitality hours data. Expected columns: Date and Time (A), Group Hosting (B), Group Contact (C), Group Confirmed (D), Group Phone (E), Group Email (F), Planning to Bring (G).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="hospitality-file-upload">Choose Excel file</Label>
-              <Input
-                id="hospitality-file-upload"
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={async (event) => {
-                  const file = event.target.files?.[0]
-                  if (!file) return
-
-                  if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
-                    toast({
-                      title: "Error",
-                      description: "Please upload an Excel file (.xlsx or .xls)",
-                      variant: "destructive"
-                    })
-                    return
-                  }
-
-                  try {
-                    const result = await parseXLSXHospitalityData(file, {
-                      startDate: selectedProgram?.start_date,
-                      endDate: selectedProgram?.end_date
-                    })
-                    setUploadedHospitalitySlots(result.slots)
-                    
-                    if (result.errors.length > 0) {
-                      toast({
-                        title: "Warning",
-                        description: `Parsed with ${result.errors.length} errors: ${result.errors.slice(0, 3).join(", ")}${result.errors.length > 3 ? "..." : ""}`,
-                        variant: "destructive"
-                      })
-                    } else {
-                      toast({
-                        title: "Success",
-                        description: `Successfully parsed ${result.successfulRows} hospitality slots from ${result.totalRows} rows`
-                      })
-                    }
-                  } catch (error) {
-                    toast({
-                      title: "Error",
-                      description: `Failed to parse file: ${error instanceof Error ? error.message : "Unknown error"}`,
-                      variant: "destructive"
-                    })
-                  }
-                }}
-                className="mt-1"
-              />
-            </div>
-
-            {uploadedHospitalitySlots.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">Parsed Hospitality Slots ({uploadedHospitalitySlots.length})</h4>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        // Create all hospitality hours from the uploaded slots
-                        for (const slot of uploadedHospitalitySlots) {
-                          await createHospitalityHour({
-                            program_id: selectedProgram?.id,
-                            date_time: slot.date_time.toISOString(),
-                            group_hosting: slot.group_hosting,
-                            group_contact: slot.group_contact,
-                            group_confirmed: slot.group_confirmed,
-                            group_phone: slot.group_phone,
-                            group_email: slot.group_email,
-                            planning_to_bring: slot.planning_to_bring
-                          })
-                        }
-                        
-                        // Reload hospitality hours
-                        const result = await getHospitalityHours(selectedProgram?.id)
-                        setHospitalityHours(result.hospitalityHours || [])
-                        
-                        toast({
-                          title: "Success",
-                          description: `Successfully imported ${uploadedHospitalitySlots.length} hospitality slots`
-                        })
-                        
-                        setShowHospitalityUploadDialog(false)
-                        setUploadedHospitalitySlots([])
-                      } catch (error) {
-                        toast({
-                          title: "Error",
-                          description: `Failed to import slots: ${error instanceof Error ? error.message : "Unknown error"}`,
-                          variant: "destructive"
-                        })
-                      }
-                    }}
-                    size="sm"
-                  >
-                    Import All Slots
-                  </Button>
-                </div>
-                
-                <div className="max-h-64 overflow-y-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date & Time</TableHead>
-                        <TableHead>Group Hosting</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Confirmed</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Email</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {uploadedHospitalitySlots.map((slot, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">
-                            {slot.date_time.toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit',
-                              hour12: true
-                            })}
-                          </TableCell>
-                          <TableCell>{slot.group_hosting || "Open Slot"}</TableCell>
-                          <TableCell>{slot.group_contact || "-"}</TableCell>
-                          <TableCell>
-                            {slot.group_confirmed ? (
-                              <Badge variant="default" className="text-xs">Confirmed</Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">Pending</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>{slot.group_phone || "-"}</TableCell>
-                          <TableCell>{slot.group_email || "-"}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowHospitalityUploadDialog(false)
-                  setUploadedHospitalitySlots([])
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 

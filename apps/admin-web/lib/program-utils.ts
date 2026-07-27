@@ -39,15 +39,25 @@ export function formatProgramDateRange(program?: {
   )}`
 }
 
-export function formatProgramLocation(program?: { location?: any } | null) {
+export function formatProgramLocation(program?: { location?: unknown } | null) {
   const location = program?.location
   if (!location) return "Location TBD"
 
   if (typeof location === "string") return location
+  if (typeof location !== "object") return "Location TBD"
 
-  const name = location.name
-  const address = location.address
-  const cityState = [address?.city, address?.state].filter(Boolean).join(", ")
+  const locationRecord = location as Record<string, unknown>
+  const name =
+    typeof locationRecord.name === "string" ? locationRecord.name : undefined
+  const address =
+    typeof locationRecord.address === "object" && locationRecord.address
+      ? (locationRecord.address as Record<string, unknown>)
+      : undefined
+  const city =
+    typeof address?.city === "string" ? address.city : undefined
+  const state =
+    typeof address?.state === "string" ? address.state : undefined
+  const cityState = [city, state].filter(Boolean).join(", ")
 
   return [name, cityState].filter(Boolean).join(" - ") || "Location TBD"
 }

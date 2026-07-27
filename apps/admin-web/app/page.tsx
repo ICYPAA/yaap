@@ -17,7 +17,7 @@ export default async function HomePage() {
       <div className="rounded-lg border p-8 space-y-4">
         <h1 className="text-2xl font-semibold">YAAP Admin</h1>
         <p className="text-muted-foreground">
-          Sign in with your approved account to access host tools.
+          Sign in with an approved account to configure the conference app.
         </p>
         <SignInButton />
       </div>

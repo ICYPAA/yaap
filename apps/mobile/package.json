@@ -9,6 +9,7 @@
     "android": "expo run:android",
     "ios:prebuild": "expo prebuild -p ios --clean",
     "ios": "expo run:ios",
+    "e2e:ios": "../../scripts/e2e-mobile-ios.sh",
     "web": "expo start --web",
     "test": "jest --runInBand --watchAll=false",
     "test:watch": "jest --watchAll",
@@ -23,7 +24,9 @@
     ]
   },
   "dependencies": {
+    "@babel/runtime": "7.28.6",
     "@expo/vector-icons": "~14.0.4",
+    "@opentelemetry/api": "1.9.0",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-community/datetimepicker": "8.2.0",
     "@react-native-picker/picker": "2.9.0",
@@ -38,6 +41,7 @@
     "expo-auth-session": "~6.0.3",
     "expo-blur": "~14.0.3",
     "expo-constants": "~17.0.8",
+    "expo-crypto": "~14.0.2",
     "expo-dev-client": "~5.0.19",
     "expo-device": "~7.0.3",
     "expo-font": "~13.0.3",

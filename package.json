@@ -2,14 +2,25 @@
   "name": "yaap-monorepo",
   "private": true,
   "packageManager": "pnpm@10.12.3",
+  "engines": {
+    "node": ">=20.17 <23"
+  },
   "scripts": {
     "dev": "turbo dev --parallel",
     "dev:mobile": "turbo dev --filter=@yaap/mobile",
     "dev:admin": "turbo dev --filter=@yaap/admin-web",
     "dev:functions": "turbo dev --filter=@yaap/functions",
+    "setup:local": "./scripts/setup-local.sh",
+    "setup:local:reset": "./scripts/setup-local.sh --reset",
+    "local:env": "./scripts/configure-local-env.sh",
+    "local:verify": "./scripts/verify-local-db.sh",
     "dev:admin:local": "./scripts/dev-admin-local.sh",
     "dev:admin:vercel:local": "./scripts/dev-admin-vercel-local.sh",
     "dev:mobile:local": "./scripts/dev-mobile-local.sh",
+    "dev:mobile:web:local": "./scripts/dev-mobile-local.sh --web",
+    "e2e:reset": "pnpm setup:local:reset",
+    "e2e:mobile:ios": "./scripts/e2e-mobile-ios.sh",
+    "e2e:admin": "pnpm e2e:reset && pnpm --filter @yaap/admin-web e2e",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
@@ -20,13 +31,31 @@
     "supabase:login": "supabase login",
     "supabase:link": "cd apps/functions && supabase link --project-ref ${SUPABASE_PROJECT_REF:-oolqeopfhhiuvsmamxln}",
     "supabase:db:reset": "cd apps/functions && supabase db reset",
+    "supabase:migration:up": "cd apps/functions && supabase migration up --local",
     "supabase:migration:new": "cd apps/functions && supabase migration new",
     "supabase:functions:serve": "cd apps/functions && supabase functions serve"
   },
   "devDependencies": {
+    "supabase": "2.75.0",
     "turbo": "^2.8.10"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@sentry/cli",
+      "@swc/core",
+      "sharp",
+      "unrs-resolver",
+      "supabase"
+    ],
+    "packageExtensions": {
+      "expo-router@4.0.22": {
+        "peerDependencies": {
+          "react": "*",
+          "react-dom": "*"
+        }
+      }
+    },
     "overrides": {
       "@babel/plugin-transform-modules-systemjs": "7.29.7",
       "@xmldom/xmldom": "0.8.13",
@@ -43,6 +72,7 @@
       "picomatch": "3.0.2",
       "postcss": "8.5.15",
       "qs": "6.15.2",
+      "@expo/cli@0.22.28>tar": "6.2.1",
       "tar": "7.5.16",
       "undici": "6.26.0",
       "uuid": "11.1.1",

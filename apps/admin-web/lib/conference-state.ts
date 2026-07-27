@@ -7,13 +7,22 @@ import { redirect } from "next/navigation"
 
 export type ConferenceStatus = "none" | "planning" | "active"
 
+export interface ConferenceProgramSummary {
+  id: number
+  title: string
+  start_date?: string | null
+  end_date?: string | null
+  location?: unknown
+  features?: Record<string, unknown> | null
+}
+
 export interface ConferenceState {
   id: boolean
   current_program_id: number | null
   status: ConferenceStatus
   updated_at: string
   updated_by: string | null
-  programs?: any | null
+  programs?: ConferenceProgramSummary | null
 }
 
 export async function getConferenceState(): Promise<ConferenceState> {
@@ -96,7 +105,6 @@ export async function setConferenceState(input: {
   }
 
   revalidatePath("/host/program-management")
-  revalidatePath("/host/shift-scheduling")
   revalidatePath("/host")
 
   return { state: data, error: null }

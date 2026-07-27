@@ -1,0 +1,103 @@
+appId: com.themindfulpug.icypaa
+name: Accommodations, services, and safety
+tags:
+  - smoke
+  - services
+  - safety
+---
+- clearState
+- clearKeychain
+- setPermissions:
+    permissions:
+      notifications: deny
+- launchApp:
+    arguments:
+      "--initialUrl": "http://127.0.0.1:8081/?disableOnboarding=1"
+- extendedWaitUntil:
+    visible: "Welcome to YAAP!"
+    timeout: 20000
+- tapOn:
+    id: "tutorial-skip"
+- extendedWaitUntil:
+    visible: "Safety & Anonymity"
+    timeout: 10000
+- tapOn:
+    id: "safety-acknowledge"
+- extendedWaitUntil:
+    visible: "Local Test Conference"
+    timeout: 20000
+- tapOn:
+    id: "tab-accommodations"
+- extendedWaitUntil:
+    visible: "Venue Amenities"
+    timeout: 15000
+- assertVisible: "Registration and Information"
+- scrollUntilVisible:
+    element:
+      text: "Local Test Cafe"
+    direction: DOWN
+    timeout: 15000
+- assertVisible: "Local Test Cafe"
+- scrollUntilVisible:
+    element:
+      text: "River Walk"
+    direction: DOWN
+    timeout: 15000
+- assertVisible: "River Walk"
+- tapOn:
+    id: "tab-services"
+- extendedWaitUntil:
+    visible:
+      id: "service-card-accessibility"
+    timeout: 15000
+- assertVisible:
+    id: "service-card-volunteer"
+- tapOn:
+    id: "service-card-accessibility"
+- extendedWaitUntil:
+    visible:
+      id: "accessibility-name"
+    timeout: 10000
+- tapOn:
+    id: "accessibility-name"
+- inputText: "Maestro Tester"
+- tapOn:
+    id: "accessibility-phone"
+- inputText: "6125550100"
+- tapOn:
+    id: "accessibility-email"
+- inputText: "maestro@yaap.local"
+- tapOn:
+    id: "accessibility-need-type"
+- inputText: "Mobility"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "accessibility-arrival"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "accessibility-arrival"
+- inputText: "Tomorrow"
+- tapOn:
+    id: "accessibility-duration"
+- inputText: "Full conference"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "accessibility-submit"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "accessibility-submit"
+- extendedWaitUntil:
+    visible: "Your accessibility request has been submitted."
+    timeout: 15000
+- back
+- tapOn:
+    id: "tab-safety"
+- extendedWaitUntil:
+    visible: "Everyone deserves a safe and welcoming conference."
+    timeout: 15000
+- assertVisible: "Harassment is not tolerated."
+- assertVisible: "safety@yaap.local"
