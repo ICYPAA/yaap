@@ -213,7 +213,9 @@ VALUES (
       "volunteering": {
         "title": "Volunteer at the Conference",
         "description": "Offer to help with conference service.",
-        "internal_description": "Choose the areas and times where you can help."
+        "internal_description": "Choose the areas and times where you can help.",
+        "signup_destination": "internal",
+        "external_signup_url": ""
       },
       "support": {
         "title": "Conference Support",

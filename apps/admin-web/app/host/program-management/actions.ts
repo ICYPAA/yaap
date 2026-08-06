@@ -45,6 +45,11 @@ interface ProgramServiceContent {
   internal_description?: string
 }
 
+interface ProgramVolunteeringServiceContent extends ProgramServiceContent {
+  signup_destination?: "internal" | "external"
+  external_signup_url?: string
+}
+
 export interface ProgramContent {
   faq?: Array<{
     question?: string
@@ -54,7 +59,7 @@ export interface ProgramContent {
     rides?: ProgramServiceContent
     support?: ProgramServiceContent
     hospitality?: ProgramServiceContent
-    volunteering?: ProgramServiceContent
+    volunteering?: ProgramVolunteeringServiceContent
     accessibility?: ProgramServiceContent
   }
 }

@@ -79,6 +79,18 @@ tags:
 - assertVisible:
     id: "service-card-volunteer"
 - tapOn:
+    id: "service-card-volunteer"
+- extendedWaitUntil:
+    visible: "Your name"
+    timeout: 10000
+- tapOn:
+    id: "volunteer-back"
+- scrollUntilVisible:
+    element:
+      id: "service-card-accessibility"
+    direction: UP
+    timeout: 10000
+- tapOn:
     id: "service-card-accessibility"
 - extendedWaitUntil:
     visible:
