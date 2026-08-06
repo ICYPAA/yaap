@@ -1,6 +1,6 @@
 # YAAP Mobile
 
-The mobile workspace is an Expo SDK 52 application using React Native,
+The mobile workspace is an Expo SDK 55 application using React Native,
 TypeScript, Expo Router, and Supabase.
 
 Run mobile development from the monorepo root so the pinned pnpm and Supabase
@@ -24,10 +24,10 @@ YAAP_LOCAL_IOS=1 pnpm exec expo prebuild --platform ios --clean
 YAAP_LOCAL_IOS=1 pnpm exec expo run:ios
 ```
 
-The local profile applies the repository's Expo SDK 52 compatibility fixes
-for current Xcode versions. Expo creates `YAAP.xcodeproj`,
-`YAAP.xcworkspace`, the Pods, and the shared `YAAP` scheme automatically; do
-not create a scheme manually or open the `.xcodeproj`.
+The local profile omits the Apple Sign-In entitlement for unsigned Simulator
+builds; production builds keep Apple Sign-In enabled. Expo creates
+`YAAP.xcodeproj`, `YAAP.xcworkspace`, the Pods, and the shared `YAAP` scheme
+automatically; do not create a scheme manually or open the `.xcodeproj`.
 
 After the development client is installed, use this from the repository root
 for normal starts:

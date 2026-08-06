@@ -204,11 +204,13 @@ const AnimatedCarousel = <T,>({
 const MapItem = ({
   item,
   onPress,
-  theme
+  theme,
+  testID
 }: {
   item: { title: string; image: string; description: string }
   onPress: () => void
   theme: any
+  testID?: string
 }) => {
   const [imageError, setImageError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -272,6 +274,8 @@ const MapItem = ({
 
   return (
     <TouchableOpacity
+      testID={testID}
+      accessibilityLabel={`${item.title}. Tap to open zoomable map.`}
       onPress={() => {
         console.log("Pressed image:", item.title, item.image)
         // Only call onPress if it's not the fallback image (meaning a valid source was found)
@@ -427,43 +431,52 @@ const ImageViewer = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <RNIImageViewer
-        imageUrls={imageUrls}
-        onCancel={onClose}
-        enableSwipeDown // Optional: Allow swiping down to close
-        saveToLocalByLongPress={false} // Optional: Disable saving image
-        renderIndicator={() => <View />} // Return an empty view instead of null
-        loadingRender={() => (
-          // Custom loading indicator
-          <View style={styles(theme).modalOverlayContainer}>
-            <ActivityIndicator size="large" color="#ffffff" />
-          </View>
-        )}
-        failImageSource={{
-          // Use the same fallback image URI
-          url: FALLBACK_IMAGE,
-          width: Dimensions.get("window").width,
-          height: Dimensions.get("window").height
-        }}
-        // Optional: Add custom header or footer if needed, e.g., for the close button
-        renderHeader={() => (
-          <TouchableOpacity
-            style={styles(theme).closeButton}
-            onPress={onClose}
-            activeOpacity={0.7}
-          >
-            <View style={styles(theme).closeButtonInner}>
-              <Ionicons name="close" size={30} color="#ffffff" />
+      <View
+        testID="venue-map-viewer"
+        accessibilityLabel="Zoomable venue map viewer"
+        style={{ flex: 1 }}
+      >
+        <RNIImageViewer
+          imageUrls={imageUrls}
+          onCancel={onClose}
+          enableSwipeDown // Optional: Allow swiping down to close
+          doubleClickInterval={400}
+          saveToLocalByLongPress={false} // Optional: Disable saving image
+          renderIndicator={() => <View />} // Return an empty view instead of null
+          loadingRender={() => (
+            // Custom loading indicator
+            <View style={styles(theme).modalOverlayContainer}>
+              <ActivityIndicator size="large" color="#ffffff" />
             </View>
-          </TouchableOpacity>
-        )}
-        // Handle internal errors from the library
-        onShowModal={() => setImageError(false)} // Reset error state when modal shown
-        // Note: The library might have limited onError props. Error handling is mainly via failImageSource.
+          )}
+          failImageSource={{
+            // Use the same fallback image URI
+            url: FALLBACK_IMAGE,
+            width: Dimensions.get("window").width,
+            height: Dimensions.get("window").height
+          }}
+          // Optional: Add custom header or footer if needed, e.g., for the close button
+          renderHeader={() => (
+            <TouchableOpacity
+              testID="venue-map-viewer-close"
+              accessibilityLabel="Close zoomable venue map"
+              style={styles(theme).closeButton}
+              onPress={onClose}
+              activeOpacity={0.7}
+            >
+              <View style={styles(theme).closeButtonInner}>
+                <Ionicons name="close" size={30} color="#ffffff" />
+              </View>
+            </TouchableOpacity>
+          )}
+          // Handle internal errors from the library
+          onShowModal={() => setImageError(false)} // Reset error state when modal shown
+          // Note: The library might have limited onError props. Error handling is mainly via failImageSource.
 
-        // Pass theme styles or other props if needed by the library's components
-        // style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }} // Example style override
-      />
+          // Pass theme styles or other props if needed by the library's components
+          // style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }} // Example style override
+        />
+      </View>
       {/* Remove the old manual Image display and error/loading handling */}
       {/*
       <View style={styles(theme).modalContainer}>
@@ -722,7 +735,7 @@ export default function Maps() {
         {venueData && venueData.floors && venueData.floors.length > 0 ? (
           <AnimatedCarousel
             data={venueData.floors}
-            renderItem={({ item }) => {
+            renderItem={({ item, index }) => {
               // Use the URL directly from the database
               let imageSource: string = item?.url || FALLBACK_IMAGE
 
@@ -741,6 +754,7 @@ export default function Maps() {
                   }}
                   onPress={() => handleImagePress(imageSource)}
                   theme={theme}
+                  testID={`venue-map-${index}`}
                 />
               )
             }}

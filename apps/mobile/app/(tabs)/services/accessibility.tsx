@@ -14,7 +14,7 @@ import { ProtectedComponent } from "../../../components/ProtectedComponent"
 import { useCurrentConference } from "../../../context/CurrentConferenceContext"
 import { useTheme } from "../../../context/ThemeContext"
 import { sendNotification } from "../../../lib/notificationHelper"
-import { supabase, withDeviceId } from "../../../lib/supabase"
+import { withDeviceId } from "../../../lib/supabase"
 import { getStoredProgram, getTextColorForBackground } from "../../../lib/theme"
 import { Program } from "../../../types/program"
 
@@ -125,31 +125,24 @@ export default function AccessibilityRequest() {
         return
       }
 
-      const {
-        data: { session }
-      } = await supabase.auth.getSession()
-      const ownerId = session?.user?.id
-
-      // Submit form data to Supabase
+      // Submit through an RPC so anonymous attendees can receive the new ID
+      // without gaining read access to the sensitive request table.
       const supabaseWithDeviceId = await withDeviceId()
-      const { data: insertedForm, error } = await supabaseWithDeviceId
-        .from("accessibility_forms")
-        .insert({
-          program_id: programId,
-          name: form.name,
-          phone: form.phone,
-          email: form.email,
-          need_type: form.needType,
-          details: form.details,
-          arrival_date: form.arrivalDate,
-          duration: form.duration,
-          status: "pending", // Set initial status to pending
-          ...(ownerId ? { owner_id: ownerId, user_id: ownerId } : {})
-        })
-        .select("id")
-        .single()
+      const { data: insertedFormId, error } = await supabaseWithDeviceId.rpc(
+        "submit_accessibility_request",
+        {
+          p_program_id: programId,
+          p_name: form.name,
+          p_phone: form.phone,
+          p_email: form.email,
+          p_need_type: form.needType,
+          p_details: form.details,
+          p_arrival_date: form.arrivalDate,
+          p_duration: form.duration
+        }
+      )
 
-      if (error || !insertedForm) {
+      if (error || !insertedFormId) {
         console.error("Error submitting accessibility request:", error)
         return
       }
@@ -161,7 +154,7 @@ export default function AccessibilityRequest() {
           programId,
           data: {
             type: "accessibility",
-            form_id: insertedForm.id,
+            form_id: insertedFormId,
             name: form.name,
             details: form.details?.substring(0, 100)
           }

@@ -13,7 +13,7 @@ const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
 const MAX_SESSION_AGE = 7 * 24 * 60 * 60; // 7 days
 
 class SessionManager {
-  private checkInterval: NodeJS.Timeout | null = null;
+  private checkInterval: ReturnType<typeof setInterval> | null = null;
   private appStateSubscription: any = null;
   private sessionStartTime: number = Date.now();
   private refreshAttempts: number = 0;

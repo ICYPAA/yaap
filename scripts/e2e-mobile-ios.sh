@@ -61,18 +61,28 @@ fi
 "$repo_root/scripts/configure-local-env.sh"
 "$repo_root/scripts/verify-local-db.sh"
 
-if ! xcrun simctl list devices booted | grep -q "(Booted)"; then
-  JAVA_HOME="$maestro_java_home" \
-    MAESTRO_CLI_NO_ANALYTICS=1 \
-    MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true \
-    maestro start-device --platform ios
-fi
-
 simulator_id="$(
   xcrun simctl list devices booted |
     sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' |
     head -n 1
 )"
+
+if [[ -z "$simulator_id" ]]; then
+  simulator_id="$(
+    xcrun simctl list devices available |
+      sed -n '/-- iOS /,/^$/s/.*iPhone.*(\([0-9A-F-]\{36\}\)) (Shutdown).*/\1/p' |
+      head -n 1
+  )"
+
+  if [[ -z "$simulator_id" ]]; then
+    echo "No available iPhone Simulator was found." >&2
+    exit 1
+  fi
+
+  xcrun simctl boot "$simulator_id"
+  open -a Simulator --args -CurrentDeviceUDID "$simulator_id"
+  xcrun simctl bootstatus "$simulator_id" -b
+fi
 
 if [[ -z "$simulator_id" ]]; then
   echo "No booted iOS Simulator was found." >&2
@@ -82,7 +92,7 @@ fi
 if ! curl --silent --fail http://127.0.0.1:8081/status >/dev/null 2>&1; then
   CI=1 pnpm --dir "$mobile_dir" exec expo start \
     --dev-client \
-    --localhost >"$metro_log" 2>&1 &
+    --lan >"$metro_log" 2>&1 &
   metro_pid="$!"
 
   for _ in {1..60}; do
@@ -91,6 +101,12 @@ if ! curl --silent --fail http://127.0.0.1:8081/status >/dev/null 2>&1; then
     fi
     sleep 1
   done
+
+  if ! curl --silent --fail http://127.0.0.1:8081/status >/dev/null 2>&1; then
+    echo "Metro did not become ready on port 8081." >&2
+    tail -n 80 "$metro_log" >&2 || true
+    exit 1
+  fi
 fi
 
 # Regenerate the ignored native project so the local-only Simulator config
@@ -99,9 +115,8 @@ YAAP_LOCAL_IOS=1 pnpm --dir "$mobile_dir" exec expo prebuild \
   --platform ios \
   --clean
 
-# Expo SDK 52 can misclassify a Simulator UUID as a physical device with
-# newer devicectl output. With exactly one booted Simulator, omitting --device
-# reliably selects it through simctl and avoids code-signing requirements.
+# With exactly one booted Simulator, omitting --device selects it through
+# simctl and avoids physical-device code-signing requirements.
 YAAP_LOCAL_IOS=1 pnpm --dir "$mobile_dir" exec expo run:ios --no-bundler
 
 if ! xcrun simctl get_app_container \

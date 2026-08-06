@@ -243,7 +243,7 @@ VALUES (
     "support_chat_enabled": true,
     "volunteering_enabled": true,
     "accessibility_enabled": true,
-    "schedule_sharing_enabled": false,
+    "schedule_sharing_enabled": true,
     "push_notifications_enabled": false,
     "language_option_enabled": false
   }'::jsonb,
@@ -381,7 +381,13 @@ INSERT INTO public.venues (id, program_id, floors, amenities)
 VALUES (
   9301,
   9001,
-  '[]'::jsonb,
+  '[
+    {
+      "name": "Local Venue Map",
+      "url": "https://oolqeopfhhiuvsmamxln.supabase.co/storage/v1/object/public/assets//hotel.png",
+      "description": "Tap to open and zoom the conference floor plan."
+    }
+  ]'::jsonb,
   '[
     {
       "name": "Registration and Information",

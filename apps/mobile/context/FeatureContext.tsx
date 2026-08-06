@@ -88,8 +88,9 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({
       }
       
       // Add timeout to prevent hanging
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
       const timeoutPromise = new Promise<null>((resolve) => {
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           console.warn("Feature fetch timed out after 5 seconds")
           resolve(null)
         }, 5000)
@@ -105,6 +106,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({
       
       // Race between fetching features and timeout
       const result = await Promise.race([fetchPromise, timeoutPromise])
+      if (timeoutId) clearTimeout(timeoutId)
       
       if (result === null) {
         console.warn("Feature fetch timed out, using default values")

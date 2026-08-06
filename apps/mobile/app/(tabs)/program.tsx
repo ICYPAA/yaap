@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native"
+import QRCode from "react-native-qrcode-svg"
 import { BidSchedule } from "../../components/BidSchedule"
 import { EventDetailsModal } from "../../components/EventDetailsModal"
 import { useCurrentConference } from "../../context/CurrentConferenceContext"
@@ -2879,7 +2880,8 @@ export default function Program() {
   // Reference to scroll view to track scrolling
   const scrollViewRef = React.useRef<ScrollView>(null)
   // Reference to store the shared events polling interval
-  const sharedEventsPollingInterval = useRef<NodeJS.Timeout | null>(null)
+  const sharedEventsPollingInterval =
+    useRef<ReturnType<typeof setInterval> | null>(null)
   // Store the last known shared events data to compare for changes
   const lastSharedEventsRef = useRef<string>("")
 
@@ -4881,7 +4883,7 @@ async function registerForPushNotificationsAsync() {
   }
 }
 
-// Robust QR code image component with loading and error states
+// Render schedule QR codes on-device so sharing also works without network access.
 const QRCodeImage = ({
   data,
   size,
@@ -4891,68 +4893,28 @@ const QRCodeImage = ({
   size: number
   isDarkMode: boolean
 }) => {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-
-  // Use a more reliable QR code API (QR Server)
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(
-    data
-  )}&color=${isDarkMode ? "FFFFFF" : "000000"}&bgcolor=${
-    isDarkMode ? "333333" : "FFFFFF"
-  }`
+  const foregroundColor = isDarkMode ? "#FFFFFF" : "#000000"
+  const backgroundColor = isDarkMode ? "#333333" : "#FFFFFF"
 
   return (
     <View
+      testID="schedule-share-qr"
+      accessibilityLabel="Schedule sharing QR code"
       style={{
         width: size,
         height: size,
-        backgroundColor: isDarkMode ? "#333" : "#fff",
+        backgroundColor,
         justifyContent: "center",
         alignItems: "center",
         borderRadius: 8
       }}
     >
-      {loading && (
-        <ActivityIndicator
-          size="large"
-          color={isDarkMode ? "#fff" : "#000"}
-          style={{ position: "absolute" }}
-        />
-      )}
-
-      {error ? (
-        <View style={{ padding: 10, alignItems: "center" }}>
-          <Text
-            style={{ color: isDarkMode ? "#fff" : "#000", marginBottom: 10 }}
-          >
-            Could not load QR code
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              setError(false)
-              setLoading(true)
-            }}
-            style={{
-              padding: 8,
-              backgroundColor: isDarkMode ? "#444" : "#eee",
-              borderRadius: 4
-            }}
-          >
-            <Text style={{ color: isDarkMode ? "#fff" : "#000" }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <Image
-          source={{ uri: qrCodeUrl }}
-          style={{ width: size, height: size }}
-          onLoadStart={() => setLoading(true)}
-          onLoad={() => setLoading(false)}
-          onError={() => {
-            setLoading(false)
-            setError(true)
-          }}
-        />
-      )}
+      <QRCode
+        value={data}
+        size={size}
+        color={foregroundColor}
+        backgroundColor={backgroundColor}
+      />
     </View>
   )
 }

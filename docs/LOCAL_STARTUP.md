@@ -7,7 +7,7 @@ to a fully migrated and seeded local Supabase/PostgreSQL database.
 
 Install:
 
-- Node.js 20.17+ or 22.9+ (below Node 23)
+- Node.js 22.13+ (22.19.0 is pinned in `.nvmrc`)
 - Corepack, included with supported Node releases
 - Docker Desktop, OrbStack, Colima, or another Docker-compatible engine
 - Xcode plus an iOS Simulator runtime for the native conference app
