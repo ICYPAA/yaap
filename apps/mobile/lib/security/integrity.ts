@@ -185,9 +185,9 @@ class AppIntegrityChecker {
     // Check for remote debugging
     // @ts-ignore
     if (
-      global.location &&
-      global.location.href &&
-      global.location.href.includes("debugger")
+      globalThis.location &&
+      globalThis.location.href &&
+      globalThis.location.href.includes("debugger")
     ) {
       return true
     }

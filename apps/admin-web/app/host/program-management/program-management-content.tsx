@@ -410,13 +410,45 @@ const serviceSchema = z.object({
   internal_description: z.string().optional().transform(val => val ? val.trim() : val)
 })
 
+const volunteeringServiceSchema = serviceSchema.extend({
+  signup_destination: z.enum(["internal", "external"]).default("internal"),
+  external_signup_url: z.string().optional().transform(val => val ? val.trim() : val)
+}).superRefine((service, context) => {
+  if (service.signup_destination !== "external") return
+
+  try {
+    const url = new URL(service.external_signup_url || "")
+    const isSignupGenius =
+      url.hostname === "signupgenius.com" ||
+      url.hostname.endsWith(".signupgenius.com") ||
+      url.hostname === "sugeni.us" ||
+      url.hostname.endsWith(".sugeni.us")
+
+    if (
+      url.protocol !== "https:" ||
+      !isSignupGenius ||
+      url.username ||
+      url.password ||
+      url.port
+    ) {
+      throw new Error("Untrusted SignUpGenius URL")
+    }
+  } catch {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["external_signup_url"],
+      message: "Enter a valid HTTPS SignUpGenius URL"
+    })
+  }
+})
+
 const contentSchema = z.object({
   faq: z.array(faqItemSchema),
   services: z.object({
     rides: serviceSchema.optional(),
     support: serviceSchema.optional(),
     hospitality: serviceSchema.optional(),
-    volunteering: serviceSchema.optional(),
+    volunteering: volunteeringServiceSchema.optional(),
     accessibility: serviceSchema.optional()
   })
 })
@@ -606,7 +638,13 @@ export default function ProgramManagementContent() {
         rides: { title: "", description: "", internal_description: "" },
         support: { title: "", description: "", internal_description: "" },
         hospitality: { title: "", description: "", internal_description: "" },
-        volunteering: { title: "", description: "", internal_description: "" },
+        volunteering: {
+          title: "",
+          description: "",
+          internal_description: "",
+          signup_destination: "internal",
+          external_signup_url: ""
+        },
         accessibility: { title: "", description: "", internal_description: "" }
       }
     }
@@ -1243,10 +1281,13 @@ export default function ProgramManagementContent() {
             description: "",
             internal_description: ""
           },
-          volunteering: content.services?.volunteering || {
+          volunteering: {
             title: "",
             description: "",
-            internal_description: ""
+            internal_description: "",
+            signup_destination: "internal",
+            external_signup_url: "",
+            ...content.services?.volunteering
           },
           accessibility: content.services?.accessibility || {
             title: "",
@@ -4019,7 +4060,11 @@ export default function ProgramManagementContent() {
                       volunteering: values.services.volunteering ? {
                         title: values.services.volunteering.title.trim(),
                         description: values.services.volunteering.description.trim(),
-                        internal_description: values.services.volunteering.internal_description ? values.services.volunteering.internal_description.trim() : values.services.volunteering.internal_description
+                        internal_description: values.services.volunteering.internal_description ? values.services.volunteering.internal_description.trim() : values.services.volunteering.internal_description,
+                        signup_destination: values.services.volunteering.signup_destination,
+                        external_signup_url: values.services.volunteering.signup_destination === "external" && values.services.volunteering.external_signup_url
+                          ? values.services.volunteering.external_signup_url.trim()
+                          : ""
                       } : values.services.volunteering,
                       accessibility: values.services.accessibility ? {
                         title: values.services.accessibility.title.trim(),
@@ -4309,6 +4354,65 @@ export default function ProgramManagementContent() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={contentForm.control}
+                    name="services.volunteering.signup_destination"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Signup Destination</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose where attendees sign up" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="internal">
+                              Internal volunteer form
+                            </SelectItem>
+                            <SelectItem value="external">
+                              SignUpGenius link
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          The mobile volunteer card will open this destination.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {contentForm.watch(
+                    "services.volunteering.signup_destination"
+                  ) === "external" ? (
+                    <FormField
+                      control={contentForm.control}
+                      name="services.volunteering.external_signup_url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SignUpGenius URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="url"
+                              inputMode="url"
+                              placeholder="https://www.signupgenius.com/go/..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Secure signupgenius.com and sugeni.us links are
+                            accepted. If the signup collects payments or
+                            donations, review the app-store payment rules before
+                            publishing it.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : null}
                 </div>
 
                 {/* Accessibility Service */}

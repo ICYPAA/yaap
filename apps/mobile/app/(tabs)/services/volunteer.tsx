@@ -404,6 +404,8 @@ export default function VolunteerSignup() {
             headerLeft: () => (
               <TouchableOpacity
                 onPress={() => router.back()}
+                testID="volunteer-back"
+                accessibilityLabel="Back to services"
                 style={{
                   padding: 8
                 }}
@@ -503,6 +505,8 @@ export default function VolunteerSignup() {
               headerLeft: () => (
                 <TouchableOpacity
                   onPress={() => router.back()}
+                  testID="volunteer-back"
+                  accessibilityLabel="Back to services"
                   style={{
                     padding: 8
                   }}

@@ -151,6 +151,10 @@ export type ProgramContent = {
       description: string
       // Content for the service's page
       internal_description: string
+      // Whether the service card opens the in-app form or SignUpGenius
+      signup_destination?: "internal" | "external"
+      // HTTPS SignUpGenius link used when signup_destination is external
+      external_signup_url?: string
     }
     accessibility?: {
       // Title of the service

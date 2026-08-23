@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "yaap",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.themindfulpug.icypaa",
@@ -17,8 +16,6 @@
         "CFBundleDisplayName": "YAAP!",
         "NSCameraUsageDescription": "YAAP! needs access to your camera to scan QR codes.",
         "UIBackgroundModes": [
-          "fetch",
-          "remote-notification",
           "fetch",
           "remote-notification"
         ]
@@ -36,10 +33,7 @@
         "android.permission.VIBRATE"
       ],
       "googleServicesFile": "./google-services.json",
-      "versionCode": 1,
-      "compileSdkVersion": 35,
-      "targetSdkVersion": 35,
-      "buildToolsVersion": "35.0.0"
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
@@ -47,6 +41,8 @@
     },
     "plugins": [
       "expo-router",
+      "expo-font",
+      "@react-native-community/datetimepicker",
       [
         "expo-splash-screen",
         {
@@ -57,8 +53,9 @@
         }
       ],
       "expo-notifications",
+      "expo-web-browser",
       [
-        "@sentry/react-native/expo",
+        "@sentry/react-native",
         {
           "url": "https://sentry.io/",
           "project": "yaap",

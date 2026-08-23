@@ -6,6 +6,12 @@ import React from "react"
 import { OpaqueColorValue, StyleProp, TextStyle } from "react-native"
 
 // Add your SFSymbol to MaterialIcons mappings here.
+type SymbolName = Extract<
+  import("expo-symbols").SymbolViewProps["name"],
+  string
+>
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"]
+
 const MAPPING = {
   // See MaterialIcons here: https://icons.expo.fyi
   // See SF Symbols in the SF Symbols app on Mac.
@@ -24,12 +30,7 @@ const MAPPING = {
   message: "chat",
   "fork.knife": "restaurant",
   "checkmark.circle": "check-circle"
-} as Partial<
-  Record<
-    import("expo-symbols").SymbolViewProps["name"],
-    React.ComponentProps<typeof MaterialIcons>["name"]
-  >
->
+} as const satisfies Partial<Record<SymbolName, MaterialIconName>>
 
 export type IconSymbolName = keyof typeof MAPPING
 

@@ -21,18 +21,18 @@ the control board.
 
 | Path | Purpose |
 | --- | --- |
-| `apps/mobile` | Expo SDK 52 iOS/Android conference app |
+| `apps/mobile` | Expo SDK 55 iOS/Android conference app |
 | `apps/admin-web` | Next.js 15 conference control board |
 | `apps/functions` | Supabase config, PostgreSQL migrations, seed, and Edge Functions |
 | `scripts` | Reproducible setup, verification, development, and E2E entry points |
 
 ## Toolchain
 
-- Node.js 20.17+ or 22.9+ (below Node 23)
+- Node.js 22.13+ (22.19.0 is pinned in `.nvmrc`)
 - pnpm 10.12.3 through Corepack
 - Docker Desktop or another Docker-compatible engine
 - Workspace-pinned Supabase CLI 2.75.0
-- Expo SDK 52, React Native, and Expo Router
+- Expo SDK 55, React Native, and Expo Router
 - Next.js 15 and Playwright
 - Xcode, an iOS Simulator runtime, CocoaPods, Maestro 2.7+, and Java 17 for
   native iOS E2E
@@ -55,6 +55,12 @@ This recreates PostgreSQL, applies all migrations, loads deterministic
 conference and account fixtures, generates ignored local environments, and
 verifies the database.
 
+The seed includes a complete **Local Test Conference** with an active
+conference, program events, venue amenities, attendee services, safety
+information, and local admin accounts. The mobile app displays this conference
+and its program immediately when started against the generated local
+environment.
+
 Start the admin board:
 
 ```bash
@@ -63,15 +69,33 @@ pnpm dev:admin:local
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Start the conference app:
+The native iOS project is generated and Git-ignored. On a fresh checkout,
+boot exactly one iOS Simulator and create and install the development client
+once:
+
+```bash
+open -a Simulator
+cd apps/mobile
+YAAP_LOCAL_IOS=1 pnpm exec expo prebuild --platform ios --clean
+YAAP_LOCAL_IOS=1 pnpm exec expo run:ios
+```
+
+`YAAP_LOCAL_IOS=1` omits the Apple Sign-In entitlement for unsigned local
+Simulator builds; production builds keep Apple Sign-In enabled. Expo generates
+the Xcode project, workspace, Pods, and `YAAP` scheme; do not create them
+manually. The final command builds, installs, and opens
+`com.themindfulpug.icypaa` in the booted Simulator.
+
+After that first install, return to the repository root and start normal
+mobile development with:
 
 ```bash
 pnpm dev:mobile:local
 ```
 
-Press `i` in Expo to open the iOS Simulator. The web target remains available
-for development, but native conference acceptance and E2E testing are done in
-the iOS Simulator.
+Press `i` only after the development client has been installed. The web target
+remains available for development, but native conference acceptance and E2E
+testing are done in the iOS Simulator.
 
 For normal later starts, use `pnpm setup:local` instead of the destructive
 reset. See the [local startup guide](docs/LOCAL_STARTUP.md) for the complete

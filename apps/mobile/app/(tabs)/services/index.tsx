@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons"
 import { Link, useRouter } from "expo-router"
+import * as WebBrowser from "expo-web-browser"
 import React, { useEffect, useState } from "react"
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,18 +12,24 @@ import {
 } from "react-native"
 import { useFeatures } from "../../../context/FeatureContext"
 import { useTheme } from "../../../context/ThemeContext"
-import { getStoredProgram } from "../../../lib/theme"
-import { Program } from "../../../types/program"
 import { supabase } from "../../../lib/supabase"
+import { getStoredProgram } from "../../../lib/theme"
+import { getExternalVolunteerSignupUrl } from "../../../lib/volunteerSignup"
+import { Program } from "../../../types/program"
 
 // Service section type
-type ServiceSection = {
+type ServiceSectionBase = {
   id: string
   title: string
   description: string
   icon: string
-  route: `/(tabs)/services/${string}`
 }
+
+type ServiceSection = ServiceSectionBase &
+  (
+    | { route: `/(tabs)/services/${string}`; externalUrl?: never }
+    | { route?: never; externalUrl: string }
+  )
 
 export default function Services() {
   const { theme } = useTheme()
@@ -30,6 +38,9 @@ export default function Services() {
   const router = useRouter()
   const [program, setProgram] = useState<Program | null>(null)
   const [isHostAuthenticated, setIsHostAuthenticated] = useState(false)
+  const externalVolunteerSignupUrl = getExternalVolunteerSignupUrl(
+    program?.content?.services?.volunteering
+  )
 
   useEffect(() => {
     const loadProgram = async () => {
@@ -90,17 +101,23 @@ export default function Services() {
   ]
 
   const getVolunteerServiceItems = () => [
-    ...(isFeatureEnabled("volunteering_enabled") ? [{
-      id: "volunteer",
-      title:
-        program?.content?.services?.volunteering?.title ||
-        "Volunteer at Conference",
-      description:
-        program?.content?.services?.volunteering?.description ||
-        "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities.",
-      icon: "people-outline" as const,
-      route: "/(tabs)/services/volunteer"
-    }] : []),
+    ...(isFeatureEnabled("volunteering_enabled")
+      ? [
+          {
+            id: "volunteer",
+            title:
+              program?.content?.services?.volunteering?.title ||
+              "Volunteer at Conference",
+            description:
+              program?.content?.services?.volunteering?.description ||
+              "Help make ICYPAA happen! Sign up for greeting, setup, cleanup, or other service opportunities.",
+            icon: "people-outline" as const,
+            ...(externalVolunteerSignupUrl
+              ? { externalUrl: externalVolunteerSignupUrl }
+              : { route: "/(tabs)/services/volunteer" as const })
+          }
+        ]
+      : []),
     ...(isFeatureEnabled("hospitality_enabled") ? [{
       id: "hospitality",
       title:
@@ -141,6 +158,61 @@ export default function Services() {
     }
   }
 
+  const openExternalSignup = async (url: string) => {
+    try {
+      await WebBrowser.openBrowserAsync(url)
+    } catch (error) {
+      console.error("Error opening volunteer signup:", error)
+      Alert.alert(
+        "Unable to open volunteer signup",
+        "Please try again or contact the conference team."
+      )
+    }
+  }
+
+  const renderServiceCard = (item: ServiceSection) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.card}
+      testID={`service-card-${item.id}`}
+      accessibilityLabel={item.title}
+      accessibilityHint={
+        item.externalUrl
+          ? "Opens SignUpGenius in a secure browser"
+          : undefined
+      }
+      onPress={
+        item.externalUrl
+          ? () => {
+              void openExternalSignup(item.externalUrl)
+            }
+          : undefined
+      }
+    >
+      <View style={styles.cardHeader}>
+        <Ionicons
+          name={item.icon as any}
+          size={24}
+          color={theme.colors.primary}
+        />
+        <Text style={styles.cardTitle}>{item.title}</Text>
+      </View>
+      <Text style={styles.cardDescription}>{item.description}</Text>
+      {item.externalUrl ? (
+        <View style={styles.externalDestination}>
+          <Text style={styles.externalDestinationText}>
+            Continue to SignUpGenius
+          </Text>
+          <Ionicons
+            name="open-outline"
+            size={16}
+            color={theme.colors.primary}
+          />
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  )
+
   // Service section component
   const ServiceSection = ({
     title,
@@ -151,25 +223,15 @@ export default function Services() {
   }) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {items.map((item) => (
-        <Link key={item.id} href={item.route} asChild>
-          <TouchableOpacity
-            style={styles.card}
-            testID={`service-card-${item.id}`}
-            accessibilityLabel={item.title}
-          >
-            <View style={styles.cardHeader}>
-              <Ionicons
-                name={item.icon as any}
-                size={24}
-                color={theme.colors.primary}
-              />
-              <Text style={styles.cardTitle}>{item.title}</Text>
-            </View>
-            <Text style={styles.cardDescription}>{item.description}</Text>
-          </TouchableOpacity>
-        </Link>
-      ))}
+      {items.map((item) =>
+        item.route ? (
+          <Link key={item.id} href={item.route} asChild>
+            {renderServiceCard(item)}
+          </Link>
+        ) : (
+          renderServiceCard(item)
+        )
+      )}
     </View>
   )
 
@@ -266,6 +328,17 @@ const createStyles = (theme: any) =>
     cardDescription: {
       ...theme.typography.body,
       color: theme.colors.text.secondary
+    },
+    externalDestination: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.md
+    },
+    externalDestinationText: {
+      ...theme.typography.body,
+      color: theme.colors.primary,
+      fontWeight: "600"
     },
     faqItem: {
       backgroundColor: theme.colors.surface,

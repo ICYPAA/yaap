@@ -62,7 +62,7 @@ export default function HostLogin() {
     
     // Track if we've already attempted authentication for this session
     let hasAttemptedAuth = false
-    let authTimeoutId: NodeJS.Timeout | null = null
+    let authTimeoutId: ReturnType<typeof setTimeout> | null = null
     
     // Also listen for deep links on Android
     const linkingListener = Linking.addEventListener('url', async ({ url }) => {

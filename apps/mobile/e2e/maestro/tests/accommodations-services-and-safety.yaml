@@ -10,9 +10,18 @@ tags:
 - setPermissions:
     permissions:
       notifications: deny
-- launchApp:
-    arguments:
-      "--initialUrl": "http://127.0.0.1:8081/?disableOnboarding=1"
+- launchApp
+- openLink: "exp+icypaa://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Close"
+    commands:
+      - tapOn: "Close"
 - extendedWaitUntil:
     visible: "Welcome to YAAP!"
     timeout: 20000
@@ -31,6 +40,23 @@ tags:
 - extendedWaitUntil:
     visible: "Venue Amenities"
     timeout: 15000
+- assertVisible:
+    id: "venue-map-0"
+- tapOn:
+    id: "venue-map-0"
+- extendedWaitUntil:
+    visible:
+      id: "venue-map-viewer"
+    timeout: 15000
+- takeScreenshot: "venue-map-open"
+- doubleTapOn:
+    id: "venue-map-viewer"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "venue-map-viewer-close"
+- takeScreenshot: "venue-map-zoomed"
+- tapOn:
+    id: "venue-map-viewer-close"
 - assertVisible: "Registration and Information"
 - scrollUntilVisible:
     element:
@@ -53,6 +79,18 @@ tags:
 - assertVisible:
     id: "service-card-volunteer"
 - tapOn:
+    id: "service-card-volunteer"
+- extendedWaitUntil:
+    visible: "Your name"
+    timeout: 10000
+- tapOn:
+    id: "volunteer-back"
+- scrollUntilVisible:
+    element:
+      id: "service-card-accessibility"
+    direction: UP
+    timeout: 10000
+- tapOn:
     id: "service-card-accessibility"
 - extendedWaitUntil:
     visible:
@@ -67,31 +105,35 @@ tags:
 - tapOn:
     id: "accessibility-email"
 - inputText: "maestro@yaap.local"
+- swipe:
+    start: "50%, 55%"
+    end: "50%, 30%"
+    duration: 400
 - tapOn:
     id: "accessibility-need-type"
 - inputText: "Mobility"
-- hideKeyboard
-- scrollUntilVisible:
-    element:
-      id: "accessibility-arrival"
-    direction: DOWN
-    timeout: 10000
+- swipe:
+    start: "50%, 55%"
+    end: "50%, 30%"
+    duration: 400
 - tapOn:
     id: "accessibility-arrival"
 - inputText: "Tomorrow"
+- swipe:
+    start: "50%, 55%"
+    end: "50%, 35%"
+    duration: 400
 - tapOn:
     id: "accessibility-duration"
 - inputText: "Full conference"
-- hideKeyboard
-- scrollUntilVisible:
-    element:
-      id: "accessibility-submit"
-    direction: DOWN
-    timeout: 10000
+- swipe:
+    start: "50%, 55%"
+    end: "50%, 35%"
+    duration: 400
 - tapOn:
     id: "accessibility-submit"
 - extendedWaitUntil:
-    visible: "Your accessibility request has been submitted."
+    visible: "Thank you for your request!"
     timeout: 15000
 - back
 - tapOn:
@@ -100,4 +142,9 @@ tags:
     visible: "Everyone deserves a safe and welcoming conference."
     timeout: 15000
 - assertVisible: "Harassment is not tolerated."
-- assertVisible: "safety@yaap.local"
+- scrollUntilVisible:
+    element:
+      text: ".*safety@yaap.local.*"
+    direction: DOWN
+    timeout: 10000
+- assertVisible: ".*safety@yaap.local.*"

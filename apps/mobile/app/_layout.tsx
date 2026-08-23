@@ -39,6 +39,8 @@ SplashScreen.preventAutoHideAsync()
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true
   })
@@ -175,13 +177,16 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf")
   })
-  const notificationListener = useRef<Notifications.EventSubscription>()
-  const responseListener = useRef<Notifications.EventSubscription>()
+  const notificationListener =
+    useRef<Notifications.EventSubscription | null>(null)
+  const responseListener =
+    useRef<Notifications.EventSubscription | null>(null)
   const [programLoaded, setProgramLoaded] = useState(false)
   const [conferenceState, setConferenceState] =
     useState<CurrentConferenceState | null>(null)
   const appState = useRef(AppState.currentState)
-  const schedulePollingInterval = useRef<NodeJS.Timeout | null>(null)
+  const schedulePollingInterval =
+    useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (error) throw error
@@ -310,12 +315,10 @@ export default function RootLayout() {
         })
 
       return () => {
-        notificationListener.current &&
-          Notifications.removeNotificationSubscription(
-            notificationListener.current
-          )
-        responseListener.current &&
-          Notifications.removeNotificationSubscription(responseListener.current)
+        notificationListener.current?.remove()
+        responseListener.current?.remove()
+        notificationListener.current = null
+        responseListener.current = null
       }
     }
   }, [getIdentifier, loaded, programLoaded])

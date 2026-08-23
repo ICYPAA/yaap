@@ -10,9 +10,18 @@ tags:
 - setPermissions:
     permissions:
       notifications: deny
-- launchApp:
-    arguments:
-      "--initialUrl": "http://127.0.0.1:8081/?disableOnboarding=1"
+- launchApp
+- openLink: "exp+icypaa://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Close"
+    commands:
+      - tapOn: "Close"
 - extendedWaitUntil:
     visible: "Welcome to YAAP!"
     timeout: 20000
@@ -54,3 +63,15 @@ tags:
     id: "program-view-my-schedule"
 - assertVisible: ".*Opening Celebration.*"
 - assertVisible: ".*Main Ballroom.*"
+- scrollUntilVisible:
+    element:
+      id: "schedule-share-qr"
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: "schedule-share-qr"
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 45%"
+    duration: 500
+- takeScreenshot: "schedule-sharing-qr"

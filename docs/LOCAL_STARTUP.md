@@ -7,7 +7,7 @@ to a fully migrated and seeded local Supabase/PostgreSQL database.
 
 Install:
 
-- Node.js 20.17+ or 22.9+ (below Node 23)
+- Node.js 22.13+ (22.19.0 is pinned in `.nvmrc`)
 - Corepack, included with supported Node releases
 - Docker Desktop, OrbStack, Colima, or another Docker-compatible engine
 - Xcode plus an iOS Simulator runtime for the native conference app
@@ -89,12 +89,36 @@ service-role secret.
 
 ## 5. Start the native conference app
 
+The repository intentionally ignores `apps/mobile/ios`. A fresh checkout does
+not contain an installed development client, and `pnpm dev:mobile:local`
+starts Metro but does not create or install one.
+
+For the first native start, boot exactly one Simulator and run:
+
+```bash
+open -a Simulator
+cd apps/mobile
+YAAP_LOCAL_IOS=1 pnpm exec expo prebuild --platform ios --clean
+YAAP_LOCAL_IOS=1 pnpm exec expo run:ios
+```
+
+The clean prebuild generates `YAAP.xcodeproj`, `YAAP.xcworkspace`, CocoaPods,
+and the shared `YAAP` scheme. `YAAP_LOCAL_IOS=1` also applies the repository's
+Xcode 26 compatibility fixes and removes the production-only Apple Sign-In
+entitlement from the unsigned local Simulator build. Do not manually create a
+scheme. If Xcode must be used for troubleshooting, open
+`apps/mobile/ios/YAAP.xcworkspace`, never `YAAP.xcodeproj`.
+
+After that command installs `com.themindfulpug.icypaa`, use the normal command
+from the repository root on later starts:
+
 ```bash
 pnpm dev:mobile:local
 ```
 
-Press `i` in the Expo terminal to open the iOS Simulator. The generated
-`http://127.0.0.1:54321` Supabase URL is reachable from the simulator.
+Press `i` only after the development client is installed. Otherwise Expo
+correctly reports `No development build ... is installed`. The generated
+`http://127.0.0.1:54321` Supabase URL is reachable from the Simulator.
 
 The Expo web target can be started with `pnpm dev:mobile:web:local` for
 development convenience, but the conference app's acceptance suite uses the
@@ -176,6 +200,20 @@ sudo xcodebuild -runFirstLaunch
 
 Install one from **Xcode → Settings → Components**. `simctl` alone cannot boot
 a device without a runtime.
+
+### Expo reports that no development build is installed
+
+`pnpm dev:mobile:local` starts Metro; it does not build or install the native
+application. Follow the first-native-start commands in section 5. Confirm the
+installation with:
+
+```bash
+xcrun simctl get_app_container booted com.themindfulpug.icypaa app
+```
+
+The command prints the installed application path. If it cannot find the
+bundle, keep exactly one Simulator booted and rerun the
+`YAAP_LOCAL_IOS=1 ... expo run:ios` command.
 
 ### Docker is installed but unavailable
 
