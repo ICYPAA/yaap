@@ -142,6 +142,12 @@ tags:
     visible: "Everyone deserves a safe and welcoming conference."
     timeout: 15000
 - assertVisible: "Harassment is not tolerated."
+- tapOn:
+    id: "safety-policy-toggle"
+- assertNotVisible: "Harassment is not tolerated."
+- tapOn:
+    id: "safety-policy-toggle"
+- assertVisible: "Harassment is not tolerated."
 - scrollUntilVisible:
     element:
       text: ".*safety@yaap.local.*"

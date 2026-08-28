@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState
 } from "react"
+import { AppState } from "react-native"
 import {
   CurrentConferenceState,
   fetchAndStoreCurrentConferenceState
@@ -56,6 +57,16 @@ export const CurrentConferenceProvider = ({
       refresh()
     }
   }, [initialState, refresh])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        refresh()
+      }
+    })
+
+    return () => subscription.remove()
+  }, [refresh])
 
   return (
     <CurrentConferenceContext.Provider
