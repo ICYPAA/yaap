@@ -1359,7 +1359,7 @@ export default function ProgramManagementContent() {
     eventForm.reset({
       title: event.title,
       description: event.description,
-      image: event.image,
+      image: event.image || "",
       date: event.date,
       start_time: event.start_time,
       end_time: event.end_time,
