@@ -24,6 +24,7 @@ import { EventDetailsModal } from "../../components/EventDetailsModal"
 import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
+import { resolveProgramDetails } from "../../lib/programFallbacks"
 import { getOrCreateDeviceId } from "../../lib/security/deviceId"
 import { withDeviceId } from "../../lib/supabase"
 import {
@@ -78,13 +79,13 @@ type SharedEventsData = {
   [userId: string]: SharedEventsUser
 }
 
-type HospitalityInfo = ProgramType["hospitality"] // Use type from ProgramType
+type HospitalityInfo = NonNullable<ProgramType["hospitality"]>
 
 // Structure to hold mapped data
 type MappedProgramData = {
   programDetails: ProgramType | null
   events: DisplayScheduleItem[] // Single list of generic items
-  hospitality: HospitalityInfo
+  hospitality: HospitalityInfo | null
   activities: Activity[]
 }
 
@@ -2870,6 +2871,7 @@ export default function Program() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [fetchAttempt, setFetchAttempt] = useState(0)
 
   // State for My Schedule collapsible past events
   const [isPastEventsCollapsed, setIsPastEventsCollapsed] = useState(true)
@@ -3172,14 +3174,25 @@ export default function Program() {
               .eq("program_id", programId)
           ])
 
-        // Error handling
-        if (programRes.error) throw programRes.error
+        const resolvedProgram = resolveProgramDetails(
+          programRes.data as ProgramType | null,
+          currentConference.program,
+          programId
+        )
+
+        // The current-conference query already includes the selected program.
+        // Use that payload when a direct program lookup is temporarily empty,
+        // which can happen immediately after the public conference is switched.
+        if (programRes.error && !resolvedProgram) throw programRes.error
         if (eventsRes.error) throw eventsRes.error
         if (categoriesRes.error) throw categoriesRes.error
         if (activitiesRes.error) throw activitiesRes.error
+        if (!resolvedProgram) {
+          throw new Error("The current conference program is unavailable.")
+        }
 
         // Set state
-        setProgramDetails(programRes.data)
+        setProgramDetails(resolvedProgram)
         // Type assertion needed because Supabase join returns nested object or array
         setEvents((eventsRes.data as Event[]) || [])
         setCategories(categoriesRes.data || [])
@@ -3192,7 +3205,7 @@ export default function Program() {
       }
     }
     fetchData()
-  }, [programId])
+  }, [currentConference.program, fetchAttempt, programId])
 
   // --- Helper Function ---
   // Simple time formatter (e.g., "HH:MM:SS" -> "H:MM AM/PM")
@@ -3241,7 +3254,7 @@ export default function Program() {
     const mapped: MappedProgramData = {
       programDetails: programDetails,
       events: [],
-      hospitality: programDetails.hospitality,
+      hospitality: programDetails.hospitality ?? null,
       activities: activities
     }
 
@@ -3998,6 +4011,21 @@ export default function Program() {
         <Text style={{ color: theme.colors.error }}>
           Error loading data: {error.message}
         </Text>
+        <TouchableOpacity
+          style={{
+            marginTop: theme.spacing.md,
+            paddingHorizontal: theme.spacing.lg,
+            paddingVertical: theme.spacing.md,
+            borderRadius: theme.borderRadius.md,
+            backgroundColor: theme.colors.primary
+          }}
+          onPress={() => setFetchAttempt((attempt) => attempt + 1)}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading program"
+          testID="program-retry"
+        >
+          <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Retry</Text>
+        </TouchableOpacity>
       </View>
     )
   }
@@ -4012,8 +4040,23 @@ export default function Program() {
         ]}
       >
         <Text style={{ color: theme.colors.text.secondary }}>
-          Preparing data...
+          Program data is unavailable.
         </Text>
+        <TouchableOpacity
+          style={{
+            marginTop: theme.spacing.md,
+            paddingHorizontal: theme.spacing.lg,
+            paddingVertical: theme.spacing.md,
+            borderRadius: theme.borderRadius.md,
+            backgroundColor: theme.colors.primary
+          }}
+          onPress={() => setFetchAttempt((attempt) => attempt + 1)}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading program"
+          testID="program-retry"
+        >
+          <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Retry</Text>
+        </TouchableOpacity>
       </View>
     )
   }
@@ -4806,8 +4849,12 @@ const HospitalitySection = ({
   })
 
   // Filter hospitality times for the current day
-  const dayTimes = hospitalityInfo.times.filter(
-    (timeSlot) => timeSlot.day.toLowerCase() === dayName.toLowerCase()
+  const hospitalityTimes = Array.isArray(hospitalityInfo.times)
+    ? hospitalityInfo.times
+    : []
+  const dayTimes = hospitalityTimes.filter(
+    (timeSlot) =>
+      timeSlot?.day?.toLowerCase() === dayName.toLowerCase()
   )
 
   // Use time directly from DB (already in CST, no conversion needed)
@@ -4835,9 +4882,11 @@ const HospitalitySection = ({
           Hospitality Suite
         </Text>
       </View>
-      <Text style={hospitalityStyles.hospitalityLocation}>
-        {hospitalityInfo.location}
-      </Text>
+      {hospitalityInfo.location ? (
+        <Text style={hospitalityStyles.hospitalityLocation}>
+          {hospitalityInfo.location}
+        </Text>
+      ) : null}
       {dayTimes.length > 0 ? (
         dayTimes.map((time, index) => (
           <Text key={index} style={hospitalityStyles.hospitalityTime}>

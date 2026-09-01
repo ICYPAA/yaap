@@ -25,14 +25,14 @@ export type Program = {
   // Venue rooms where events are held
   venue_rooms: string[]
   // Hospitality details
-  hospitality: {
-    location: string
-    times: {
+  hospitality?: {
+    location?: string
+    times?: {
       day: string
       start_time: string
       end_time: string
     }[]
-  }
+  } | null
   // The conference theme
   theme: string
   // Passage from the Big Book
@@ -43,6 +43,24 @@ export type Program = {
   promote?: number[]
   // Content to override in the app
   content?: ProgramContent
+  // Conference-specific safety policy content
+  ndah_content?: NDAHContent | null
+}
+
+export type NDAHContent = {
+  safety_statement?: string
+  anti_harassment_short?: string
+  anti_discrimination_short?: string
+  ndah_link?: string
+  report_crime?: {
+    info?: string
+    emergency_number?: string
+    non_emergency_number?: string
+  }
+  committee_contact?: {
+    info?: string
+    contact?: string
+  }
 }
 
 export type Event = {

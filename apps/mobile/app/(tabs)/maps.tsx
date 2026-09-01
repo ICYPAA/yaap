@@ -790,19 +790,26 @@ export default function Maps() {
                 color={theme.colors.primary}
               />
               <Text style={styles(theme).hospitalityLocation}>
-                {hospitalityData.location}
+                {hospitalityData.location || "Location not available"}
               </Text>
             </View>
             <Text style={styles(theme).hospitalityTimesTitle}>Hours:</Text>
-            {hospitalityData.times.map((time, index) => (
-              <View key={index} style={styles(theme).hospitalityTimeRow}>
-                <Text style={styles(theme).hospitalityDay}>{time.day}:</Text>
-                <Text style={styles(theme).hospitalityTime}>
-                  {formatTimeValue(time.start_time)} -{" "}
-                  {formatTimeValue(time.end_time)}
-                </Text>
-              </View>
-            ))}
+            {Array.isArray(hospitalityData.times) &&
+            hospitalityData.times.length > 0 ? (
+              hospitalityData.times.map((time, index) => (
+                <View key={index} style={styles(theme).hospitalityTimeRow}>
+                  <Text style={styles(theme).hospitalityDay}>{time.day}:</Text>
+                  <Text style={styles(theme).hospitalityTime}>
+                    {formatTimeValue(time.start_time)} -{" "}
+                    {formatTimeValue(time.end_time)}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles(theme).noDataText}>
+                Schedule not available.
+              </Text>
+            )}
 
             {programId ? <HospitalitySlots programId={programId} /> : null}
           </View>

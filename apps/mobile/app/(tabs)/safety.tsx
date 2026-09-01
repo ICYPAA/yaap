@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,23 +12,12 @@ import {
 } from "react-native"
 import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useTheme } from "../../context/ThemeContext"
+import {
+  DEFAULT_NDAH_CONTENT,
+  resolveNDAHContent
+} from "../../lib/safetyContent"
 import { withDeviceId } from "../../lib/supabase"
-
-interface NDAHContent {
-  safety_statement?: string // Note: keeping the typo to match database
-  anti_harassment_short?: string
-  anti_discrimination_short?: string
-  ndah_link?: string
-  report_crime?: {
-    info?: string
-    emergency_number?: string
-    non_emergency_number?: string
-  }
-  committee_contact?: {
-    info?: string
-    contact?: string
-  }
-}
+import { NDAHContent } from "../../types/program"
 
 export default function Safety() {
   const { theme } = useTheme()
@@ -37,14 +27,18 @@ export default function Safety() {
     currentConference.status === "active"
       ? currentConference.currentProgramId
       : null
-  const [ndahContent, setNdahContent] = useState<NDAHContent | null>(null)
+  const currentProgramNDAHContent = currentConference.program?.ndah_content
+  const [ndahContent, setNdahContent] = useState<NDAHContent>(() =>
+    resolveNDAHContent(currentProgramNDAHContent)
+  )
   const [loading, setLoading] = useState(true)
   const [policyExpanded, setPolicyExpanded] = useState(true)
 
   const fetchNDAHContent = useCallback(async () => {
+    setLoading(true)
     try {
       if (!programId) {
-        setNdahContent(null)
+        setNdahContent(resolveNDAHContent(currentProgramNDAHContent))
         return
       }
 
@@ -53,26 +47,31 @@ export default function Safety() {
         .from("programs")
         .select("ndah_content")
         .eq("id", programId)
-        .single()
+        .maybeSingle()
 
       if (error) {
         console.error("Error fetching NDAH content:", error)
-      } else if (data?.ndah_content) {
-        setNdahContent(data.ndah_content)
       }
+
+      setNdahContent(
+        resolveNDAHContent(
+          data?.ndah_content || currentProgramNDAHContent
+        )
+      )
     } catch (error) {
       console.error("Error in fetchNDAHContent:", error)
+      setNdahContent(resolveNDAHContent(currentProgramNDAHContent))
     } finally {
       setLoading(false)
     }
-  }, [programId])
+  }, [currentProgramNDAHContent, programId])
 
   useEffect(() => {
     fetchNDAHContent()
   }, [fetchNDAHContent])
 
   const openPolicyLink = () => {
-    const link = ndahContent?.ndah_link || "https://icypaa.org/ndahp.pdf"
+    const link = ndahContent.ndah_link || DEFAULT_NDAH_CONTENT.ndah_link
     Linking.openURL(link)
   }
 
@@ -106,10 +105,14 @@ export default function Safety() {
       </View>
 
       {/* Collapsible Policy Section */}
-      <TouchableOpacity
+      <Pressable
         style={styles.collapsibleHeader}
-        onPress={() => setPolicyExpanded(!policyExpanded)}
-        activeOpacity={0.7}
+        onPress={() => setPolicyExpanded((expanded) => !expanded)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: policyExpanded }}
+        accessibilityLabel="Non-Discrimination and Anti-Harassment Policies"
+        testID="safety-policy-toggle"
       >
         <Text style={styles.collapsibleTitle}>
           Non-Discrimination and Anti-Harassment Policies
@@ -119,7 +122,7 @@ export default function Safety() {
           size={24}
           color={theme.colors.text.primary}
         />
-      </TouchableOpacity>
+      </Pressable>
 
       {policyExpanded && (
         <View>
@@ -292,7 +295,9 @@ const createStyles = (theme: any) =>
     collapsibleTitle: {
       ...theme.typography.h2,
       fontWeight: "600",
-      color: theme.colors.text.primary
+      color: theme.colors.text.primary,
+      flex: 1,
+      marginRight: theme.spacing.md
     },
     section: {
       paddingHorizontal: theme.spacing.lg,
