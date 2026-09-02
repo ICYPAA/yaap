@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { hasEnvVars } from "@/utils/supabase/check-env-vars"
 import { createClient } from "@/utils/supabase/server"
 import { GeistSans } from "geist/font/sans"
+import { CircleHelp } from "lucide-react"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getMessages } from "next-intl/server"
 import { ThemeProvider } from "next-themes"
@@ -60,6 +61,11 @@ export default async function RootLayout({
                           </Button>
                         )}
                       </div>
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link href="/help" aria-label="Open dashboard help">
+                          <CircleHelp className="h-5 w-5" aria-hidden="true" />
+                        </Link>
+                      </Button>
                       <ThemeSwitcher />
                       {hasEnvVars ? <HeaderAuth /> : null}
                     </div>
