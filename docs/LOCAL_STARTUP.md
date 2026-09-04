@@ -7,7 +7,7 @@ to a fully migrated and seeded local Supabase/PostgreSQL database.
 
 Install:
 
-- Node.js 22.13+ (22.19.0 is pinned in `.nvmrc`)
+- Node.js 24 (`.nvmrc` is pinned to the current Node 24 release line)
 - Corepack, included with supported Node releases
 - Docker Desktop, OrbStack, Colima, or another Docker-compatible engine
 - Xcode plus an iOS Simulator runtime for the native conference app
@@ -144,7 +144,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<local publishable key>
 NEXT_PUBLIC_BASE_URL=http://127.0.0.1:3000
 NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000
 NEXT_PUBLIC_URL=http://127.0.0.1:3000
-NEXT_PUBLIC_ENABLE_LOCAL_AUTH=true
 ```
 
 These values are local endpoints and public client configuration, not

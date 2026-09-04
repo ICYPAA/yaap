@@ -2,7 +2,7 @@
   "expo": {
     "name": "YAAP!",
     "slug": "icypaa",
-    "version": "1.1.5",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "yaap",
@@ -25,15 +25,16 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundImage": "./assets/images/adaptive-icon-background.png",
+        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
+        "backgroundColor": "#fa6a1b"
       },
       "package": "com.themindfulpug.yaap",
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE"
       ],
-      "googleServicesFile": "./google-services.json",
-      "versionCode": 1
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",

@@ -1,0 +1,13 @@
+.env*
+.git
+.next
+.turbo
+artifacts
+node_modules
+**/.next
+**/.turbo
+**/node_modules
+**/playwright-report
+**/test-results
+apps/mobile/android
+apps/mobile/ios

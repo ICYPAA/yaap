@@ -50,7 +50,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         ],
         checklist: [
           "The intended program is selected as the current conference.",
-          "Every event has the correct date, Central Time, room, and category.",
+          "Every event has the correct date, conference-local time, room, and category.",
           "Map and menu links open without requiring a private account.",
           "Promoted events are intentional and not an accidental carryover.",
           "Each enabled request or chat service has an assigned response team.",
@@ -94,6 +94,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       "title",
       "theme",
       "dates",
+      "time zone",
       "address",
       "rooms",
       "logo",
@@ -104,11 +105,12 @@ export const HELP_SECTIONS: HelpSection[] = [
         title: "Editing the program",
         body: [
           "From Overview, choose Edit Program. Title is the conference name. Theme is the short conference theme or slogan. Description is the attendee-facing overview. Big Book Passage is optional supporting copy.",
-          "The start and end values define the conference range. The venue name and complete address are used anywhere the app describes the conference location.",
+          "The start and end values define the conference range. The venue name and complete address are used anywhere the app describes the conference location. The dashboard suggests a time zone from the venue state; confirm the selection because some states span multiple zones.",
         ],
         steps: [
           "Enter the official title, theme, and concise description.",
-          "Set the start and end date/time in Central Time.",
+          "Enter the venue state and confirm the Conference Time Zone. Grand Rapids, Michigan uses Eastern Time (America/Detroit).",
+          "Set the start and end values in that conference time zone.",
           "Enter the venue name and complete postal address.",
           "Add every room name exactly as it should appear in the schedule.",
           "Save, then verify the Overview card.",
@@ -164,7 +166,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         steps: [
           "Choose Add Event from the Events tab.",
           "Enter attendee-ready title and description copy.",
-          "Set the date and times in Central Time and select the exact room.",
+          "Set the date and times in the program’s Conference Time Zone and select the exact room.",
           "Choose a category and decide whether attendees may save the event.",
           "Add speakers and chairpeople, if known.",
           "Mark ASL, Spanish, French, Hmong, Somali, or Hybrid only when confirmed.",
@@ -296,6 +298,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         title: "Description vs. internal description",
         body: [
           "The Description is the short text on a service card. Internal Description is the longer introduction shown after an attendee opens supported request forms. Despite its name, it is attendee-facing—not a place for staff-only notes.",
+          "All service-copy fields are optional. Leave them blank to use the app’s built-in wording, and do not fill them in merely because a service is disabled.",
         ],
       },
     ],

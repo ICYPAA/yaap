@@ -22,6 +22,8 @@
       "channel": "preview"
     },
     "production": {
+      "node": "24.19.0",
+      "environment": "production",
       "autoIncrement": true,
       "channel": "production"
     }

@@ -12,23 +12,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useCurrentConference } from "../context/CurrentConferenceContext"
 import { useTheme } from "../context/ThemeContext"
+import {
+  formatConferenceProgramDate,
+  resolveConferenceTimeZone
+} from "../lib/conferenceTime"
 import { Program } from "../types/program"
-
-const formatDate = (value?: string | null) => {
-  if (!value) return null
-  const date = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toLocaleDateString(undefined, {
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  })
-}
 
 const formatDateRange = (program: Program | null) => {
   if (!program) return null
-  const start = formatDate(program.start_date)
-  const end = formatDate(program.end_date)
+  const timeZone = resolveConferenceTimeZone(program)
+  const start = formatConferenceProgramDate(program.start_date, timeZone)
+  const end = formatConferenceProgramDate(program.end_date, timeZone)
   if (start && end) return start === end ? start : `${start} - ${end}`
   return start || end
 }

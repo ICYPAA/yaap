@@ -390,9 +390,6 @@ export default function Profile() {
         // Update the image in state
         setProfileImage(cacheBustUrl)
 
-        // Save the profile information immediately to ensure database is updated
-        await saveUserProfileInfo()
-
         // Force a UI refresh by updating the current user state
         setCurrentUser((prev) => {
           if (!prev) return null
@@ -401,6 +398,11 @@ export default function Profile() {
             profile_image: cacheBustUrl
           }
         })
+
+        // The edge function has already persisted the image URL. Avoid a
+        // second profile update here, which can fail if the device contains an
+        // expired account session even though the attendee upload succeeded.
+        Alert.alert("Profile Updated", "Your profile picture has been updated.")
       } else if (result.error) {
         console.error("Error in upload:", result.error)
         Alert.alert("Error", result.error)
@@ -415,7 +417,9 @@ export default function Profile() {
   }
 
   // Save profile information (Only Name/Image)
-  const saveUserProfileInfo = async () => {
+  const saveUserProfileInfo = async (
+    profileImageToSave: string | null = profileImage
+  ) => {
     if (!deviceId) {
       Alert.alert("Error", "Device ID not found. Cannot save profile.")
       return
@@ -429,14 +433,14 @@ export default function Profile() {
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData?.session?.user?.id
 
-      // No need to upload image here anymore as it's handled by the uploadProfilePicture function
-      // Just use the current profileImage value which is already the URL from Supabase
+      // The upload function stores the image itself; this update keeps the
+      // rest of the profile in sync with the exact URL that was uploaded.
 
       // Sanitize user input before saving
       const profileDataToSave = {
         first_name: sanitizeName(firstName),
         last_initial: sanitizeLastInitial(lastInitial),
-        profile_image: profileImage || "", // Ensure it's never null
+        profile_image: profileImageToSave || "", // Ensure it's never null
         expo_push_token: pushToken,
         user_id: userId // This will be string | undefined, not string | null
       }
@@ -459,7 +463,7 @@ export default function Profile() {
           ...currentUser,
           first_name: firstName,
           last_initial: lastInitial,
-          profile_image: profileImage || "",
+          profile_image: profileImageToSave || "",
           user_id: userId || undefined
         }
         setCurrentUser(updatedUser)
@@ -1224,7 +1228,12 @@ export default function Profile() {
 
         {/* Profile Picture */}
         <View style={styles.profileImageContainer}>
-          <TouchableOpacity onPress={pickImage} style={styles.imageWrapper}>
+          <TouchableOpacity
+            testID="profile-image-picker"
+            accessibilityLabel="Choose profile picture"
+            onPress={pickImage}
+            style={styles.imageWrapper}
+          >
             {profileImage ? (
               <Image
                 source={{ uri: profileImage }}
@@ -1280,7 +1289,7 @@ export default function Profile() {
 
           <TouchableOpacity
             style={styles.saveButton}
-            onPress={saveUserProfileInfo}
+            onPress={() => saveUserProfileInfo()}
           >
             <Text style={styles.saveButtonText}>Save Profile Info</Text>
           </TouchableOpacity>

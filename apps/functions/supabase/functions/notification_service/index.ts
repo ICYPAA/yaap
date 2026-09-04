@@ -89,6 +89,40 @@ async function authenticateRequest(req, supabaseClient) {
 }
 
 async function getCallerContext(supabaseClient, authUser) {
+  if (authUser.app_metadata?.provider === "discord") {
+    const { data: membership, error: membershipError } = await supabaseClient
+      .from("discord_memberships")
+      .select("is_member, verified_at")
+      .eq("user_id", authUser.id)
+      .maybeSingle()
+
+    if (membershipError) {
+      console.error("Error loading caller Discord membership:", membershipError)
+      return {
+        response: jsonResponse(
+          { message: "Unable to verify Discord membership" },
+          500
+        )
+      }
+    }
+
+    const verifiedAt = membership?.verified_at
+      ? new Date(membership.verified_at).getTime()
+      : Number.NaN
+    const membershipIsFresh =
+      Number.isFinite(verifiedAt) &&
+      Date.now() - verifiedAt < 7 * 24 * 60 * 60 * 1000
+
+    if (!membership?.is_member || !membershipIsFresh) {
+      return {
+        response: jsonResponse(
+          { message: "Forbidden: Discord membership is not verified" },
+          403
+        )
+      }
+    }
+  }
+
   const [rolesResult, profileResult] = await Promise.all([
     supabaseClient
       .from("roles")

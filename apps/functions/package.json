@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "echo 'Run one of: pnpm supabase:functions:serve or pnpm supabase:start'",
-    "check": "deno lint supabase/functions/notification_service/index.ts supabase/functions/profile_pictures/index.ts && deno check --frozen supabase/functions/notification_service/index.ts supabase/functions/profile_pictures/index.ts",
+    "check": "deno lint supabase/functions/notification_service/index.ts supabase/functions/profile_pictures/index.ts supabase/functions/verify_discord_membership/index.ts && deno check --frozen supabase/functions/notification_service/index.ts supabase/functions/profile_pictures/index.ts supabase/functions/verify_discord_membership/index.ts",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",

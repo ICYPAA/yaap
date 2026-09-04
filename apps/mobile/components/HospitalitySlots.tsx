@@ -8,6 +8,7 @@ import {
   View
 } from "react-native"
 import { useTheme } from "../context/ThemeContext"
+import { DEFAULT_CONFERENCE_TIME_ZONE } from "../lib/conferenceTime"
 import { withDeviceId } from "../lib/supabase"
 
 export interface HospitalitySlot {
@@ -22,54 +23,34 @@ export interface HospitalitySlot {
 
 interface HospitalitySlotsProps {
   programId: number
+  timeZone?: string
   onCurrentHostChange?: (host: HospitalitySlot | null) => void
 }
 
 // Helper function to get current hospitality host
-export const getCurrentHospitalityHost = (slots: HospitalitySlot[]): HospitalitySlot | null => {
-  // Get current time and convert to CST for comparison
-  // Since database times are stored in CST, we need to compare in CST
-  const now = new Date()
-  
-  // Get CST offset (UTC-6 for CST, UTC-5 for CDT)
-  // We'll get the current time in CST by getting UTC and adjusting
-  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000)
-  // CST is UTC-6 hours (during standard time) or UTC-5 (during daylight time)
-  // For simplicity, we'll check if we're in daylight saving time
-  const isDST = () => {
-    const jan = new Date(now.getFullYear(), 0, 1)
-    const jul = new Date(now.getFullYear(), 6, 1)
-    return now.getTimezoneOffset() < Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset())
-  }
-  const cstOffset = isDST() ? -5 : -6
-  const cstTime = new Date(utcTime + (cstOffset * 60 * 60 * 1000))
-  
-  console.log("Current CST time for hospitality check:", cstTime.toISOString())
-  
+export const getCurrentHospitalityHost = (
+  slots: HospitalitySlot[],
+  now = new Date()
+): HospitalitySlot | null => {
+  // Hospitality slots are stored as real instants, so they can be compared
+  // directly. The conference time zone is only needed when displaying them.
   // Find the slot that's currently active
   return slots.find((slot) => {
     if (!slot.date_time) return false
-    
-    // Parse the database time directly (it's already in CST)
-    // Remove any timezone indicators to treat as CST time
-    const cleanString = slot.date_time.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '')
-    
-    // Create date from the clean string, treating it as CST
-    const slotStart = new Date(cleanString)
-    const slotEnd = new Date(slotStart.getTime() + (slot.scheduled_hours || 2) * 60 * 60 * 1000)
-    
-    console.log(`Checking slot: ${slot.group_hosting}`)
-    console.log(`  Slot start: ${slotStart.toISOString()}`)
-    console.log(`  Slot end: ${slotEnd.toISOString()}`)
-    console.log(`  Current CST: ${cstTime.toISOString()}`)
-    console.log(`  Is active: ${cstTime >= slotStart && cstTime <= slotEnd}`)
-    
-    return cstTime >= slotStart && cstTime <= slotEnd
+
+    const slotStart = new Date(slot.date_time)
+    if (Number.isNaN(slotStart.getTime())) return false
+    const slotEnd = new Date(
+      slotStart.getTime() + (slot.scheduled_hours || 2) * 60 * 60 * 1000
+    )
+
+    return now >= slotStart && now <= slotEnd
   }) || null
 }
 
 export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
   programId,
+  timeZone = DEFAULT_CONFERENCE_TIME_ZONE,
   onCurrentHostChange
 }) => {
   const { theme } = useTheme()
@@ -131,43 +112,23 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
   const formatDateTime = (dateTimeString: string) => {
     try {
       if (!dateTimeString) return { date: "", time: "TBD", endTime: "TBD" }
-      
-      // Parse the timestamp string directly WITHOUT timezone conversion
-      // Treat whatever time is in the string as the display time
-      
-      // Extract date and time parts from the ISO string
-      // Format can be: "2024-01-15T14:30:00Z" or "2024-01-15T14:30:00+00:00" etc
-      const cleanString = dateTimeString.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '')
-      const [datePart, timePart] = cleanString.split('T')
-      
-      if (!datePart || !timePart) {
-        console.error("Invalid date format:", dateTimeString)
+
+      const date = new Date(dateTimeString)
+      if (Number.isNaN(date.getTime())) {
         return { date: "", time: "TBD", endTime: "TBD" }
       }
-      
-      // Parse date components for day of week calculation
-      const [year, month, day] = datePart.split('-').map(Number)
-      
-      // Create date object just for day of week (no timezone conversion)
-      const dateForDayOfWeek = new Date(year, month - 1, day)
-      
-      const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-      
-      const dayOfWeek = weekdays[dateForDayOfWeek.getDay()]
-      const monthName = months[month - 1]
-      const formattedDate = `${dayOfWeek}, ${monthName} ${day}`
-      
-      // Parse time directly from the string (no conversion)
-      const [hourStr, minuteStr] = timePart.split(':')
-      const hours = parseInt(hourStr)
-      const minutes = parseInt(minuteStr) || 0
-      
-      const period = hours >= 12 ? "PM" : "AM"
-      const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
-      const displayMinute = minutes.toString().padStart(2, "0")
-      const formattedTime = `${displayHour}:${displayMinute} ${period}`
-      
+      const formattedDate = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        weekday: "long",
+        month: "short",
+        day: "numeric"
+      }).format(date)
+      const formattedTime = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(date)
+
       return { date: formattedDate, time: formattedTime, endTime: "" }
     } catch (error) {
       console.error("Error formatting date/time:", error, dateTimeString)
@@ -177,30 +138,15 @@ export const HospitalitySlots: React.FC<HospitalitySlotsProps> = ({
   
   const calculateEndTime = (dateTimeString: string, hoursToAdd: number) => {
     try {
-      // Parse time directly from string without timezone conversion
-      const cleanString = dateTimeString.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '')
-      const [, timePart] = cleanString.split('T')
-      
-      if (!timePart) return "TBD"
-      
-      // Parse hours and minutes
-      const [hourStr, minuteStr] = timePart.split(':')
-      let hours = parseInt(hourStr)
-      const minutes = parseInt(minuteStr) || 0
-      
-      // Add the scheduled hours
-      hours = hours + hoursToAdd
-      
-      // Handle day overflow
-      if (hours >= 24) {
-        hours = hours % 24
-      }
-      
-      const period = hours >= 12 ? "PM" : "AM"
-      const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
-      const displayMinute = minutes.toString().padStart(2, "0")
-      
-      return `${displayHour}:${displayMinute} ${period}`
+      const start = new Date(dateTimeString)
+      if (Number.isNaN(start.getTime())) return "TBD"
+      const end = new Date(start.getTime() + hoursToAdd * 60 * 60 * 1000)
+
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(end)
     } catch (error) {
       console.error("Error calculating end time:", error)
       return "TBD"

@@ -232,7 +232,7 @@ export default function HostLogin() {
         provider: "discord",
         options: {
           redirectTo: redirectUri,
-          scopes: "identify email guilds"
+          scopes: "identify email guilds guilds.members.read"
         }
       })
 

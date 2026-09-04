@@ -1,15 +1,17 @@
-import { signOutAction } from "@/app/actions"
-import { hasEnvVars } from "@/utils/supabase/check-env-vars"
-import { createClient } from "@/utils/supabase/server"
-import { Badge } from "./ui/badge"
-import { Button } from "./ui/button"
+import { signOutAction } from "@/app/actions";
+import { hasEnvVars } from "@/utils/supabase/check-env-vars";
+import { createClient } from "@/utils/supabase/server";
+import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 
 export default async function AuthButton() {
-  const supabase = await createClient()
+  const supabase = await createClient();
 
   const {
-    data: { user }
-  } = await supabase.auth.getUser()
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: profileData } = user
     ? await supabase
@@ -17,9 +19,10 @@ export default async function AuthButton() {
         .select("profile_name")
         .eq("user_id", user.id)
         .maybeSingle()
-    : { data: null }
+    : { data: null };
 
-  const username = profileData?.profile_name || user?.user_metadata?.full_name
+  const username =
+    profileData?.profile_name || user?.user_metadata?.full_name || user?.email;
 
   if (!hasEnvVars) {
     return (
@@ -40,16 +43,36 @@ export default async function AuthButton() {
           </div>
         </div>
       </>
-    )
+    );
   }
   return user ? (
-    <div className="flex items-center gap-4">
-      Hey, {username}!
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span
+        className="hidden max-w-44 truncate text-muted-foreground lg:inline"
+        title={username || undefined}
+      >
+        {username}
+      </span>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="hidden sm:inline-flex"
+        asChild
+      >
+        <Link href="/auth/update-password">Change password</Link>
+      </Button>
       <form action={signOutAction}>
-        <Button type="submit" variant={"outline"}>
-          Sign out
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          aria-label="Log out"
+          data-testid="header-log-out"
+        >
+          <LogOut aria-hidden="true" />
+          <span className="hidden sm:inline">Log out</span>
         </Button>
       </form>
     </div>
-  ) : null
+  ) : null;
 }

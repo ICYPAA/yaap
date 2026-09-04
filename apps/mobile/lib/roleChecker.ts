@@ -85,12 +85,13 @@ export async function getUserRoleAndPermissions(userId: string): Promise<{ role:
 
     if (error) {
       console.error("getUserRoleAndPermissions: Error fetching user role:", error)
-      return { role: UserRole.HOST, permissions: [] }
+      return { role: UserRole.USER, permissions: [] }
     }
 
-    // If no role found in database, default to HOST
+    // Missing role data must fail closed. Successful Discord verification
+    // provisions the default host role on the server.
     if (!data?.length) {
-      return { role: UserRole.HOST, permissions: [] }
+      return { role: UserRole.USER, permissions: [] }
     }
 
     const rolePriority = ["admin", "steering", "advisory", "host"]
@@ -117,8 +118,8 @@ export async function getUserRoleAndPermissions(userId: string): Promise<{ role:
         mappedRole = UserRole.HOST
         break
       default:
-        console.warn(`getUserRoleAndPermissions: Unknown role '${dbRole}', defaulting to HOST`)
-        mappedRole = UserRole.HOST
+        console.warn(`getUserRoleAndPermissions: Unknown role '${dbRole}', denying host access`)
+        mappedRole = UserRole.USER
     }
 
     const permissions = [
@@ -135,7 +136,7 @@ export async function getUserRoleAndPermissions(userId: string): Promise<{ role:
     }
   } catch (error: any) {
     console.error("getUserRoleAndPermissions: Unexpected error:", error)
-    return { role: UserRole.HOST, permissions: [] }
+    return { role: UserRole.USER, permissions: [] }
   }
 }
 

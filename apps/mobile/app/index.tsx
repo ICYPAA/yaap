@@ -56,7 +56,7 @@ export default function LandingScreen() {
   //     <SafeAreaView style={styles.container}>
   //       <View style={styles.content}>
   //         <Image
-  //           source={require("../assets/images/adaptive-icon.png")}
+  //           source={require("../assets/images/icon.png")}
   //           style={styles.logo}
   //           resizeMode="contain"
   //         />
@@ -69,7 +69,7 @@ export default function LandingScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Image
-          source={require("../assets/images/adaptive-icon.png")}
+          source={require("../assets/images/icon.png")}
           style={styles.logo}
           resizeMode="contain"
         />

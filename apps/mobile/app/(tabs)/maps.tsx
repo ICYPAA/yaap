@@ -22,6 +22,7 @@ import { HospitalitySlots } from "../../components/HospitalitySlots"
 import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
+import { resolveConferenceTimeZone } from "../../lib/conferenceTime"
 import { withDeviceId } from "../../lib/supabase"
 import { Activity, Food } from "../../types/activities"
 import { Program } from "../../types/program"
@@ -811,7 +812,12 @@ export default function Maps() {
               </Text>
             )}
 
-            {programId ? <HospitalitySlots programId={programId} /> : null}
+            {programId ? (
+              <HospitalitySlots
+                programId={programId}
+                timeZone={resolveConferenceTimeZone(currentConference.program)}
+              />
+            ) : null}
           </View>
         </View>
       )}

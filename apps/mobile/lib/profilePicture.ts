@@ -6,21 +6,33 @@ const EDGE_FUNCTION_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
   ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/profile_pictures`
   : ""
 
-async function getAuthHeaders(
+export async function getProfilePictureAuthHeaders(
   deviceId: string
 ): Promise<Record<string, string>> {
+  const apiKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!apiKey) {
+    throw new Error("Profile picture uploads are not configured for this app.")
+  }
+
   const {
     data: { session }
   } = await supabase.auth.getSession()
 
-  if (!session?.access_token) {
-    throw new Error("Please sign in before updating your profile picture.")
-  }
-
-  return {
-    Authorization: `Bearer ${session.access_token}`,
+  const headers: Record<string, string> = {
+    // Keep the public project credential in the standard authorization header
+    // so an expired saved session cannot prevent an attendee upload. The edge
+    // function validates the optional user token separately for linked profiles.
+    Authorization: `Bearer ${apiKey}`,
+    apikey: apiKey,
     "x-device-id": deviceId
   }
+
+  if (session?.access_token) {
+    headers["x-user-token"] = session.access_token
+  }
+
+  return headers
 }
 
 /**
@@ -67,25 +79,38 @@ export async function uploadProfilePicture() {
     }
 
     // Get the selected image URI
-    const imageUri = result.assets[0].uri
+    const asset = result.assets[0]
+    const imageUri = asset.uri
 
     // Create form data with the image
     const formData = new FormData()
 
-    // Determine the file name and type from the URI
-    const uriParts = imageUri.split(".")
-    const fileType = uriParts[uriParts.length - 1]
+    // Prefer metadata supplied by iOS. Picker URIs are not guaranteed to end
+    // in a file extension, particularly for edited or cloud-backed photos.
+    const uriExtension = imageUri
+      .split("?")[0]
+      .split(".")
+      .pop()
+      ?.toLowerCase()
+    const fileExtension =
+      uriExtension && /^[a-z0-9]+$/.test(uriExtension)
+        ? uriExtension === "jpg"
+          ? "jpeg"
+          : uriExtension
+        : "jpeg"
+    const mimeType = asset.mimeType || `image/${fileExtension}`
 
     // Append the image to form data
     formData.append("file", {
       uri: imageUri,
-      name: `profile-${deviceId}.${fileType}`,
-      type: `image/${fileType}`
+      name: asset.fileName || `profile-${deviceId}.${fileExtension}`,
+      type: mimeType
     } as any)
 
-    const authHeaders = await getAuthHeaders(deviceId)
+    const authHeaders = await getProfilePictureAuthHeaders(deviceId)
 
-    // Upload to edge function with the user's Supabase session.
+    // Upload with either the user's session or the app credential used by an
+    // unlinked, device-based attendee profile.
     const response = await fetch(EDGE_FUNCTION_URL, {
       method: "POST",
       headers: authHeaders,
@@ -140,7 +165,7 @@ export async function deleteProfilePicture() {
       }
     }
 
-    const authHeaders = await getAuthHeaders(deviceId)
+    const authHeaders = await getProfilePictureAuthHeaders(deviceId)
 
     const response = await fetch(EDGE_FUNCTION_URL, {
       method: "DELETE",

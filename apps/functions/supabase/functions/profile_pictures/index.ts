@@ -5,12 +5,13 @@ import { createClient } from "@supabase/supabase-js"
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-device-id",
+    "authorization, x-client-info, apikey, content-type, x-device-id, x-user-token",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, DELETE"
 }
 
 // Get Supabase credentials from environment
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || ""
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || ""
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
 
 // Initialize Supabase client with service role key for admin actions
@@ -36,6 +37,16 @@ function getBearerToken(request: Request): string | null {
   return authHeader.slice("Bearer ".length).trim()
 }
 
+function isPublicAppCredential(request: Request, token: string): boolean {
+  const apiKey = request.headers.get("apikey")
+
+  return Boolean(
+    apiKey &&
+      ((token === apiKey && token === supabaseAnonKey) ||
+        apiKey.startsWith("sb_publishable_"))
+  )
+}
+
 async function authenticateDeviceOwner(
   request: Request,
   deviceId: string
@@ -48,15 +59,6 @@ async function authenticateDeviceOwner(
   const token = getBearerToken(request)
   if (!token) {
     return jsonResponse({ message: "Unauthorized: Missing bearer token" }, 401)
-  }
-
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser(token)
-
-  if (authError || !user) {
-    return jsonResponse({ message: "Unauthorized: Invalid session" }, 401)
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -72,6 +74,46 @@ async function authenticateDeviceOwner(
 
   if (!profile) {
     return jsonResponse({ message: "Profile not found" }, 404)
+  }
+
+  // Attendee profiles are intentionally device-based and do not require an
+  // account. The public project key authenticates the app request while the
+  // device ID identifies an unlinked attendee profile. Once a profile is
+  // linked to an account, only that account's session may change its image.
+  if (isPublicAppCredential(request, token)) {
+    if (!profile.user_id) {
+      return null
+    }
+
+    const userToken = request.headers.get("x-user-token")
+    if (!userToken) {
+      return jsonResponse(
+        { message: "Please sign in before updating your profile picture." },
+        401
+      )
+    }
+
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser(userToken)
+
+    if (authError || !user) {
+      return jsonResponse({ message: "Unauthorized: Invalid session" }, 401)
+    }
+
+    return profile.user_id === user.id
+      ? null
+      : jsonResponse({ message: "Forbidden: Device profile mismatch" }, 403)
+  }
+
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser(token)
+
+  if (authError || !user) {
+    return jsonResponse({ message: "Unauthorized: Invalid session" }, 401)
   }
 
   if (profile.user_id && profile.user_id !== user.id) {

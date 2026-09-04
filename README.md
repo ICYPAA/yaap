@@ -24,11 +24,12 @@ the control board.
 | `apps/mobile` | Expo SDK 55 iOS/Android conference app |
 | `apps/admin-web` | Next.js 15 conference control board |
 | `apps/functions` | Supabase config, PostgreSQL migrations, seed, and Edge Functions |
+| `apps/discord-bot` | Discord membership and role synchronization worker |
 | `scripts` | Reproducible setup, verification, development, and E2E entry points |
 
 ## Toolchain
 
-- Node.js 22.13+ (22.19.0 is pinned in `.nvmrc`)
+- Node.js 24 (`.nvmrc` is pinned to the current Node 24 release line)
 - pnpm 10.12.3 through Corepack
 - Docker Desktop or another Docker-compatible engine
 - Workspace-pinned Supabase CLI 2.75.0
@@ -158,3 +159,6 @@ pnpm build
 See [E2E testing](docs/E2E_TESTING.md) for coverage and native prerequisites,
 and the [setup failure log](docs/LOCAL_SETUP_FAILURES.md) for the failures and
 fixes found while making this workflow reproducible.
+
+Discord OAuth, bot installation, and server migration are covered in the
+[Discord authentication guide](docs/DISCORD_AUTH.md).

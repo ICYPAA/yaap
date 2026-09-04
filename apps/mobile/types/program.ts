@@ -11,6 +11,8 @@ export type Program = {
   start_date: string
   // End date of the conference
   end_date: string
+  // IANA timezone for all conference-local dates and times
+  timezone: string
   // Location of the conference
   location: {
     name: string
@@ -148,27 +150,27 @@ export type ProgramContent = {
   services?: {
     rides?: {
       // Title of the service
-      title: string
+      title?: string
       // Content of the service
-      description: string
+      description?: string
       // Content for the service's page
-      internal_description: string
+      internal_description?: string
     }
     hospitality?: {
       // Title of the service
-      title: string
+      title?: string
       // Content of the service
-      description: string
+      description?: string
       // Content for the service's page
-      internal_description: string
+      internal_description?: string
     }
     volunteering?: {
       // Title of the service
-      title: string
+      title?: string
       // Content of the service
-      description: string
+      description?: string
       // Content for the service's page
-      internal_description: string
+      internal_description?: string
       // Whether the service card opens the in-app form or SignUpGenius
       signup_destination?: "internal" | "external"
       // HTTPS SignUpGenius link used when signup_destination is external
@@ -176,17 +178,17 @@ export type ProgramContent = {
     }
     accessibility?: {
       // Title of the service
-      title: string
+      title?: string
       // Content of the service
-      description: string
+      description?: string
       // Content for the service's page
-      internal_description: string
+      internal_description?: string
     }
     support?: {
       // Title of the service
-      title: string
+      title?: string
       // Content of the service
-      description: string
+      description?: string
     }
   }
   faq?: {

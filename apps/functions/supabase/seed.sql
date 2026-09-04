@@ -141,6 +141,7 @@ INSERT INTO public.programs (
   description,
   start_date,
   end_date,
+  timezone,
   location,
   venue_rooms,
   hospitality,
@@ -159,8 +160,9 @@ VALUES (
   9001,
   'Local Test Conference',
   'A deterministic conference used for local development and E2E testing.',
-  (current_date + 1)::timestamp with time zone,
-  (current_date + 3)::timestamp with time zone,
+  (current_date + 1)::timestamp AT TIME ZONE 'America/Chicago',
+  (current_date + 3)::timestamp AT TIME ZONE 'America/Chicago',
+  'America/Chicago',
   '{
     "name": "Local Conference Center",
     "address": {
@@ -271,6 +273,7 @@ ON CONFLICT (id) DO UPDATE SET
   description = EXCLUDED.description,
   start_date = EXCLUDED.start_date,
   end_date = EXCLUDED.end_date,
+  timezone = EXCLUDED.timezone,
   location = EXCLUDED.location,
   venue_rooms = EXCLUDED.venue_rooms,
   hospitality = EXCLUDED.hospitality,
@@ -284,6 +287,56 @@ ON CONFLICT (id) DO UPDATE SET
   features = EXCLUDED.features,
   host_committee = EXCLUDED.host_committee,
   ndah_content = EXCLUDED.ndah_content;
+
+INSERT INTO public.programs (
+  id,
+  title,
+  description,
+  start_date,
+  end_date,
+  timezone,
+  location,
+  venue_rooms,
+  hospitality,
+  theme,
+  big_book_passage,
+  design,
+  promote,
+  content
+)
+VALUES (
+  8999,
+  'Past Local Conference',
+  'A completed conference used to verify historical visibility rules.',
+  (current_date - 10)::timestamp AT TIME ZONE 'America/Chicago',
+  (current_date - 7)::timestamp AT TIME ZONE 'America/Chicago',
+  'America/Chicago',
+  '{
+    "name": "Former Conference Hotel",
+    "address": {
+      "street": "1 Archive Lane",
+      "suite": "",
+      "city": "Test City",
+      "state": "MN",
+      "zip": "55401"
+    }
+  }'::jsonb,
+  '{}'::text[],
+  '{}'::jsonb,
+  'Previous Theme',
+  '',
+  NULL,
+  '{}'::numeric[],
+  '{}'::jsonb
+)
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  description = EXCLUDED.description,
+  start_date = EXCLUDED.start_date,
+  end_date = EXCLUDED.end_date,
+  timezone = EXCLUDED.timezone,
+  location = EXCLUDED.location,
+  theme = EXCLUDED.theme;
 
 INSERT INTO public.event_categories (id, program_id, title, color)
 VALUES

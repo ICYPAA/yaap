@@ -24,6 +24,10 @@ import { EventDetailsModal } from "../../components/EventDetailsModal"
 import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
+import {
+  conferenceEventDateTimeToDate,
+  resolveConferenceTimeZone
+} from "../../lib/conferenceTime"
 import { resolveProgramDetails } from "../../lib/programFallbacks"
 import { getOrCreateDeviceId } from "../../lib/security/deviceId"
 import { withDeviceId } from "../../lib/supabase"
@@ -316,80 +320,15 @@ const getEventPosition = (
 const parseEventDateTime = (
   dateStr: string,
   timeStr: string, // This will represent the END time when checking if passed
-  startTimeStr?: string // The event's START time string
-): Date | null => {
-  // Parse END time (timeStr)
-  const endTimeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-  if (!endTimeMatch) {
-    console.warn(`parseEventDateTime failed to parse time: ${timeStr}`)
-    return null
-  }
-  let endHours = parseInt(endTimeMatch[1], 10)
-  const endMinutes = parseInt(endTimeMatch[2], 10)
-  const endPeriod = endTimeMatch[3].toUpperCase()
-  if (endPeriod === "PM" && endHours < 12) endHours += 12
-  if (endPeriod === "AM" && endHours === 12) endHours = 0 // Midnight case
-
-  // Parse START time (startTimeStr) if provided
-  let startHours = -1 // Default indicates start time not parsed or not needed
-  let startMinutes = -1
-  if (startTimeStr) {
-    const startTimeMatch = startTimeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-    if (startTimeMatch) {
-      startHours = parseInt(startTimeMatch[1], 10)
-      startMinutes = parseInt(startTimeMatch[2], 10)
-      const startPeriod = startTimeMatch[3].toUpperCase()
-      if (startPeriod === "PM" && startHours < 12) startHours += 12
-      if (startPeriod === "AM" && startHours === 12) startHours = 0
-    } else {
-      console.warn(
-        `parseEventDateTime failed to parse start time: ${startTimeStr}`
-      )
-      // Decide how to handle - maybe proceed without adjusting date? For now, let's log and continue.
-      startHours = -1 // Reset to indicate failure/ignore
-    }
-  }
-
-  // Parse DATE (dateStr)
-  const dateMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/)
-  if (!dateMatch) {
-    console.warn(`parseEventDateTime failed to parse date: ${dateStr}`)
-    return null
-  }
-  const year = parseInt(dateMatch[1], 10)
-  const month = parseInt(dateMatch[2], 10) - 1 // Month is 0-indexed
-  let day = parseInt(dateMatch[3], 10) // Use let for potential modification
-
-  // Check if end time is on the next day
-  let dayOffset = 0
-  if (startHours !== -1) {
-    // Only adjust if start time was successfully parsed
-    const endTotalMinutes = endHours * 60 + endMinutes
-    const startTotalMinutes = startHours * 60 + startMinutes
-    if (endTotalMinutes < startTotalMinutes) {
-      dayOffset = 1 // End time is on the next day
-    }
-  }
-
-  try {
-    // Use Date.UTC. Note: Date.UTC handles month/day rollovers automatically.
-    // -- Switched to local Date constructor --
-    // This assumes the input date/time strings represent time in the user's *local* timezone.
-    // If the DB times are strictly CST/CDT, this will only be accurate for users in CST/CDT.
-    // const utcTimestamp = Date.UTC(
-    //   year,
-    //   month,
-    //   day + dayOffset,
-    //   endHours,
-    //   endMinutes
-    // )
-    // return new Date(utcTimestamp)
-    return new Date(year, month, day + dayOffset, endHours, endMinutes)
-  } catch (e) {
-    console.error("Error creating date:", e)
-    return null
-  }
-}
+  startTimeStr: string | undefined, // The event's START time string
+  timeZone: string
+): Date | null =>
+  conferenceEventDateTimeToDate(
+    dateStr,
+    timeStr,
+    timeZone,
+    startTimeStr
+  )
 
 // Create a new TimelineView component that shows events across rooms
 const TimelineView = ({
@@ -826,7 +765,7 @@ const TimelineView = ({
           const [year, month, dayNum] = dateStr
             .split("-")
             .map((num) => parseInt(num, 10))
-          // Treat dates as local CST dates without timezone conversion
+          // Date-only values are conference calendar dates; do not shift them.
           const dateObj = new Date(year, month - 1, dayNum)
 
           const itemDate = dateObj.toLocaleDateString("en-US", {
@@ -858,7 +797,7 @@ const TimelineView = ({
       const [year, month, dayNum] = dateStr
         .split("-")
         .map((num) => parseInt(num, 10))
-      // Treat dates as local CST dates without timezone conversion
+      // Date-only values are conference calendar dates; do not shift them.
       const dateObj = new Date(year, month - 1, dayNum)
 
       const itemDate = dateObj.toLocaleDateString("en-US", {
@@ -1286,7 +1225,7 @@ const TimelineView = ({
                           const [year, month, dayNum] = dateStr
                             .split("-")
                             .map((num) => parseInt(num, 10))
-                          // Treat dates as local CST dates without timezone conversion
+                          // Date-only values are conference calendar dates; do not shift them.
                           const dateObj = new Date(year, month - 1, dayNum)
                           const itemDate = dateObj.toLocaleDateString("en-US", {
                             weekday: "long",
@@ -1319,7 +1258,8 @@ const TimelineView = ({
                         const eventEndDateTime = parseEventDateTime(
                           event.date,
                           endTimeForCheck, // This is the end time string
-                          event.time // Pass the start time string
+                          event.time, // Pass the start time string
+                          resolveConferenceTimeZone(programDetails)
                         )
                         const hasPassed = eventEndDateTime
                           ? eventEndDateTime < now
@@ -2227,7 +2167,7 @@ const DayScheduleCard = ({
           const [year, month, dayNum] = dateStr
             .split("-")
             .map((num) => parseInt(num, 10))
-          // Treat dates as local CST dates without timezone conversion
+          // Date-only values are conference calendar dates; do not shift them.
           const dateObj = new Date(year, month - 1, dayNum)
 
           const itemDate = dateObj.toLocaleDateString("en-US", {
@@ -2499,7 +2439,8 @@ const DayScheduleCard = ({
                   const eventEndDateTime = parseEventDateTime(
                     item.date,
                     endTimeForCheck, // This is the end time string
-                    item.time // Pass the start time string
+                    item.time, // Pass the start time string
+                    resolveConferenceTimeZone(programDetails)
                   )
                   const hasPassed = eventEndDateTime
                     ? eventEndDateTime < now
@@ -3453,7 +3394,7 @@ export default function Program() {
         const [year, month, day] = dateStr
           .split("-")
           .map((num) => parseInt(num, 10))
-        // Treat dates as local CST dates without timezone conversion
+        // Date-only values are conference calendar dates; do not shift them.
         const dateObj = new Date(year, month - 1, day)
 
         const formattedDate = dateObj.toLocaleDateString("en-US", {
@@ -3528,7 +3469,7 @@ export default function Program() {
         const [year, month, day] = dateStr
           .split("-")
           .map((num) => parseInt(num, 10))
-        // Treat dates as local CST dates without timezone conversion
+        // Date-only values are conference calendar dates; do not shift them.
         const dateObj = new Date(year, month - 1, day)
 
         const itemDate = dateObj.toLocaleDateString("en-US", {
@@ -4106,7 +4047,7 @@ export default function Program() {
           const [year, month, dayNum] = dateStr
             .split("-")
             .map((num) => parseInt(num, 10))
-          // Treat dates as local CST dates without timezone conversion
+          // Date-only values are conference calendar dates; do not shift them.
           const dateObj = new Date(year, month - 1, dayNum)
 
           const formattedDayTab = dateObj.toLocaleDateString("en-US", {
@@ -4341,7 +4282,8 @@ export default function Program() {
                     const eventEndDateTime = parseEventDateTime(
                       item.date,
                       endTimeForCheck,
-                      item.time
+                      item.time,
+                      resolveConferenceTimeZone(programDetails)
                     )
                     const hasPassed = eventEndDateTime
                       ? eventEndDateTime < now
@@ -4857,11 +4799,11 @@ const HospitalitySection = ({
       timeSlot?.day?.toLowerCase() === dayName.toLowerCase()
   )
 
-  // Use time directly from DB (already in CST, no conversion needed)
+  // Event times are stored as conference-local wall-clock values.
   const formatHospitalityTime = (time: string | null | undefined) => {
     if (!time) return ""
 
-    // Time is already in CST from the database
+    // Display the stored conference-local time without shifting it.
     // Just format it nicely for display (HH:MM:SS -> H:MM AM/PM)
     try {
       const [hours, minutes] = time.split(":")

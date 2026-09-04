@@ -67,8 +67,7 @@ NEXT_PUBLIC_SUPABASE_URL=$admin_api_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key
 NEXT_PUBLIC_BASE_URL=http://127.0.0.1:3000
 NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000
-NEXT_PUBLIC_URL=http://127.0.0.1:3000
-NEXT_PUBLIC_ENABLE_LOCAL_AUTH=true"
+NEXT_PUBLIC_URL=http://127.0.0.1:3000"
 
 write_generated_file "$repo_root/apps/mobile/.env.local" "$mobile_env"
 write_generated_file "$repo_root/apps/admin-web/.env.local" "$admin_env"

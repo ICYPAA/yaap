@@ -9,6 +9,9 @@ interface AuthResult {
   error?: string
 }
 
+const discordMembershipVerificationEnabled =
+  process.env.EXPO_PUBLIC_DISCORD_MEMBERSHIP_VERIFICATION_ENABLED === "true"
+
 /**
  * Complete authentication flow for Discord login
  * IMPORTANT: Complete ALL checks BEFORE setting session to avoid auth state interruptions
@@ -19,57 +22,10 @@ export async function authenticateWithDiscord(
   provider_token: string
 ): Promise<AuthResult> {
   try {
-    // Step 1: First decode the JWT to get user info WITHOUT setting session
-    const base64Url = access_token.split('.')[1]
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-    }).join(''))
-    
-    const tokenData = JSON.parse(jsonPayload)
-    const userId = tokenData.sub
-    const userEmail = tokenData.email
-    
-    // Step 2: Verify Discord server membership BEFORE setting any session
-    const discordHostServerId = process.env.EXPO_PUBLIC_DISCORD_HOST_SERVER ?? "1282888358502334575"
-    
-    const guildsResponse = await fetch(
-      "https://discord.com/api/v10/users/@me/guilds",
-      {
-        headers: {
-          Authorization: `Bearer ${provider_token}`
-        }
-      }
-    )
-
-    if (!guildsResponse.ok) {
-      const errorText = await guildsResponse.text()
-      console.error("Discord verification failed:", {
-        status: guildsResponse.status,
-        statusText: guildsResponse.statusText,
-        errorBody: errorText
-      })
-      return { 
-        success: false, 
-        error: `Discord verification failed: ${guildsResponse.status} - ${errorText}` 
-      }
-    }
-    
-    const guilds = await guildsResponse.json()
-    const isMember = guilds.some((guild: any) => guild.id === discordHostServerId)
-    
-    if (!isMember) {
-      console.error("Discord verification failed: user is not in host server")
-      
-      // Don't set session if not authorized
-      return { 
-        success: false, 
-        error: "You must be a member of the ICYPAA Host Discord server to log in." 
-      }
-    }
-    
-    // Step 3: Set the session first so we can make authenticated database calls
-    const { error: sessionError } = await supabase.auth.setSession({
+    // Establish the Supabase session so the Edge Function can bind the Discord
+    // token to the authenticated Supabase identity. Host data remains blocked
+    // by RLS until that trusted verification succeeds.
+    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
       access_token,
       refresh_token
     })
@@ -82,13 +38,49 @@ export async function authenticateWithDiscord(
       }
     }
 
-    // Step 4: Now check user role and permissions from database with active session
-    // Small delay to ensure session is fully propagated
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
+    const sessionUser = sessionData.session?.user
+    if (!sessionUser) {
+      await supabase.auth.signOut()
+      return { success: false, error: "Session setup did not return a user" }
+    }
+
+    if (discordMembershipVerificationEnabled) {
+      const { data: verification, error: verificationError } =
+        await supabase.functions.invoke("verify_discord_membership", {
+          body: { provider_token }
+        })
+
+      if (verificationError || verification?.success !== true) {
+        let verificationMessage = verification?.error
+        const errorContext = (verificationError as { context?: Response } | null)
+          ?.context
+
+        if (!verificationMessage && errorContext) {
+          try {
+            const errorBody = await errorContext.clone().json()
+            verificationMessage = errorBody?.error
+          } catch {
+            // The generic message below is safe when the function returned a
+            // non-JSON platform error.
+          }
+        }
+
+        console.error("Server-side Discord membership verification failed")
+        await supabase.auth.signOut()
+        return {
+          success: false,
+          error:
+            verificationMessage ||
+            "We could not verify membership in the host Discord server."
+        }
+      }
+    }
+
+    const userId = sessionUser.id
+    const userEmail = sessionUser.email
     const { role: userRole, permissions: dbPermissions } = await getUserRoleAndPermissions(userId)
     
-    // Step 5: Verify session was set correctly
+    // Verify the session persisted after membership provisioning.
     const { data: { session: verifySession } } = await supabase.auth.getSession()
     if (!verifySession?.user) {
       return {
@@ -97,7 +89,6 @@ export async function authenticateWithDiscord(
       }
     }
     
-    // Step 6: Create user object with role and permissions
     const userWithRole: UserWithRole = {
       id: userId,
       email: userEmail || "",
@@ -106,7 +97,6 @@ export async function authenticateWithDiscord(
       dbPermissions
     }
     
-    // Log successful authentication
     await logSecurityEvent(
       SecurityEventType.LOGIN_SUCCESS,
       'low',
@@ -114,7 +104,6 @@ export async function authenticateWithDiscord(
       userId
     )
     
-    // Initialize session manager for auto-refresh
     const sessionManager = getSessionManager()
     await sessionManager.initialize()
     

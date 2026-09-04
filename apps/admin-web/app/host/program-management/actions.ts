@@ -1,6 +1,13 @@
 "use server"
 
 import { logActivity } from "@/lib/audit-logger"
+import { normalizeConferenceDateOnly } from "@/lib/conference-time"
+import {
+  normalizeProgramFeatures,
+  PROGRAM_FEATURE_KEYS,
+  type ProgramFeatureFlags
+} from "@/lib/program-features"
+import { hasPermission } from "@/utils/permissions"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 
@@ -84,6 +91,7 @@ export interface Program {
   logo: string
   start_date: string
   end_date: string
+  timezone: string
   location: ProgramLocation | string | null
   venue_rooms: string[]
   hospitality: ProgramHospitality | null
@@ -92,6 +100,7 @@ export interface Program {
   design: ProgramDesign | null
   promote: number[]
   content: ProgramContent | null
+  features?: Partial<ProgramFeatureFlags> | null
 }
 
 export interface Event {
@@ -228,6 +237,104 @@ export async function updateProgram(id: number, programData: Partial<Program>) {
   return { program: data, error: null }
 }
 
+export async function updateProgramFeatures(
+  id: number,
+  featureChanges: ProgramFeatureFlags
+) {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { features: null, error: "Invalid conference program." }
+  }
+
+  if (
+    !featureChanges ||
+    typeof featureChanges !== "object" ||
+    PROGRAM_FEATURE_KEYS.some(
+      (key) => typeof featureChanges[key] !== "boolean"
+    )
+  ) {
+    return { features: null, error: "Invalid app feature settings." }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser()
+
+  if (userError || !user) {
+    return { features: null, error: "Sign in to edit app features." }
+  }
+
+  const canEdit = await hasPermission(
+    user.id,
+    ["admin", "steering"],
+    ["program:edit"]
+  )
+  if (!canEdit) {
+    return {
+      features: null,
+      error: "You do not have permission to edit app features."
+    }
+  }
+
+  const { data: existingProgram, error: fetchError } = await supabase
+    .from("programs")
+    .select("title,features")
+    .eq("id", id)
+    .single()
+
+  if (fetchError) {
+    console.error("Error fetching existing program features:", fetchError)
+    return { features: null, error: fetchError.message }
+  }
+
+  const existingFeatures =
+    existingProgram.features &&
+    typeof existingProgram.features === "object" &&
+    !Array.isArray(existingProgram.features)
+      ? (existingProgram.features as Record<string, unknown>)
+      : {}
+  const currentKnownFeatures = normalizeProgramFeatures(existingFeatures)
+  const updatedKnownFeatures = normalizeProgramFeatures(featureChanges)
+  const updatedFeatures = {
+    ...existingFeatures,
+    ...updatedKnownFeatures
+  }
+
+  const { data, error } = await supabase
+    .from("programs")
+    .update({ features: updatedFeatures })
+    .eq("id", id)
+    .select("features")
+    .single()
+
+  if (error) {
+    console.error("Error updating program features:", error)
+    return { features: null, error: error.message }
+  }
+
+  const savedFeatures = normalizeProgramFeatures(data.features)
+  const changedFeatures = PROGRAM_FEATURE_KEYS.filter(
+    (key) => currentKnownFeatures[key] !== savedFeatures[key]
+  )
+
+  await logActivity({
+    actionType: "update_program",
+    metadata: {
+      action: "update_program_features",
+      programId: id,
+      title: existingProgram.title,
+      changedFields: changedFeatures,
+      beforeData: currentKnownFeatures,
+      afterData: savedFeatures
+    }
+  })
+
+  revalidatePath("/host")
+  revalidatePath("/host/program-management")
+  return { features: savedFeatures, error: null }
+}
+
 export async function createProgram(programData: Omit<Program, "id">) {
   const supabase = await createClient()
 
@@ -319,10 +426,14 @@ export async function createEvent(
   eventData: Omit<Event, "id" | "event_categories">
 ) {
   const supabase = await createClient()
+  const date = normalizeConferenceDateOnly(eventData.date)
+  if (!date) {
+    return { event: null, error: "Invalid event date." }
+  }
 
   const { data, error } = await supabase
     .from("events")
-    .insert([eventData])
+    .insert([{ ...eventData, date }])
     .select()
     .single()
 
@@ -352,6 +463,12 @@ export async function createEvent(
 
 export async function updateEvent(id: number, eventData: Partial<Event>) {
   const supabase = await createClient()
+  const normalizedEventData = eventData.date
+    ? { ...eventData, date: normalizeConferenceDateOnly(eventData.date) }
+    : eventData
+  if (eventData.date && !normalizedEventData.date) {
+    return { event: null, error: "Invalid event date." }
+  }
 
   // Get existing event data before updating
   const { data: existingEvent, error: fetchError } = await supabase
@@ -367,7 +484,7 @@ export async function updateEvent(id: number, eventData: Partial<Event>) {
 
   const { data, error } = await supabase
     .from("events")
-    .update(eventData)
+    .update(normalizedEventData)
     .eq("id", id)
     .select()
     .single()
@@ -385,7 +502,7 @@ export async function updateEvent(id: number, eventData: Partial<Event>) {
       title: data.title,
       programId: data.program_id,
       beforeData: existingEvent,
-      changedFields: Object.keys(eventData),
+      changedFields: Object.keys(normalizedEventData),
       afterData: data
     }
   })

@@ -9,6 +9,10 @@ import {
 } from "@/components/ui/card"
 import { getConferenceState } from "@/lib/conference-state"
 import {
+  normalizeProgramFeatures,
+  PROGRAM_FEATURE_DEFINITIONS
+} from "@/lib/program-features"
+import {
   formatProgramDateRange,
   formatProgramLocation
 } from "@/lib/program-utils"
@@ -24,18 +28,6 @@ import {
   ShieldCheck
 } from "lucide-react"
 import Link from "next/link"
-
-const FEATURE_LABELS: Record<string, string> = {
-  accessibility_enabled: "Accessibility",
-  child_care_enabled: "Childcare",
-  hospitality_enabled: "Hospitality",
-  support_chat_enabled: "Support chat",
-  volunteering_enabled: "Volunteering",
-  bid_schedule_enabled: "Bid schedule",
-  schedule_sharing_enabled: "Schedule sharing",
-  push_notifications_enabled: "Push notifications",
-  language_option_enabled: "Language selection"
-}
 
 export default async function ConferenceAdminPage() {
   const supabase = await createClient()
@@ -73,9 +65,14 @@ export default async function ConferenceAdminPage() {
       ])
     : [{ count: 0 }, { count: 0 }, { count: 0 }]
 
-  const enabledFeatures = Object.entries(currentProgram?.features || {})
-    .filter(([, enabled]) => enabled === true)
-    .map(([key]) => FEATURE_LABELS[key] || key)
+  const programFeatures = currentProgram
+    ? normalizeProgramFeatures(currentProgram.features)
+    : null
+  const enabledFeatures = programFeatures
+    ? PROGRAM_FEATURE_DEFINITIONS.filter(
+        (feature) => programFeatures[feature.key]
+      ).map((feature) => feature.name)
+    : []
 
   return (
     <div className="w-full space-y-8 p-6 md:p-8">
@@ -208,17 +205,37 @@ export default async function ConferenceAdminPage() {
         </Card>
       </div>
 
-      {enabledFeatures.length > 0 ? (
+      {currentProgram ? (
         <Card>
           <CardHeader>
-            <CardTitle>Enabled attendee features</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>Enabled attendee features</CardTitle>
+              {canManageConference ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  data-testid="edit-feature-settings-link"
+                >
+                  <Link href="/host/program-management?settings=features">
+                    Edit feature settings
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            {enabledFeatures.map((feature) => (
-              <Badge key={feature} variant="secondary">
-                {feature}
-              </Badge>
-            ))}
+            {enabledFeatures.length > 0 ? (
+              enabledFeatures.map((feature) => (
+                <Badge key={feature} variant="secondary">
+                  {feature}
+                </Badge>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No attendee features are enabled for this conference.
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : null}

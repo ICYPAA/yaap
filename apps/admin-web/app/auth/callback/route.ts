@@ -16,13 +16,38 @@ export async function GET(request: Request) {
 
   const supabase = await createClient()
   const {
-    data: { user },
+    data: { session, user },
     error
   } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error || !user) {
     console.error("Authentication callback failed:", error)
     return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+  }
+
+  const discordMembershipVerificationEnabled =
+    process.env.DISCORD_MEMBERSHIP_VERIFICATION_ENABLED === "true"
+
+  if (
+    user.app_metadata?.provider === "discord" &&
+    discordMembershipVerificationEnabled
+  ) {
+    if (!session?.provider_token) {
+      console.error("Discord callback did not include a provider token")
+      await supabase.auth.signOut()
+      return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+    }
+
+    const { data: verification, error: verificationError } =
+      await supabase.functions.invoke("verify_discord_membership", {
+        body: { provider_token: session.provider_token }
+      })
+
+    if (verificationError || verification?.success !== true) {
+      console.error("Server-side Discord membership verification failed")
+      await supabase.auth.signOut()
+      return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+    }
   }
 
   const profileName =

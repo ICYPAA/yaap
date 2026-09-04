@@ -75,6 +75,19 @@ import {
   type ConferenceStatus
 } from "@/lib/conference-state"
 import {
+  CONFERENCE_TIME_ZONES,
+  DEFAULT_CONFERENCE_TIME_ZONE,
+  conferenceLocalDateTimeToIso,
+  formatConferenceDate,
+  formatConferenceDateTimeForInput,
+  getConferenceWeekday,
+  inferConferenceTimeZone,
+  normalizeConferenceDateOnly,
+  resolveConferenceTimeZone
+} from "@/lib/conference-time"
+import { programContentSchema } from "@/lib/program-content"
+import type { ProgramFeatureFlags } from "@/lib/program-features"
+import {
   ArrowUpDown,
   Building2,
   Calendar,
@@ -131,131 +144,13 @@ import {
   type VenueAmenity,
   type VenueFloor
 } from "./actions"
+import { ProgramFeaturesCard } from "./program-features-card"
 
-// Central Time utility functions
-const CENTRAL_TIMEZONE = "America/Chicago"
-
-// Parse date string as Central Time without timezone conversion
-const parseDateAsCentral = (dateStr: string) => {
-  if (!dateStr) return null
-
-  try {
-    // Handle different date formats
-    if (dateStr.includes("T")) {
-      // ISO format: "2024-01-15T14:30:00" or "2024-01-15T14:30:00Z" or "2024-01-15T14:30:00.000Z"
-      const parts = dateStr.split("T")
-      const datePart = parts[0]
-      let timePart = parts[1] || "00:00:00"
-
-      // Remove timezone suffix (Z, +00:00, etc.)
-      timePart = timePart.replace(/[Z]|[+-]\d{2}:?\d{2}/, "")
-      timePart = timePart.split(".")[0] // Remove milliseconds if present
-
-      const [year, month, day] = datePart.split("-").map(Number)
-      const [hour, minute, second = 0] = timePart.split(":").map(Number)
-
-      // Validate parsed values
-      if (isNaN(year) || isNaN(month) || isNaN(day)) return null
-
-      return {
-        year,
-        month,
-        day,
-        hour: hour || 0,
-        minute: minute || 0,
-        second: second || 0
-      }
-    } else if (dateStr.includes("-") && dateStr.split("-").length === 3) {
-      // Date only: "2024-01-15"
-      const [year, month, day] = dateStr.split("-").map(Number)
-
-      // Validate parsed values
-      if (isNaN(year) || isNaN(month) || isNaN(day)) return null
-
-      return { year, month, day, hour: 0, minute: 0, second: 0 }
-    } else {
-      // Try to create a Date object and extract parts
-      const date = new Date(dateStr)
-      if (isNaN(date.getTime())) return null
-
-      return {
-        year: date.getFullYear(),
-        month: date.getMonth() + 1, // Date.getMonth() is 0-indexed
-        day: date.getDate(),
-        hour: date.getHours(),
-        minute: date.getMinutes(),
-        second: date.getSeconds()
-      }
-    }
-  } catch (error) {
-    console.error("Error parsing date:", dateStr, error)
-    return null
-  }
-}
-
-// Format date for datetime-local input (Central Time)
-const formatDateForInput = (dateStr: string) => {
-  if (!dateStr) return ""
-
-  const parsed = parseDateAsCentral(dateStr)
-  if (!parsed) {
-    console.error("Failed to parse date for input:", dateStr)
-    return ""
-  }
-
-  try {
-    const year = parsed.year.toString()
-    const month = parsed.month.toString().padStart(2, "0")
-    const day = parsed.day.toString().padStart(2, "0")
-    const hours = (parsed.hour || 0).toString().padStart(2, "0")
-    const minutes = (parsed.minute || 0).toString().padStart(2, "0")
-
-    return `${year}-${month}-${day}T${hours}:${minutes}`
-  } catch (error) {
-    console.error("Error formatting date for input:", dateStr, parsed, error)
-    return ""
-  }
-}
-
-// Format date for display (Central Time)
 const formatDateDisplay = (
   dateStr: string,
-  options: Intl.DateTimeFormatOptions = {}
-) => {
-  if (!dateStr) return ""
-
-  const parsed = parseDateAsCentral(dateStr)
-  if (!parsed) {
-    console.error("Failed to parse date for display:", dateStr)
-    return "Invalid Date"
-  }
-
-  try {
-    // Create a date in Central Time for formatting
-    const centralDate = new Date(
-      parsed.year,
-      parsed.month - 1, // Date constructor expects 0-indexed month
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second
-    )
-
-    // Validate the created date
-    if (isNaN(centralDate.getTime())) {
-      console.error("Invalid date created:", parsed)
-      return "Invalid Date"
-    }
-
-    return centralDate.toLocaleDateString("en-US", {
-      timeZone: CENTRAL_TIMEZONE,
-      ...options
-    })
-  } catch (error) {
-    console.error("Error formatting date for display:", dateStr, parsed, error)
-    return "Invalid Date"
-  }
-}
+  options: Intl.DateTimeFormatOptions = {},
+  timeZone = DEFAULT_CONFERENCE_TIME_ZONE
+) => formatConferenceDate(dateStr, timeZone, options)
 
 // Convert 24-hour time to 12-hour format with AM/PM
 const formatTime12Hour = (timeStr: string) => {
@@ -271,42 +166,11 @@ const formatTime12Hour = (timeStr: string) => {
   return `${hour12}:${minute} ${period}`
 }
 
-// Get weekday name for a date string (Central Time)
-const getWeekdayFromDateString = (dateStr: string) => {
-  if (!dateStr) return ""
-  const parsed = parseDateAsCentral(dateStr)
-  if (!parsed) return ""
+const getWeekdayFromDateString = (dateStr: string) =>
+  getConferenceWeekday(dateStr)
 
-  const centralDate = new Date(parsed.year, parsed.month - 1, parsed.day)
-  return centralDate.toLocaleDateString("en-US", {
-    timeZone: CENTRAL_TIMEZONE,
-    weekday: "long"
-  })
-}
-
-// Compare dates for sorting (Central Time)
-const compareDates = (dateA: string, dateB: string) => {
-  const parsedA = parseDateAsCentral(dateA)
-  const parsedB = parseDateAsCentral(dateB)
-
-  if (!parsedA || !parsedB) return 0
-
-  // Compare year, month, day, hour, minute
-  const valueA =
-    parsedA.year * 100000000 +
-    parsedA.month * 1000000 +
-    parsedA.day * 10000 +
-    parsedA.hour * 100 +
-    parsedA.minute
-  const valueB =
-    parsedB.year * 100000000 +
-    parsedB.month * 1000000 +
-    parsedB.day * 10000 +
-    parsedB.hour * 100 +
-    parsedB.minute
-
-  return valueA - valueB
-}
+const compareDates = (dateA: string, dateB: string) =>
+  dateA.localeCompare(dateB)
 
 // Form schemas
 const programSchema = z.object({
@@ -321,6 +185,7 @@ const programSchema = z.object({
   location_city: z.string().optional().transform(val => val ? val.trim() : val),
   location_state: z.string().optional().transform(val => val ? val.trim() : val),
   location_zip: z.string().optional().transform(val => val ? val.trim() : val),
+  timezone: z.string().min(1, "Time zone is required"),
   venue_rooms: z.array(z.string().transform(val => val.trim())).optional(),
   hospitality: z.string().optional().transform(val => val ? val.trim() : val),
   theme: z.string().optional().transform(val => val ? val.trim() : val),
@@ -399,60 +264,6 @@ const designSchema = z.object({
   colors: designColorsSchema
 })
 
-const faqItemSchema = z.object({
-  question: z.string().min(1, "Question is required").transform(val => val.trim()),
-  answer: z.string().min(1, "Answer is required").transform(val => val.trim())
-})
-
-const serviceSchema = z.object({
-  title: z.string().min(1, "Title is required").transform(val => val.trim()),
-  description: z.string().min(1, "Description is required").transform(val => val.trim()),
-  internal_description: z.string().optional().transform(val => val ? val.trim() : val)
-})
-
-const volunteeringServiceSchema = serviceSchema.extend({
-  signup_destination: z.enum(["internal", "external"]).default("internal"),
-  external_signup_url: z.string().optional().transform(val => val ? val.trim() : val)
-}).superRefine((service, context) => {
-  if (service.signup_destination !== "external") return
-
-  try {
-    const url = new URL(service.external_signup_url || "")
-    const isSignupGenius =
-      url.hostname === "signupgenius.com" ||
-      url.hostname.endsWith(".signupgenius.com") ||
-      url.hostname === "sugeni.us" ||
-      url.hostname.endsWith(".sugeni.us")
-
-    if (
-      url.protocol !== "https:" ||
-      !isSignupGenius ||
-      url.username ||
-      url.password ||
-      url.port
-    ) {
-      throw new Error("Untrusted SignUpGenius URL")
-    }
-  } catch {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["external_signup_url"],
-      message: "Enter a valid HTTPS SignUpGenius URL"
-    })
-  }
-})
-
-const contentSchema = z.object({
-  faq: z.array(faqItemSchema),
-  services: z.object({
-    rides: serviceSchema.optional(),
-    support: serviceSchema.optional(),
-    hospitality: serviceSchema.optional(),
-    volunteering: volunteeringServiceSchema.optional(),
-    accessibility: serviceSchema.optional()
-  })
-})
-
 type SortField = "title" | "date" | "start_time" | "location" | "category"
 type SortOrder = "asc" | "desc"
 
@@ -527,6 +338,10 @@ export default function ProgramManagementContent() {
   const [programVenueRooms, setProgramVenueRooms] = useState<string[]>([])
   const [newVenueRoom, setNewVenueRoom] = useState("")
   const { toast } = useToast()
+  const selectedTimeZone = resolveConferenceTimeZone(
+    selectedProgram?.timezone,
+    selectedProgram?.location
+  )
 
   const programForm = useForm<z.infer<typeof programSchema>>({
     resolver: zodResolver(programSchema),
@@ -542,6 +357,7 @@ export default function ProgramManagementContent() {
       location_city: "",
       location_state: "",
       location_zip: "",
+      timezone: DEFAULT_CONFERENCE_TIME_ZONE,
       venue_rooms: [],
       hospitality: "",
       theme: "",
@@ -630,8 +446,8 @@ export default function ProgramManagementContent() {
     }
   })
 
-  const contentForm = useForm<z.infer<typeof contentSchema>>({
-    resolver: zodResolver(contentSchema),
+  const contentForm = useForm<z.infer<typeof programContentSchema>>({
+    resolver: zodResolver(programContentSchema),
     defaultValues: {
       faq: [],
       services: {
@@ -978,6 +794,26 @@ export default function ProgramManagementContent() {
     }
   }
 
+  const handleProgramFeaturesUpdated = (features: ProgramFeatureFlags) => {
+    setSelectedProgram((current) =>
+      current ? { ...current, features } : current
+    )
+    setPrograms((current) =>
+      current.map((program) =>
+        program.id === selectedProgram?.id
+          ? { ...program, features }
+          : program
+      )
+    )
+  }
+
+  const replaceProgramInState = (program: Program) => {
+    setSelectedProgram(program)
+    setPrograms((current) =>
+      current.map((item) => (item.id === program.id ? program : item))
+    )
+  }
+
   const handleProgramSubmit = async (values: z.infer<typeof programSchema>) => {
     try {
       const locationObject = {
@@ -995,9 +831,16 @@ export default function ProgramManagementContent() {
         title: values.title.trim(),
         description: values.description.trim(),
         logo: (values.logo || "").trim(),
-        start_date: values.start_date,
-        end_date: values.end_date,
+        start_date: conferenceLocalDateTimeToIso(
+          values.start_date,
+          values.timezone
+        ),
+        end_date: conferenceLocalDateTimeToIso(
+          values.end_date,
+          values.timezone
+        ),
         location: locationObject,
+        timezone: values.timezone,
         venue_rooms: programVenueRooms,
         hospitality: values.hospitality ? JSON.parse(values.hospitality) : null,
         theme: (values.theme || "").trim(),
@@ -1034,6 +877,7 @@ export default function ProgramManagementContent() {
     try {
       const eventData = {
         ...values,
+        date: normalizeConferenceDateOnly(values.date),
         title: values.title.trim(),
         description: values.description.trim(),
         image: (values.image || "").trim(),
@@ -1180,8 +1024,18 @@ export default function ProgramManagementContent() {
         end_date: selectedProgram.end_date
       })
 
-      const formattedStartDate = formatDateForInput(selectedProgram.start_date)
-      const formattedEndDate = formatDateForInput(selectedProgram.end_date)
+      const timeZone = resolveConferenceTimeZone(
+        selectedProgram.timezone,
+        selectedProgram.location
+      )
+      const formattedStartDate = formatConferenceDateTimeForInput(
+        selectedProgram.start_date,
+        timeZone
+      )
+      const formattedEndDate = formatConferenceDateTimeForInput(
+        selectedProgram.end_date,
+        timeZone
+      )
 
       console.log("Formatted dates:", { formattedStartDate, formattedEndDate })
 
@@ -1197,6 +1051,7 @@ export default function ProgramManagementContent() {
       programForm.setValue("location_city", address.city || "")
       programForm.setValue("location_state", address.state || "")
       programForm.setValue("location_zip", address.zip || "")
+      programForm.setValue("timezone", timeZone)
       programForm.setValue("venue_rooms", selectedProgram.venue_rooms || [])
       programForm.setValue(
         "hospitality",
@@ -1261,42 +1116,40 @@ export default function ProgramManagementContent() {
   }
 
   const openContentDialog = () => {
-    if (selectedProgram && selectedProgram.content) {
-      const content = selectedProgram.content
-      contentForm.reset({
-        faq: content.faq || [],
-        services: {
-          rides: content.services?.rides || {
-            title: "",
-            description: "",
-            internal_description: ""
-          },
-          support: content.services?.support || {
-            title: "",
-            description: "",
-            internal_description: ""
-          },
-          hospitality: content.services?.hospitality || {
-            title: "",
-            description: "",
-            internal_description: ""
-          },
-          volunteering: {
-            title: "",
-            description: "",
-            internal_description: "",
-            signup_destination: "internal",
-            external_signup_url: "",
-            ...content.services?.volunteering
-          },
-          accessibility: content.services?.accessibility || {
-            title: "",
-            description: "",
-            internal_description: ""
-          }
+    const content = selectedProgram?.content
+    contentForm.reset({
+      faq: content?.faq || [],
+      services: {
+        rides: content?.services?.rides || {
+          title: "",
+          description: "",
+          internal_description: ""
+        },
+        support: content?.services?.support || {
+          title: "",
+          description: "",
+          internal_description: ""
+        },
+        hospitality: content?.services?.hospitality || {
+          title: "",
+          description: "",
+          internal_description: ""
+        },
+        volunteering: {
+          title: "",
+          description: "",
+          internal_description: "",
+          signup_destination: "internal",
+          external_signup_url: "",
+          ...content?.services?.volunteering
+        },
+        accessibility: content?.services?.accessibility || {
+          title: "",
+          description: "",
+          internal_description: ""
         }
-      })
-    }
+      }
+    })
     setShowContentDialog(true)
   }
 
@@ -1360,7 +1213,7 @@ export default function ProgramManagementContent() {
       title: event.title,
       description: event.description,
       image: event.image || "",
-      date: event.date,
+      date: normalizeConferenceDateOnly(event.date),
       start_time: event.start_time,
       end_time: event.end_time,
       location: event.location,
@@ -1510,7 +1363,7 @@ export default function ProgramManagementContent() {
               setSelectedProgram(program || null)
             }}
           >
-            <SelectTrigger className="w-64">
+            <SelectTrigger className="w-64" data-testid="program-selector">
               <SelectValue placeholder="Select a program" />
             </SelectTrigger>
             <SelectContent>
@@ -1683,8 +1536,22 @@ export default function ProgramManagementContent() {
                           Duration
                         </p>
                         <p className="font-semibold">
-                          {formatDateDisplay(selectedProgram.start_date)} -{" "}
-                          {formatDateDisplay(selectedProgram.end_date)}
+                          {formatDateDisplay(
+                            selectedProgram.start_date,
+                            {},
+                            selectedTimeZone
+                          )}{" "}
+                          -{" "}
+                          {formatDateDisplay(
+                            selectedProgram.end_date,
+                            {},
+                            selectedTimeZone
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {CONFERENCE_TIME_ZONES.find(
+                            (option) => option.value === selectedTimeZone
+                          )?.label || selectedTimeZone}
                         </p>
                       </div>
                     </div>
@@ -1729,7 +1596,7 @@ export default function ProgramManagementContent() {
               </div>
 
               {/* Management Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
                 {/* Promoted Events Card */}
                 <Card>
                   <CardHeader>
@@ -1882,6 +1749,11 @@ export default function ProgramManagementContent() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <ProgramFeaturesCard
+                  program={selectedProgram}
+                  onUpdated={handleProgramFeaturesUpdated}
+                />
               </div>
 
               {/* Details Section */}
@@ -2853,7 +2725,31 @@ export default function ProgramManagementContent() {
                       <FormItem>
                         <FormLabel>State</FormLabel>
                         <FormControl>
-                          <Input placeholder="MN" {...field} />
+                          <Input
+                            placeholder="MI"
+                            {...field}
+                            onChange={(event) => {
+                              const previousDefault = inferConferenceTimeZone({
+                                address: { state: field.value }
+                              })
+                              const currentTimeZone =
+                                programForm.getValues("timezone")
+                              field.onChange(event)
+
+                              if (
+                                !currentTimeZone ||
+                                currentTimeZone === previousDefault
+                              ) {
+                                programForm.setValue(
+                                  "timezone",
+                                  inferConferenceTimeZone({
+                                    address: { state: event.target.value }
+                                  }),
+                                  { shouldDirty: true }
+                                )
+                              }
+                            }}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -2873,6 +2769,41 @@ export default function ProgramManagementContent() {
                     )}
                   />
                 </div>
+                <FormField
+                  control={programForm.control}
+                  name="timezone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Conference Time Zone</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a time zone" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {CONFERENCE_TIME_ZONES.map((option) => (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Defaults from the venue state. Confirm it for states
+                        that span more than one time zone. Event times in the
+                        app are shown in this conference time zone.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
               <div className="space-y-4">
@@ -2999,6 +2930,10 @@ export default function ProgramManagementContent() {
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
+                      <FormDescription>
+                        Conference calendar date; it will not shift with the
+                        viewer&apos;s time zone.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -3025,6 +2960,10 @@ export default function ProgramManagementContent() {
                       <FormControl>
                         <Input type="time" {...field} />
                       </FormControl>
+                      <FormDescription>
+                        If this is earlier than the start time, the event ends
+                        the following day.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -4043,23 +3982,23 @@ export default function ProgramManagementContent() {
                     })),
                     services: {
                       rides: values.services.rides ? {
-                        title: values.services.rides.title.trim(),
-                        description: values.services.rides.description.trim(),
+                        title: (values.services.rides.title || "").trim(),
+                        description: (values.services.rides.description || "").trim(),
                         internal_description: values.services.rides.internal_description ? values.services.rides.internal_description.trim() : values.services.rides.internal_description
                       } : values.services.rides,
                       support: values.services.support ? {
-                        title: values.services.support.title.trim(),
-                        description: values.services.support.description.trim(),
+                        title: (values.services.support.title || "").trim(),
+                        description: (values.services.support.description || "").trim(),
                         internal_description: values.services.support.internal_description ? values.services.support.internal_description.trim() : values.services.support.internal_description
                       } : values.services.support,
                       hospitality: values.services.hospitality ? {
-                        title: values.services.hospitality.title.trim(),
-                        description: values.services.hospitality.description.trim(),
+                        title: (values.services.hospitality.title || "").trim(),
+                        description: (values.services.hospitality.description || "").trim(),
                         internal_description: values.services.hospitality.internal_description ? values.services.hospitality.internal_description.trim() : values.services.hospitality.internal_description
                       } : values.services.hospitality,
                       volunteering: values.services.volunteering ? {
-                        title: values.services.volunteering.title.trim(),
-                        description: values.services.volunteering.description.trim(),
+                        title: (values.services.volunteering.title || "").trim(),
+                        description: (values.services.volunteering.description || "").trim(),
                         internal_description: values.services.volunteering.internal_description ? values.services.volunteering.internal_description.trim() : values.services.volunteering.internal_description,
                         signup_destination: values.services.volunteering.signup_destination,
                         external_signup_url: values.services.volunteering.signup_destination === "external" && values.services.volunteering.external_signup_url
@@ -4067,16 +4006,27 @@ export default function ProgramManagementContent() {
                           : ""
                       } : values.services.volunteering,
                       accessibility: values.services.accessibility ? {
-                        title: values.services.accessibility.title.trim(),
-                        description: values.services.accessibility.description.trim(),
+                        title: (values.services.accessibility.title || "").trim(),
+                        description: (values.services.accessibility.description || "").trim(),
                         internal_description: values.services.accessibility.internal_description ? values.services.accessibility.internal_description.trim() : values.services.accessibility.internal_description
                       } : values.services.accessibility
                     }
                   }
-                  await updateProgram(selectedProgram.id, {
-                    ...selectedProgram,
+                  const { program, error } = await updateProgram(
+                    selectedProgram.id,
+                    {
                     content: trimmedValues
-                  })
+                    }
+                  )
+                  if (error || !program) {
+                    toast({
+                      title: "Content not updated",
+                      description: error || "Failed to update content",
+                      variant: "destructive"
+                    })
+                    return
+                  }
+                  replaceProgramInState(program as Program)
                   setShowContentDialog(false)
                   toast({
                     title: "Success",
@@ -4182,6 +4132,11 @@ export default function ProgramManagementContent() {
               {/* Services Section */}
               <div className="space-y-4">
                 <Label className="text-lg font-semibold">Services</Label>
+                <p className="text-sm text-muted-foreground">
+                  Service copy is optional. Leave a field blank to use the
+                  app&apos;s default wording; disabled services do not need any
+                  content here.
+                </p>
 
                 {/* Rides Service */}
                 <div className="p-4 border rounded-lg space-y-3">

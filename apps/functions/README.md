@@ -41,6 +41,12 @@ Serve the functions through local Supabase:
 pnpm supabase:functions:serve
 ```
 
+`verify_discord_membership` binds a Discord provider token to the authenticated
+Supabase identity and records membership in the configured host guild. Set its
+`DISCORD_GUILD_ID` secret before deploying it. See the repository's
+[Discord authentication guide](../../docs/DISCORD_AUTH.md) for the complete
+portal, server installation, and deployment workflow.
+
 ## Hosted project
 
 Hosted-project commands require a Supabase access token and database password:
