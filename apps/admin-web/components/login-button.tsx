@@ -93,13 +93,11 @@ export const SignInButton = () => {
             required
           />
         </div>
-
         {error ? (
           <p className="text-sm text-destructive" role="alert">
             {error}
           </p>
         ) : null}
-
         <Button
           type="submit"
           className="w-full"
