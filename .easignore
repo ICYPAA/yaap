@@ -1,0 +1,57 @@
+# Workspace
+node_modules/
+.pnpm-store/
+.turbo/
+
+# Editor/OS
+.DS_Store
+.idea/
+.vscode/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+coverage/
+dist/
+build/
+*.tsbuildinfo
+apps/*/.turbo/
+apps/admin-web/.next/
+apps/admin-web/playwright-report/
+apps/admin-web/test-results/
+artifacts/
+
+# Per-app node_modules
+apps/*/node_modules/
+packages/*/node_modules/
+
+# Expo dev artifacts
+.expo/
+
+# Supabase local state
+apps/functions/supabase/.temp/
+apps/functions/supabase/.branches/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.vercel
+
+# Native projects are generated from the Expo release configuration.
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/.expo/
+apps/mobile/web-build/
+apps/mobile/supabase/.temp/
+*.pem
+*.jks
+apps/mobile/yaap-59126-firebase-*
+
+# Separate website work and local review material are not part of mobile builds.
+apps/host-demo/
+docs/audits/

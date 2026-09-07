@@ -1,15 +1,15 @@
 import { Platform } from "react-native"
 
-// Base colors
+// Generic ICYPAA palette. Individual conferences override primary/secondary.
 const colors = {
-  primary: "#2b8d9b",
-  primaryDark: "#1e6269",
-  secondary: "#f55654",
-  secondaryDark: "#c13e3c",
+  primary: "#263869",
+  primaryDark: "#1A274A",
+  secondary: "#4267A5",
+  secondaryDark: "#304B78",
   error: "#f55654",
   success: "#4caf50",
   warning: "#fad48a",
-  info: "#a2dfda"
+  info: "#DCE7F6"
 }
 
 // Typography

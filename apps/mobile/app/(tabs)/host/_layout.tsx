@@ -60,6 +60,7 @@ export default function HostLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="notification-diagnostics" options={{ headerShown: false }} />
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
         name="login"

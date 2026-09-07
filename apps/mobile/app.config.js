@@ -1,8 +1,12 @@
+const branding = require("./config/branding.cjs")
 module.exports = ({ config }) => {
   const isLocalIos = process.env.YAAP_LOCAL_IOS === "1"
 
   return {
     ...config,
+    icon: branding.icon,
+    android: { ...config.android, adaptiveIcon: branding.adaptiveIcon },
+    web: { ...config.web, favicon: branding.favicon },
     ios: {
       ...config.ios,
       // Apple Sign-In requires a development certificate even for Simulator
@@ -17,6 +21,7 @@ module.exports = ({ config }) => {
     },
     plugins: [
       ...(config.plugins || []),
+      ...(branding.name === "generic" ? ["./plugins/generic-adaptive-icon.cjs"] : []),
       ...(isLocalIos
         ? ["./plugins/without-apple-sign-in"]
         : [])

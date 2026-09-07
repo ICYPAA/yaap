@@ -1,3 +1,22 @@
+# Annual app branding
+
+The permanent generic ICYPAA icon lives in `apps/mobile/assets/branding/icypaa-generic/`.
+`source.png` preserves the official artwork from icypaa.org; `icon.png` is the
+square rendition served by its image provider. Source:
+https://static.wixstatic.com/media/cb4846_9511d732b4e54f0f9d66ff830baf63bc~mv2.png
+
+`apps/mobile/config/branding.cjs` selects the native icon, adaptive layers, and
+favicon together. Its checked-in default is `generic`. Set `YAAP_BRANDING=icypaa-66`
+for the preserved 66th conference icon, or add another named conference entry.
+After a conference, set the default back to `generic` and remove any EAS
+production environment override. The generic adaptive icon uses a native inset
+to protect the lettering without modifying the official raster.
+
+Icons are compiled into the app: bump the app version and create both store
+builds when switching. An OTA update cannot replace the installed launcher icon.
+The holding screen deliberately keeps the generic asset independent of the
+current program. Test iOS and Android launcher masks before each release.
+
 # 66th ICYPAA brand assets
 
 The supplied full-bleed artwork is preserved in

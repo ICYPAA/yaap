@@ -1,3 +1,4 @@
+import { router } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import React from "react"
 import {
@@ -6,8 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View
+  TouchableOpacity
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useCurrentConference } from "../context/CurrentConferenceContext"
@@ -17,6 +17,7 @@ import {
   resolveConferenceTimeZone
 } from "../lib/conferenceTime"
 import { Program } from "../types/program"
+import { ArchivePicker } from './ArchivePicker'
 
 const formatDateRange = (program: Program | null) => {
   if (!program) return null
@@ -50,17 +51,11 @@ export const ConferenceStatusScreen = () => {
         {isPlanning && program.logo ? (
           <Image source={{ uri: program.logo }} style={styles.logo} />
         ) : (
-          <View style={styles.iconShell}>
-            <Ionicons
-              name={isPlanning ? "calendar-outline" : "time-outline"}
-              size={42}
-              color={theme.colors.primary}
-            />
-          </View>
+          <Image accessibilityLabel="ICYPAA" source={require('../assets/branding/icypaa-generic/icon.png')} style={styles.logo} />
         )}
 
         <Text style={styles.title}>
-          {isPlanning ? program.title : "No conference is currently available"}
+          {isPlanning ? program.title : "Until the next ICYPAA"}
         </Text>
 
         {isPlanning ? (
@@ -74,9 +69,11 @@ export const ConferenceStatusScreen = () => {
           </>
         ) : (
           <Text style={styles.body}>
-            Check back later for the next conference program.
+            There is no current program. You can look back at a past ICYPAA while the next conference takes shape.
           </Text>
         )}
+
+        <ArchivePicker />
 
         <TouchableOpacity
           style={styles.button}
@@ -92,6 +89,7 @@ export const ConferenceStatusScreen = () => {
             </>
           )}
         </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={() => router.push('/host')} style={{ padding: 12 }}><Text style={{ color: theme.colors.text.secondary }}>Host sign in</Text></TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   )

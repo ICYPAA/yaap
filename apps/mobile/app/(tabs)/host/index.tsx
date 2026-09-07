@@ -127,6 +127,10 @@ export default function HostDashboard() {
       })
     }
 
+    if (isSuperAdmin()) {
+      sections.push({ title: "Notification diagnostics", route: "notification-diagnostics", icon: "pulse", isAction: true, category: "tools" })
+    }
+
     // Tools section - only for steering members and admins
     if (isHostAdmin() || isSuperAdmin()) {
       sections.push({
@@ -210,7 +214,7 @@ export default function HostDashboard() {
       const supabaseWithDeviceId = await withDeviceId()
 
       // Set up subscriptions for each table
-      serviceSections.forEach((section) => {
+      getServiceSections().forEach((section) => {
         // Skip sections without a table (like General Notifications)
         if (!section.table) return
 
@@ -334,7 +338,7 @@ export default function HostDashboard() {
     } catch (error) {
       console.error("Error setting up realtime subscriptions:", error)
     }
-  }, [programId, serviceSections, updateServiceSectionCount])
+  }, [programId, getServiceSections, updateServiceSectionCount])
 
   const fetchCountForTable = useCallback(async (table: string) => {
     try {
@@ -769,7 +773,9 @@ export default function HostDashboard() {
                           {service.title}
                         </Text>
                         <Text style={styles(theme).serviceSubtitle}>
-                          {service.route === "general-notifications"
+                          {service.route === "notification-diagnostics"
+                            ? "Test this device’s push registration"
+                            : service.route === "general-notifications"
                             ? "Send notifications to attendees"
                             : service.route === "oncall"
                               ? "Manage on-call assignments"

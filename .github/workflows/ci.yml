@@ -42,6 +42,9 @@ jobs:
       - name: Check Expo dependency compatibility
         run: pnpm --filter @yaap/mobile exec expo install --check
 
+      - name: Check Android target API requirement
+        run: pnpm --filter @yaap/mobile check:android-target
+
       - name: Typecheck admin web
         run: pnpm --filter @yaap/admin-web typecheck
 
