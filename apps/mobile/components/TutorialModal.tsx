@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { Modal, Platform } from "react-native"
+import { SafeAreaProvider } from "react-native-safe-area-context"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { TutorialCarousel } from "./TutorialCarousel"
 
@@ -78,7 +79,9 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
 
   return (
     <Modal {...modalProps}>
-      <TutorialCarousel onClose={handleClose} />
+      <SafeAreaProvider>
+        <TutorialCarousel onClose={handleClose} />
+      </SafeAreaProvider>
     </Modal>
   )
 }

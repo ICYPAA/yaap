@@ -6,10 +6,9 @@ import {
   Dimensions,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
-  Platform,
-  StatusBar
+  Platform
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { useTheme } from "../context/ThemeContext"
 import { useFeatures } from "../context/FeatureContext"
 import { IconSymbol } from "./ui/IconSymbol"
@@ -151,14 +150,7 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <View
-        style={[
-          styles.header,
-          Platform.OS === "android" && {
-            marginTop: StatusBar.currentHeight || 0
-          }
-        ]}
-      >
+      <View style={styles.header}>
         {!isLastPage && (
           <TouchableOpacity
             onPress={handleSkip}

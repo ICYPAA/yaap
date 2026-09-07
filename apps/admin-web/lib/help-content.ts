@@ -19,6 +19,19 @@ export type HelpSection = {
 
 export const HELP_SECTIONS: HelpSection[] = [
   {
+    id: "push-notifications",
+    label: "Push notifications",
+    title: "Send announcements and verify delivery",
+    summary: "Host committee permissions, administrator setup, and single-device live tests.",
+    keywords: ["push", "notifications", "token", "Expo", "APNs", "FCM", "notifications:send"],
+    topics: [
+      { title: "Host committee access", body: ["An administrator grants selected host accounts notifications:send in Manage access. Program editing access alone does not allow announcements. Open Dashboard → Committee announcements. A current active conference is required.", "Announcements go to all opted-in app devices, not just people who saved that program. Hosts can review their own delivery history; full administrators can review all attempts."], steps: ["Confirm the active conference and compose a short title and message.", "Review the text and audience, then send once.", "Check the delivery attempt and fetch receipts after about 15 minutes. Escalate errors instead of resending blindly.", "Remove sending permission at committee handoff. Clearing the current program disables committee announcements."] },
+      { title: "Administrator live test", body: ["Dashboard → Administrator diagnostics is restricted to the admin role. It sends a [TEST] notification to one entered Expo token and remains available with no active conference."], steps: ["Install the intended native build on your own physical device and allow notifications.", "In the app, open Notification diagnostics under Host → Notification diagnostics, signed in as a full administrator. Tap Refresh token and copy the displayed Expo token.", "Paste it into Administrator diagnostics, review a test message, and send.", "Verify the actual device in foreground, background, and locked states. Repeat on iOS and Android.", "Check receipts after about 15 minutes, within 24 hours. Expo acceptance is not proof the user received a notification."] },
+      { title: "Server and native configuration", checklist: ["Apply the push_notification_runs migration and deploy the admin app and notification_service Edge Function.", "Set SUPABASE_SERVICE_ROLE_KEY only on the admin server, for the same Supabase project.", "Verify EAS APNs credentials for the iOS bundle and FCM v1 credentials plus Google services configuration for Android.", "If enhanced Expo push security is enabled, set EXPO_ACCESS_TOKEN on both the admin server and Edge Function.", "Use the app's Expo project ID and a fresh token from an installed native build. A simulator UI test cannot verify remote push delivery."] },
+      { title: "Common delivery failures", body: ["InvalidCredentials or MismatchSenderId: check APNs/FCM credentials and project mapping. UNAUTHORIZED: check the Expo access token in the sending service.", "DeviceNotRegistered: have the administrator remove the obsolete token from the user's profile until the device registers again. Tokens are not automatically pruned by this dashboard.", "No recipients: check profile existence, notifications preference, and token registration. A single-device test does not require a profile.", "Accepted but silent: fetch receipts, then inspect OS permission, Focus, lock-screen settings, and Android channels.", "A partial or interrupted send can have an uncertain result. Refresh history and inspect receipts before retrying.", "Automatic event/service messages use the separate notification_service Edge Function; inspect its logs, caller session, and category preferences. Dashboard history covers dashboard sends only."] }
+    ]
+  },
+  {
     id: "getting-started",
     label: "Start here",
     title: "Set up and publish a conference",

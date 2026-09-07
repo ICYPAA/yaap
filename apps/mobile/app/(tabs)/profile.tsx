@@ -1,8 +1,8 @@
+import { registerForPushNotificationsAsync } from "../../lib/pushNotifications"
 import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Application from "expo-application"
 import * as ImagePicker from "expo-image-picker"
-import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import React, { useCallback, useEffect, useState } from "react"
 import {
@@ -43,35 +43,6 @@ async function getIdentifier() {
     return androidId // Example: '9774d56d682e549c' or null
   }
   return null
-}
-
-// Function to register for push notifications and get token
-async function registerForPushNotificationsAsync() {
-  let token
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#FF231F7C"
-    })
-  }
-
-  try {
-    token = (
-      await Notifications.getExpoPushTokenAsync({
-        projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
-      })
-    ).data
-    return token
-  } catch (error) {
-    console.error("Error getting push token:", error)
-    // Silently fail on emulators/simulators
-    if (__DEV__) {
-      console.log("Push tokens may not be supported on emulators/simulators")
-    }
-    return null
-  }
 }
 
 // Type for the data needed for display in lists (subset of User)
@@ -441,7 +412,7 @@ export default function Profile() {
         first_name: sanitizeName(firstName),
         last_initial: sanitizeLastInitial(lastInitial),
         profile_image: profileImageToSave || "", // Ensure it's never null
-        expo_push_token: pushToken,
+        ...(pushToken ? { expo_push_token: pushToken } : {}),
         user_id: userId // This will be string | undefined, not string | null
       }
       const supabaseWithDeviceId = await withDeviceId(supabase, '/profile/update')
@@ -1153,7 +1124,7 @@ export default function Profile() {
                       device_id: deviceId,
                       first_name: firstName,
                       last_initial: lastInitial,
-                      expo_push_token: pushToken, // Add push token
+                      ...(pushToken ? { expo_push_token: pushToken } : {}), // Add push token
                       // Initialize settings and schedule with defaults if needed by your schema
                       settings: {
                         notifications: true,
@@ -1819,7 +1790,7 @@ export default function Profile() {
             <Text style={styles.deleteProfileButtonText}>Delete Profile</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+          </ScrollView>
       
       {/* Language Picker Modal - Hidden for now */}
       {/* <LanguagePicker 

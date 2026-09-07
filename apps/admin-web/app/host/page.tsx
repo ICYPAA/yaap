@@ -1,3 +1,4 @@
+import { pushAccess } from "@/lib/push-policy"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,6 +37,9 @@ export default async function ConferenceAdminPage() {
   } = await supabase.auth.getUser()
 
   if (!user) return null
+
+  const { data: notificationRoles } = await supabase.from("roles").select("role,permissions").eq("user_id", user.id)
+  const notificationAccess = pushAccess(notificationRoles || [])
 
   const conferenceState = await getConferenceState()
   const currentProgram = conferenceState.current_program_id
@@ -204,6 +208,8 @@ export default async function ConferenceAdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {notificationAccess.send && <Card><CardHeader><CardTitle>Push notifications</CardTitle><CardDescription>Committee announcements and delivery history.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3"><Button asChild><Link href="/host/push-notifications">Committee announcements</Link></Button>{notificationAccess.admin && <Button variant="outline" asChild><Link href="/admin/push-notifications">Administrator diagnostics</Link></Button>}</CardContent></Card>}
 
       {currentProgram ? (
         <Card>

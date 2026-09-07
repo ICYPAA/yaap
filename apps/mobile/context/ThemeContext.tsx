@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from "react"
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { useColorScheme } from "react-native"
 import { darkThemeColors, theme as lightTheme } from "../constants/theme"
 import { getThemeMode, setThemeMode } from "../lib/storage"
-import { getProgramDesign } from "../lib/theme"
+import { useCurrentConference } from "./CurrentConferenceContext"
 import { ConferenceDesign } from "../types/program"
 
 // Create a deep copy of the light theme and replace colors with dark theme colors
@@ -29,43 +29,17 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const colorScheme = useColorScheme()
   const [isDarkMode, setIsDarkMode] = useState(colorScheme === "dark")
   const [isLoaded, setIsLoaded] = useState(false)
-  const [programDesign, setProgramDesign] = useState<ConferenceDesign | null>(
-    null
-  )
-  const [currentTheme, setCurrentTheme] = useState(
-    isDarkMode ? darkTheme : lightTheme
-  )
-
-  // Load program design from storage
-  useEffect(() => {
-    const loadProgramDesign = async () => {
-      try {
-        const design = await getProgramDesign()
-        if (design) {
-          setProgramDesign(design)
-
-          // Apply program design colors to theme
-          const baseTheme = isDarkMode ? darkTheme : lightTheme
-          const updatedTheme = {
-            ...baseTheme,
-            colors: {
-              ...baseTheme.colors,
-              // Only override primary and secondary if they exist in program design
-              ...(design.colors?.primary && { primary: design.colors.primary }),
-              ...(design.colors?.secondary && {
-                secondary: design.colors.secondary
-              })
-            }
-          }
-          setCurrentTheme(updatedTheme)
-        }
-      } catch (error) {
-        console.error("Error loading program design:", error)
-      }
+  const { program, archiveProgram, archiveDetails } = useCurrentConference()
+  const programDesign = (archiveProgram ? archiveDetails?.design : program?.design) ?? null
+  const baseTheme = isDarkMode ? darkTheme : lightTheme
+  const currentTheme = useMemo(() => ({
+    ...baseTheme,
+    colors: {
+      ...baseTheme.colors,
+      ...(programDesign?.colors?.primary && { primary: programDesign.colors.primary }),
+      ...(programDesign?.colors?.secondary && { secondary: programDesign.colors.secondary })
     }
-
-    loadProgramDesign()
-  }, [isDarkMode])
+  }), [baseTheme, programDesign])
 
   // Load saved theme on mount
   useEffect(() => {

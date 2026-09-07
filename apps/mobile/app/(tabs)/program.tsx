@@ -1,7 +1,8 @@
+import { ScheduleOptions } from "../../components/ScheduleOptions"
+import { registerForPushNotificationsAsync as registerPushToken } from "../../lib/pushNotifications"
 import { FontAwesome6, Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
-import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -24,10 +25,6 @@ import { EventDetailsModal } from "../../components/EventDetailsModal"
 import { useCurrentConference } from "../../context/CurrentConferenceContext"
 import { useFeatures } from "../../context/FeatureContext"
 import { useTheme } from "../../context/ThemeContext"
-import {
-  conferenceEventDateTimeToDate,
-  resolveConferenceTimeZone
-} from "../../lib/conferenceTime"
 import { resolveProgramDetails } from "../../lib/programFallbacks"
 import { getOrCreateDeviceId } from "../../lib/security/deviceId"
 import { withDeviceId } from "../../lib/supabase"
@@ -42,6 +39,7 @@ import {
   Program as ProgramType
 } from "../../types/program"
 import { Schedule } from "../../types/user"
+import { getProgramTimeZone, hasEventEnded, initialProgramDay } from "../../lib/programTime"
 
 // Define shadow styles to replace theme.shadows.small
 const getShadowStyles = (isDark: boolean) => ({
@@ -316,19 +314,6 @@ const getEventPosition = (
   return { top: startMinutes, height }
 }
 
-// Helper function to parse event date and time strings
-const parseEventDateTime = (
-  dateStr: string,
-  timeStr: string, // This will represent the END time when checking if passed
-  startTimeStr: string | undefined, // The event's START time string
-  timeZone: string
-): Date | null =>
-  conferenceEventDateTimeToDate(
-    dateStr,
-    timeStr,
-    timeZone,
-    startTimeStr
-  )
 
 // Create a new TimelineView component that shows events across rooms
 const TimelineView = ({
@@ -354,6 +339,7 @@ const TimelineView = ({
   formatTimeFunction: (timeStr: string | null | undefined) => string
   sharedEvents: SharedEventsData
 }) => {
+  const isArchive = Boolean(useCurrentConference().archiveProgram)
   // Add refs to synchronize scrolling
   const roomHeadersScrollRef = React.useRef<ScrollView>(null)
   const roomColumnsScrollRef = React.useRef<ScrollView>(null)
@@ -1255,15 +1241,8 @@ const TimelineView = ({
                         // Check if the event has passed
                         const now = new Date()
                         const endTimeForCheck = formattedEndTime || event.time // Use end time if available, else start time
-                        const eventEndDateTime = parseEventDateTime(
-                          event.date,
-                          endTimeForCheck, // This is the end time string
-                          event.time, // Pass the start time string
-                          resolveConferenceTimeZone(programDetails)
-                        )
-                        const hasPassed = eventEndDateTime
-                          ? eventEndDateTime < now
-                          : false
+                        const hasPassed = !isArchive && hasEventEnded(event.date, event.time, endTimeForCheck, getProgramTimeZone(programDetails), now)
+
 
                         // Check if this event overlaps or is adjacent to a previous event in same room
                         const shouldShowTopBorder = (() => {
@@ -1777,6 +1756,7 @@ const TimelineView = ({
 
 // Define a type for the DayScheduleCard component props
 type DayScheduleCardProps = {
+  groupBy: "category" | "time" | "room"
   day: string
   items: DisplayScheduleItem[]
   savedItems: number[]
@@ -1792,6 +1772,7 @@ type DayScheduleCardProps = {
 
 // Create a DayScheduleCard component that uses the original styles
 const DayScheduleCard = ({
+  groupBy,
   day,
   items,
   savedItems,
@@ -1804,6 +1785,7 @@ const DayScheduleCard = ({
   promoteIds,
   sharedEvents
 }: DayScheduleCardProps) => {
+  const isArchive = Boolean(useCurrentConference().archiveProgram)
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>(
     {}
   )
@@ -2048,10 +2030,21 @@ const DayScheduleCard = ({
 
   // Group filtered items by category
   const groupedByCategory = useMemo(() => {
+    if (groupBy !== "category") {
+      const grouped: Record<string, DisplayScheduleItem[]> = {}
+      const ordered = [...filteredItems].sort((a, b) => groupBy === "time"
+        ? parseTimeForSorting(a.time) - parseTimeForSorting(b.time)
+        : a.location.localeCompare(b.location) || parseTimeForSorting(a.time) - parseTimeForSorting(b.time))
+      for (const item of ordered) {
+        const key = groupBy === "time" ? item.time : item.location || "Other rooms"
+        ;(grouped[key] ||= []).push(item)
+      }
+      return grouped
+    }
     // If showing featured items, group them under "Featured Events"
     if (activeFilter === "featured") {
       return filteredItems.length > 0
-        ? { "Featured Events": filteredItems }
+        ? { "Featured Events": [...filteredItems] }
         : {}
     }
 
@@ -2094,7 +2087,7 @@ const DayScheduleCard = ({
       })
 
     return orderedCategories
-  }, [filteredItems, activeFilter])
+  }, [filteredItems, activeFilter, groupBy])
 
   // Sort each category's items by time
   Object.keys(groupedByCategory).forEach((category) => {
@@ -2436,15 +2429,8 @@ const DayScheduleCard = ({
                   const endTimeForCheck = endTime
                     ? formatEventTime(endTime)
                     : item.time
-                  const eventEndDateTime = parseEventDateTime(
-                    item.date,
-                    endTimeForCheck, // This is the end time string
-                    item.time, // Pass the start time string
-                    resolveConferenceTimeZone(programDetails)
-                  )
-                  const hasPassed = eventEndDateTime
-                    ? eventEndDateTime < now
-                    : false
+                  const hasPassed = !isArchive && hasEventEnded(item.date, item.time, endTimeForCheck, getProgramTimeZone(programDetails), now)
+
                   const itemOpacity = hasPassed ? 0.5 : 1 // Opacity for past events
 
                   return (
@@ -2787,19 +2773,22 @@ const DayScheduleCard = ({
 export default function Program() {
   const { theme, isDarkMode } = useTheme()
   const currentConference = useCurrentConference()
+  const isArchive = Boolean(currentConference.archiveProgram)
+  const { setArchiveDetails } = currentConference
   const { isFeatureEnabled } = useFeatures()
   const shadowStyles = getShadowStyles(isDarkMode)
   const navigation = useNavigation()
 
-  const programId =
-    currentConference.status === "active"
-      ? currentConference.currentProgramId
-      : null
+  const programId = currentConference.archiveProgram?.id ??
+    (currentConference.status === "active" ? currentConference.currentProgramId : null)
 
   // State for tabs
   const [activeTab, setActiveTab] = useState(0)
   const [activeCategoryFilter, setActiveCategoryFilter] = useState("all")
   const [activeDay, setActiveDay] = useState(0)
+  const [hidePast, setHidePast] = useState(false)
+  const [groupBy, setGroupBy] = useState<"category" | "time" | "room">("category")
+  const [, setClockTick] = useState(0)
   const [headerHeight, setHeaderHeight] = useState(1) // Use 0-1 value for animation
 
   // State for program data
@@ -2823,8 +2812,8 @@ export default function Program() {
   // Reference to scroll view to track scrolling
   const scrollViewRef = React.useRef<ScrollView>(null)
   // Reference to store the shared events polling interval
-  const sharedEventsPollingInterval =
-    useRef<ReturnType<typeof setInterval> | null>(null)
+  const sharedEventsPollingInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+
   // Store the last known shared events data to compare for changes
   const lastSharedEventsRef = useRef<string>("")
 
@@ -3078,8 +3067,11 @@ export default function Program() {
     return unsubscribe
   }, [deviceId, navigation])
 
-  // Fetch data from Supabase
+  const fallbackProgram = isArchive ? null : currentConference.program
+
+  // Fetch data only for the explicitly selected program.
   useEffect(() => {
+    let cancelled = false
     const fetchData = async () => {
       setLoading(true)
       setError(null)
@@ -3117,7 +3109,7 @@ export default function Program() {
 
         const resolvedProgram = resolveProgramDetails(
           programRes.data as ProgramType | null,
-          currentConference.program,
+          fallbackProgram,
           programId
         )
 
@@ -3132,21 +3124,25 @@ export default function Program() {
           throw new Error("The current conference program is unavailable.")
         }
 
+        if (cancelled) return
         // Set state
         setProgramDetails(resolvedProgram)
+        if (isArchive) setArchiveDetails(resolvedProgram)
         // Type assertion needed because Supabase join returns nested object or array
         setEvents((eventsRes.data as Event[]) || [])
         setCategories(categoriesRes.data || [])
         setActivities(activitiesRes.data || [])
       } catch (err: any) {
         console.error("Error fetching data:", err)
-        setError(err instanceof Error ? err : new Error(String(err)))
+        if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)))
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     fetchData()
-  }, [currentConference.program, fetchAttempt, programId])
+    return () => { cancelled = true }
+  }, [fallbackProgram, fetchAttempt, programId, isArchive, setArchiveDetails])
+
 
   // --- Helper Function ---
   // Simple time formatter (e.g., "HH:MM:SS" -> "H:MM AM/PM")
@@ -3272,6 +3268,10 @@ export default function Program() {
     try {
       // Check if user has a profile first
       if (!hasProfile) {
+        if (isArchive) {
+          Alert.alert("No saved schedule", "There is no saved profile on this device. You can still browse every event in this past program.")
+          return
+        }
         // If no profile, redirect to the profile page
         Alert.alert(
           "Profile Required",
@@ -3429,6 +3429,24 @@ export default function Program() {
     .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime())
     .map(({ day, items }) => ({ day, items }))
 
+  const dayKeys = scheduleDays.map(day => day.items[0].date.slice(0, 10)).join(',')
+  const timeZone = getProgramTimeZone(programDetails)
+  useEffect(() => {
+    if (!dayKeys) return
+    const chooseDay = () => setActiveDay(isArchive ? 0 : initialProgramDay(dayKeys.split(','), timeZone))
+    chooseDay()
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active' && !isArchive) { chooseDay(); setClockTick(tick => tick + 1) }
+    })
+    const timer = isArchive ? undefined : setInterval(() => setClockTick(tick => tick + 1), 60000)
+    return () => { subscription.remove(); if (timer) clearInterval(timer) }
+  }, [dayKeys, timeZone, isArchive, programId])
+
+  const visibleItem = (item: DisplayScheduleItem) => isArchive || !hidePast ||
+    !hasEventEnded(item.date, item.time, events.find(event => event.id === item.id)?.end_time, timeZone)
+  const visibleEvents = events.filter(event => isArchive || !hidePast ||
+    !hasEventEnded(event.date, event.start_time, event.end_time, timeZone))
+
   // Ensure activeDay is within bounds
   useEffect(() => {
     if (scheduleDays.length > 0 && activeDay >= scheduleDays.length) {
@@ -3486,8 +3504,8 @@ export default function Program() {
 
   // Get current day saved items
   const currentDay = getCurrentDay()
-  const currentDayItems = getCurrentDayItems()
-  const currentDaySavedItems = getCurrentDaySavedItems()
+  const currentDayItems = getCurrentDayItems().filter(visibleItem)
+  const currentDaySavedItems = getCurrentDaySavedItems().filter(visibleItem)
 
   // Get friends attending an event
   const getFriendsAttending = (eventId: number) => {
@@ -3654,11 +3672,15 @@ export default function Program() {
       },
       viewButton: {
         flex: 1,
+        minWidth: 0,
+        minHeight: 44,
+        borderWidth: 1,
+        borderColor: "transparent",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
+        paddingHorizontal: 6,
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.md,
         marginHorizontal: theme.spacing.xs
@@ -3671,11 +3693,12 @@ export default function Program() {
       viewButtonText: {
         fontSize: theme.typography.caption.fontSize, // Use theme typography
         color: theme.colors.text.secondary,
-        marginLeft: 4
+        flexShrink: 1,
+        fontWeight: "600"
       },
       activeViewButtonText: {
         color: theme.colors.primary,
-        fontWeight: "bold"
+        fontWeight: "600"
       },
       // Program header styles
       programHeader: {
@@ -3702,7 +3725,8 @@ export default function Program() {
         paddingHorizontal: 16,
         paddingBottom: 8,
         flexDirection: "row",
-        flexWrap: "wrap"
+        alignItems: "center",
+        gap: 8
       },
       filterChips: {
         flexDirection: "row",
@@ -4101,6 +4125,9 @@ export default function Program() {
             style={{ marginRight: 4 }}
           />
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
             style={[
               programStyles(theme).viewButtonText,
               activeTab === 0 && programStyles(theme).activeViewButtonText
@@ -4130,6 +4157,9 @@ export default function Program() {
             style={{ marginRight: 4 }}
           />
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
             style={[
               programStyles(theme).viewButtonText,
               activeTab === 1 && programStyles(theme).activeViewButtonText
@@ -4144,6 +4174,7 @@ export default function Program() {
           accessibilityLabel="My Schedule"
           style={[
             programStyles(theme).viewButton,
+            { flex: 1.35 },
             activeTab === 2 && programStyles(theme).activeViewButton
           ]}
           onPress={() => setActiveTab(2)}
@@ -4159,6 +4190,9 @@ export default function Program() {
             style={{ marginRight: 4 }}
           />
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
             style={[
               programStyles(theme).viewButtonText,
               activeTab === 2 && programStyles(theme).activeViewButtonText
@@ -4173,6 +4207,7 @@ export default function Program() {
       <View style={programStyles(theme).filterChipsContainer}>
         <ScrollView
           horizontal
+          style={{ flex: 1 }}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={programStyles(theme).filterChips}
         >
@@ -4198,6 +4233,7 @@ export default function Program() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        <ScheduleOptions isArchive={isArchive} showGrouping={activeTab === 0} groupBy={groupBy} onGroupChange={setGroupBy} hidePast={hidePast} onHidePastChange={setHidePast} timeZone={timeZone} />
       </View>
 
       {/* Content area with scroll event handler */}
@@ -4214,11 +4250,11 @@ export default function Program() {
             day={currentDay}
             savedItems={savedItems}
             onToggleSave={handleToggleSave}
-            allScheduleItems={allScheduleItems}
+            allScheduleItems={allScheduleItems.filter(visibleItem)}
             activeFilter={activeCategoryFilter}
             promoteIds={programDetails?.promote}
             programDetails={programDetails}
-            events={events}
+            events={visibleEvents}
             formatTimeFunction={formatTime}
             sharedEvents={sharedEvents}
           />
@@ -4226,6 +4262,7 @@ export default function Program() {
 
         {activeTab === 0 && scheduleDays.length > 0 && (
           <DayScheduleCard
+            groupBy={groupBy}
             day={currentDay}
             items={currentDayItems}
             savedItems={savedItems}
@@ -4234,7 +4271,7 @@ export default function Program() {
             theme={theme}
             shadowStyles={shadowStyles}
             programDetails={programDetails}
-            events={events}
+            events={visibleEvents}
             promoteIds={programDetails?.promote}
             sharedEvents={sharedEvents}
           />
@@ -4279,15 +4316,8 @@ export default function Program() {
                     const endTimeForCheck = eventDetails?.end_time
                       ? formatTime(eventDetails.end_time)
                       : item.time
-                    const eventEndDateTime = parseEventDateTime(
-                      item.date,
-                      endTimeForCheck,
-                      item.time,
-                      resolveConferenceTimeZone(programDetails)
-                    )
-                    const hasPassed = eventEndDateTime
-                      ? eventEndDateTime < now
-                      : false
+                    const hasPassed = !isArchive && hasEventEnded(item.date, item.time, endTimeForCheck, getProgramTimeZone(programDetails), now)
+
 
                     if (hasPassed) {
                       pastEvents.push(item)
@@ -4622,7 +4652,7 @@ export default function Program() {
             {/* Bid Committee Schedule */}
             {isFeatureEnabled("bid_schedule_enabled") && showBidSchedule && (
               <View style={{ marginVertical: 16 }}>
-                {programId ? <BidSchedule programId={programId} /> : null}
+                {programId && !isArchive ? <BidSchedule programId={programId} /> : null}
               </View>
             )}
 
@@ -4847,31 +4877,7 @@ const HospitalitySection = ({
 
 // Function to register for push notifications and get token
 async function registerForPushNotificationsAsync() {
-  let token
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#FF231F7C"
-    })
-  }
-
-  try {
-    token = (
-      await Notifications.getExpoPushTokenAsync({
-        projectId: "15c03e66-5f31-409b-b31a-b53b92e00fb1"
-      })
-    ).data
-    return token
-  } catch (error) {
-    console.error("Error getting push token:", error)
-    // Silently fail on emulators/simulators
-    if (__DEV__) {
-      console.log("Push tokens may not be supported on emulators/simulators")
-    }
-    return null
-  }
+  return registerPushToken()
 }
 
 // Render schedule QR codes on-device so sharing also works without network access.

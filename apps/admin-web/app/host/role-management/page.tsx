@@ -29,7 +29,7 @@ import {
   type UserWithRole
 } from "./actions"
 
-const AVAILABLE_PERMISSIONS = ["program:edit"] as const
+const AVAILABLE_PERMISSIONS = ["program:edit", "notifications:send"] as const
 
 const PERMISSION_OPTIONS: MultiSelectOption[] = AVAILABLE_PERMISSIONS.map(
   (permission) => ({

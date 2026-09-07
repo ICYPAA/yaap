@@ -2,9 +2,9 @@
   "expo": {
     "name": "YAAP!",
     "slug": "icypaa",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/branding/icypaa-generic/icon.png",
     "scheme": "yaap",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -20,27 +20,37 @@
           "remote-notification"
         ]
       },
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "buildNumber": "52"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundImage": "./assets/images/adaptive-icon-background.png",
-        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
-        "backgroundColor": "#fa6a1b"
+        "foregroundImage": "./assets/branding/icypaa-generic/icon.png",
+        "backgroundColor": "#263869"
       },
       "package": "com.themindfulpug.yaap",
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE"
       ],
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 19
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/branding/icypaa-generic/icon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0"
+          }
+        }
+      ],
       "expo-router",
       "expo-font",
       "@react-native-community/datetimepicker",

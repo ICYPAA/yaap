@@ -652,7 +652,8 @@ async function sendExpoNotifications(messages: ExpoMessage[]) {
         headers: {
           Accept: "application/json",
           "Accept-encoding": "gzip, deflate",
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          ...(Deno.env.get("EXPO_ACCESS_TOKEN") ? { Authorization: `Bearer ${Deno.env.get("EXPO_ACCESS_TOKEN")}` } : {})
         },
         body: JSON.stringify(batch)
       })
@@ -1002,7 +1003,7 @@ Deno.serve(async (req): Promise<Response> => {
       // Validate token format (prevents sending to malformed tokens)
       const isValidToken =
         typeof user.expo_push_token === "string" &&
-        user.expo_push_token.startsWith("ExponentPushToken[")
+        /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/.test(user.expo_push_token)
       if (!isValidToken && specificSettingEnabled && generalSettingEnabled) {
         // Log if a user *should* receive it based on settings but has a bad token
         console.warn(

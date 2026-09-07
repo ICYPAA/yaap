@@ -10,10 +10,16 @@ import {
   CurrentConferenceState,
   fetchAndStoreCurrentConferenceState
 } from "../lib/currentConference"
+import type { Program } from "../types/program"
+import type { ArchivedProgram } from "../lib/programArchive"
 
 type CurrentConferenceContextType = CurrentConferenceState & {
   loading: boolean
   refresh: () => Promise<void>
+  archiveProgram: ArchivedProgram | null
+  archiveDetails: Program | null
+  setArchiveDetails: (program: Program) => void
+  selectArchive: (program: ArchivedProgram | null) => void
 }
 
 const defaultState: CurrentConferenceState = {
@@ -25,6 +31,10 @@ const defaultState: CurrentConferenceState = {
 const CurrentConferenceContext = createContext<CurrentConferenceContextType>({
   ...defaultState,
   loading: true,
+  archiveProgram: null,
+  archiveDetails: null,
+  setArchiveDetails: () => {},
+  selectArchive: () => {},
   refresh: async () => {}
 })
 
@@ -38,6 +48,13 @@ export const CurrentConferenceProvider = ({
   const [conferenceState, setConferenceState] =
     useState<CurrentConferenceState>(initialState || defaultState)
   const [loading, setLoading] = useState(!initialState)
+  // Session only: never restore or automatically fetch a previously viewed archive.
+  const [archiveProgram, setArchiveProgram] = useState<ArchivedProgram | null>(null)
+  const [archiveDetails, setArchiveDetails] = useState<Program | null>(null)
+  const selectArchive = useCallback((program: ArchivedProgram | null) => {
+    setArchiveDetails(null)
+    setArchiveProgram(program)
+  }, [])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -73,6 +90,10 @@ export const CurrentConferenceProvider = ({
       value={{
         ...conferenceState,
         loading,
+        archiveProgram,
+        archiveDetails: archiveDetails?.id === archiveProgram?.id ? archiveDetails : null,
+        setArchiveDetails,
+        selectArchive,
         refresh
       }}
     >

@@ -1,7 +1,7 @@
 {
   "name": "@yaap/mobile",
   "main": "expo-router/entry",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "scripts": {
     "dev": "expo start",
     "start": "expo start",
@@ -14,7 +14,8 @@
     "test": "jest --runInBand --watchAll=false",
     "test:watch": "jest --watchAll",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:android-target": "node ./scripts/check-android-target.cjs"
   },
   "jest": {
     "preset": "jest-expo",
@@ -41,6 +42,7 @@
     "expo-application": "~55.0.19",
     "expo-auth-session": "~55.0.18",
     "expo-blur": "~55.0.18",
+    "expo-build-properties": "~55.0.18",
     "expo-constants": "~55.0.17",
     "expo-crypto": "~55.0.19",
     "expo-dev-client": "~55.0.40",
